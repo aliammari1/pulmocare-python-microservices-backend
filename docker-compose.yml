@@ -461,28 +461,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # Flutter Development Server
-  # flutter-dev:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile.dev
-  #   ports:
-  #     - "8890:8888" # Flutter web dev server
-  #     - "42000:42000" # Flutter debug port
-  #   environment:
-  #     - MEDAPP_API_URL=http://kong:8000
-  #     - RABBITMQ_HOST=rabbitmq
-  #     - RABBITMQ_PORT=5672
-  #     - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-  #     - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-  #   volumes:
-  #     - ./frontend:/app
-  #     - flutter-pub-cache:/root/.pub-cache
-  #   depends_on:
-  #     - kong
-  #   networks:
-  #     - medapp-network
-
   # SonarQube - Code Quality Analysis
   sonarqube:
     image: sonarqube:community
@@ -538,5 +516,4 @@ volumes:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
-  flutter-pub-cache:
   jenkins_home:
