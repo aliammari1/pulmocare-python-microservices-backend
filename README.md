@@ -1,1 +1,152 @@
-# medapp-backend
+# MedApp - Medical Imaging Analysis Platform
+
+A microservices-based platform for medical imaging analysis, focusing on X-ray interpretation and medical imaging management.
+
+## Architecture Overview
+
+The platform consists of several microservices:
+
+### Core Services
+
+- **Consul** (Port: 8500): Service discovery and registration
+- **Mobile Gateway** (Port: 5000): API gateway for mobile/web clients
+- **X-Ray Service** (Port: 8081): Handles X-ray image analysis and reporting
+
+### Infrastructure Services
+
+- **MongoDB** (Port: 27017): Primary database for storing medical records and analysis results
+- **RabbitMQ** (Ports: 5672, 15672): Message broker for asynchronous communication between services
+- **Redis** (Port: 6379): Caching layer for improved performance
+
+### Monitoring
+
+- **Prometheus** (Port: 9090): Metrics collection and storage
+- **Grafana** (Port: 3000): Visualization and monitoring dashboards
+
+## Getting Started
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Git
+- Flutter SDK (for frontend development)
+
+### Environment Setup
+
+1. Clone the repository:
+
+   ```bash
+   git clone <repository-url>
+   cd medapp
+   ```
+
+2. Create a `.env` file in the root directory with the following variables:
+
+   ```env
+   # MongoDB
+   MONGODB_USERNAME=admin
+   MONGODB_PASSWORD=admin
+   MONGODB_DATABASE=medapp
+
+   # RabbitMQ
+   RABBITMQ_USER=guest
+   RABBITMQ_PASS=guest
+
+   # Redis
+   REDIS_PASSWORD=
+
+   # Grafana
+   GRAFANA_USER=admin
+   GRAFANA_PASSWORD=admin
+   ```
+
+### Running the Platform
+
+1. Start all services:
+
+   ```bash
+   docker-compose up -d
+   ```
+
+2. Monitor service health:
+
+   ```bash
+   docker-compose ps
+   ```
+
+3. Access service endpoints:
+   - Consul UI: http://localhost:8500
+   - Mobile Gateway: http://localhost:5000
+   - RabbitMQ Management: http://localhost:15672
+   - Grafana: http://localhost:3000
+   - Prometheus: http://localhost:9090
+
+### Development Setup
+
+#### X-Ray Service Development
+
+```bash
+cd backend/services/xray
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
+pip install -r requirements.txt
+python main.py
+```
+
+#### Frontend Development
+
+```bash
+cd frontend
+flutter pub get
+flutter run -d chrome --web-port 8888
+```
+
+## Service Details
+
+### X-Ray Service
+
+- Analyzes chest X-ray images using computer vision and ML techniques
+- Provides detailed analysis reports with findings and suggestions
+- Stores analysis history in MongoDB
+- Publishes analysis events to RabbitMQ
+
+### Mobile Gateway
+
+- Routes requests to appropriate microservices
+- Handles service discovery and load balancing
+- Provides unified API for mobile/web clients
+- Implements circuit breakers for fault tolerance
+- Caches responses using Redis
+
+## API Documentation
+
+### X-Ray Service Endpoints
+
+- `POST /analyze`: Analyze X-ray image
+- `GET /history/<patient_id>`: Get patient's analysis history
+
+## Monitoring and Observability
+
+### Metrics Collection
+
+- Service-level metrics via Prometheus
+- Business metrics for analysis counts and success rates
+- Infrastructure metrics for resource usage
+
+### Grafana Dashboards
+
+- Service health overview
+- Analysis throughput and latency
+- Infrastructure resource utilization
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.

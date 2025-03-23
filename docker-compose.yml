@@ -1,0 +1,542 @@
+name: medapp
+
+services:
+  # MongoDB Service
+  mongodb:
+    image: mongo:latest
+    container_name: medapp-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./data/mongodb:/data/db
+    networks:
+      - medapp-network
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=medapp
+    healthcheck:
+      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Consul Service Discovery
+  consul:
+    image: hashicorp/consul:latest
+    container_name: medapp-consul
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    volumes:
+      - consul_data:/consul/data
+    networks:
+      - medapp-network
+    environment:
+      CONSUL_LOCAL_CONFIG: '{"leave_on_terminate": true, "skip_leave_on_interrupt": true, "rejoin_after_leave": true}'
+      CONSUL_BIND_INTERFACE: eth0
+      CONSUL_CLIENT_INTERFACE: eth0
+      CONSUL_ENABLE_SCRIPT_CHECKS: true
+    healthcheck:
+      test: [ "CMD", "consul", "members" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
+
+  # Kong API Gateway
+  kong:
+    build:
+      context: ./config/kong
+      dockerfile: Dockerfile
+    container_name: medapp-kong
+    user: root
+    depends_on:
+      redis:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001
+      - KONG_PROXY_LISTEN=0.0.0.0:8000
+      - KONG_DNS_ORDER=LAST,A,CNAME
+      - KONG_PLUGINS=bundled,rate-limiting,prometheus,cors,jwt
+      - KONG_NGINX_WORKER_PROCESSES=auto
+      - KONG_REDIS_HOST=redis
+      - KONG_REDIS_PORT=6379
+      - KONG_REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - KONG_REDIS_DATABASE=0
+      - KONG_REDIS_TIMEOUT=2000
+      - KONG_RATE_LIMITING_POLICY=redis
+      - KONG_PROXY_ERROR_LOG_LEVEL=notice
+      - KONG_DNS_NAMESERVER=127.0.0.11:53
+      - KONG_DNS_CACHE_TTL=30
+      - KONG_DNS_STALE_TTL=600
+      - KONG_DNS_NOT_FOUND_TTL=30
+      - KONG_DNS_ERROR_TTL=1
+      - KONG_ADMIN_GUI_URL=http://localhost:8002
+      - KONG_DNS_HOSTSFILE=/etc/hosts
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+      - "8002:8002"
+    networks:
+      - medapp-network
+    volumes:
+      - ./config/kong:/usr/local/kong/declarative
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # RabbitMQ Service
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: medapp-rabbitmq
+    volumes:
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    networks:
+      - medapp-network
+    healthcheck:
+      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Redis Cache
+  redis:
+    image: redis:7.0
+    container_name: medapp-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redispass}
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - medapp-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--raw", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus
+    container_name: medapp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    networks:
+      - medapp-network
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Grafana
+  grafana:
+    image: grafana/grafana
+    container_name: medapp-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_data:/var/lib/grafana
+    networks:
+      - medapp-network
+    depends_on:
+      - prometheus
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector
+    container_name: medapp-otel-collector
+    command: [ "--config=/etc/otel/config.yaml" ]
+    volumes:
+      - ./monitoring/otel/otel-collector-config.yaml:/etc/otel/config.yaml
+    ports:
+      - "4317:4317"
+      - "14318:4318"
+      - "8888:8888"
+      - "8889:8889"
+      - "13133:13133"
+    networks:
+      - medapp-network
+    depends_on:
+      - jaeger
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--tries=1", "http://localhost:13133/-/healthy" ]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:1.53
+    container_name: medapp-jaeger
+    ports:
+      - "16686:16686"
+      - "14250:14250"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - medapp-network
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:16686" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # medecins Service
+  medecins-service:
+    build:
+      context: ./backend/medecins
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - ENV=production
+      - PORT=8081
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin
+      - MONGODB_DATABASE=medapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - medapp-network
+    volumes:
+      - ./backend/medecins:/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ordonnances Service
+  ordonnances-service:
+    build:
+      context: ./backend/ordonnances
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - ENV=production
+      - PORT=8082
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin
+      - MONGODB_DATABASE=medapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - medapp-network
+    volumes:
+      - ./backend/ordonnances:/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8082/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Patients Service
+  patients-service:
+    build:
+      context: ./backend/patients
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      - ENV=production
+      - PORT=8083
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin
+      - MONGODB_DATABASE=medapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - medapp-network
+    volumes:
+      - ./backend/patients:/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8083/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # radiologues Service
+  radiologues-service:
+    build:
+      context: ./backend/radiologues
+      dockerfile: Dockerfile
+    ports:
+      - "8084:8084"
+    environment:
+      - ENV=production
+      - PORT=8084
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin
+      - MONGODB_DATABASE=medapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - medapp-network
+    volumes:
+      - ./backend/radiologues:/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8084/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Reports Service
+  reports-service:
+    build:
+      context: ./backend/reports
+      dockerfile: Dockerfile
+    ports:
+      - "8085:8085"
+      - "9093:9093"
+    environment:
+      - ENV=production
+      - PORT=8085
+      - PROMETHEUS_PORT=9093
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+      - MONGODB_HOST=mongodb
+      - MONGODB_PORT=27017
+      - MONGODB_USERNAME=admin
+      - MONGODB_PASSWORD=admin
+      - MONGODB_DATABASE=medapp
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      consul:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    networks:
+      - medapp-network
+    volumes:
+      - ./backend/reports:/app
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8085/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flutter Development Server
+  # flutter-dev:
+  #   build:
+  #     context: ./frontend
+  #     dockerfile: Dockerfile.dev
+  #   ports:
+  #     - "8890:8888" # Flutter web dev server
+  #     - "42000:42000" # Flutter debug port
+  #   environment:
+  #     - MEDAPP_API_URL=http://kong:8000
+  #     - RABBITMQ_HOST=rabbitmq
+  #     - RABBITMQ_PORT=5672
+  #     - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+  #     - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
+  #   volumes:
+  #     - ./frontend:/app
+  #     - flutter-pub-cache:/root/.pub-cache
+  #   depends_on:
+  #     - kong
+  #   networks:
+  #     - medapp-network
+
+  # SonarQube - Code Quality Analysis
+  sonarqube:
+    image: sonarqube:community
+    container_name: medapp-sonarqube
+    ports:
+      - "9001:9000"
+    environment:
+      - SONAR_ES_BOOTSTRAP_CHECKS_DISABLE=true
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_logs:/opt/sonarqube/logs
+    networks:
+      - medapp-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/api/system/status" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Jenkins - CI/CD
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: medapp-jenkins
+    privileged: true
+    user: root
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - medapp-network
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/login" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  medapp-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  redis_data:
+  kong_data:
+  consul_data:
+  vault_data:
+  grafana_data:
+  prometheus_data:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:
+  flutter-pub-cache:
+  jenkins_home:

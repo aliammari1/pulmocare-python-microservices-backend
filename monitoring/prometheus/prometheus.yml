@@ -1,0 +1,104 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: development
+
+# Rule files
+rule_files:
+  - "alert.rules"
+
+scrape_configs:
+  # Service Discovery via Consul
+  - job_name: 'consul-services'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['gateway', 'reports', 'medecins', 'ordonnances', 'patients', 'radiologues']
+    metrics_path: '/metrics'
+    relabel_configs:
+      - source_labels: ['__meta_consul_service']
+        target_label: 'service'
+      - source_labels: ['__meta_consul_node']
+        target_label: 'node'
+
+  # Core Infrastructure
+  - job_name: 'mongodb'
+    static_configs:
+      - targets: ['mongodb:27017']
+    metrics_path: '/metrics'
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: '/metrics'
+
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: '/metrics'
+
+  # API Gateway
+  - job_name: 'gateway'
+    metrics_path: '/metrics'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['gateway']
+
+  # Microservices
+  - job_name: 'microservices'
+    metrics_path: '/metrics'
+    consul_sd_configs:
+      - server: 'consul:8500'
+        services: ['reports', 'medecins', 'ordonnances', 'patients', 'radiologues']
+
+  # System Monitoring
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
+  # Container Monitoring
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "kong"
+    static_configs:
+      - targets: ["kong:8001"]
+    metrics_path: /metrics
+    
+  - job_name: "medecins-service"
+    static_configs:
+      - targets: ["medecins-service:8081"]
+    metrics_path: /metrics
+    
+  - job_name: "ordonnances-service"
+    static_configs:
+      - targets: ["ordonnances-service:8082"]
+    metrics_path: /metrics
+    
+  - job_name: "patients-service"
+    static_configs:
+      - targets: ["patients-service:8083"]
+    metrics_path: /metrics
+    
+  - job_name: "radiologues-service"
+    static_configs:
+      - targets: ["radiologues-service:8084"]
+    metrics_path: /metrics
+    
+  - job_name: "reports-service"
+    static_configs:
+      - targets: ["reports-service:9093"]
+    metrics_path: /metrics
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+      scheme: http
+      timeout: 10s
+      api_version: v2
