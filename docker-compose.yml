@@ -232,7 +232,7 @@ services:
   # medecins Service
   medecins-service:
     build:
-      context: ./backend/medecins
+      context: ./services/medecins
       dockerfile: Dockerfile
     ports:
       - "8081:8081"
@@ -268,7 +268,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./backend/medecins:/app
+      - ./services/medecins:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
       interval: 10s
@@ -278,7 +278,7 @@ services:
   # ordonnances Service
   ordonnances-service:
     build:
-      context: ./backend/ordonnances
+      context: ./services/ordonnances
       dockerfile: Dockerfile
     ports:
       - "8082:8082"
@@ -314,7 +314,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./backend/ordonnances:/app
+      - ./services/ordonnances:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8082/health" ]
       interval: 10s
@@ -324,7 +324,7 @@ services:
   # Patients Service
   patients-service:
     build:
-      context: ./backend/patients
+      context: ./services/patients
       dockerfile: Dockerfile
     ports:
       - "8083:8083"
@@ -360,7 +360,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./backend/patients:/app
+      - ./services/patients:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8083/health" ]
       interval: 10s
@@ -370,7 +370,7 @@ services:
   # radiologues Service
   radiologues-service:
     build:
-      context: ./backend/radiologues
+      context: ./services/radiologues
       dockerfile: Dockerfile
     ports:
       - "8084:8084"
@@ -406,7 +406,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./backend/radiologues:/app
+      - ./services/radiologues:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8084/health" ]
       interval: 10s
@@ -416,7 +416,7 @@ services:
   # Reports Service
   reports-service:
     build:
-      context: ./backend/reports
+      context: ./services/reports
       dockerfile: Dockerfile
     ports:
       - "8085:8085"
@@ -454,7 +454,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./backend/reports:/app
+      - ./services/reports:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8085/health" ]
       interval: 10s

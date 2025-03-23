@@ -133,7 +133,7 @@ jobs:
                 - rabbitmq
           EOF
           
-          docker-compose -f docker-compose.integration.yml up -d
+          docker compose -f docker-compose.integration.yml up -d
           
           # Wait for services to start
           echo "Waiting for services to start..."
@@ -199,5 +199,5 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker-compose -f docker-compose.integration.yml down
+          docker compose -f docker-compose.integration.yml down
           docker system prune -f
