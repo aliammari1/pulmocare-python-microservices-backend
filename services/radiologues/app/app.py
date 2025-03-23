@@ -47,12 +47,12 @@ app = health_check_middleware(Config)(app)
 
 # MongoDB configuration
 client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://admin:admin@localhost:27017/'))
-db = client.medicare
-doctors_collection = db.doctors
+db = client.medapp
+radiologues_collection = db.radiologues
 # Ajout pour les rapports
 rapports_collection = db.rapports 
 #Medtn 
-medtn_doctors_collection = db['medtn_doctors'] 
+medtn_radiologues_collection = db['medtn_doctors'] 
 
 
 JWT_SECRET = os.getenv('JWT_SECRET', 'replace-with-strong-secret')
@@ -159,7 +159,7 @@ def send_otp_email(to_email, otp):
 def signup():
     data = request.get_json()
     
-    if doctors_collection.find_one({'email': data['email']}):
+    if radiologues_collection.find_one({'email': data['email']}):
         return jsonify({'error': 'Email already registered'}), 400
 
     doctor = Doctor(
@@ -172,7 +172,7 @@ def signup():
     )
 
     # Insert the doctor document with is_verified field
-    result = doctors_collection.insert_one({
+    result = radiologues_collection.insert_one({
         '_id': doctor._id,
         'name': doctor.name,
         'email': doctor.email,
@@ -194,7 +194,7 @@ def login():
         if not data or 'email' not in data or 'password' not in data:
             return jsonify({'error': 'Email and password are required'}), 400
 
-        doctor_data = doctors_collection.find_one({'email': data['email']})
+        doctor_data = radiologues_collection.find_one({'email': data['email']})
         if not doctor_data:
             logger.debug("Email not found")  # Add debug log
             return jsonify({'error': 'Invalid credentials'}), 401
@@ -248,7 +248,7 @@ def forgot_password():
         if not email:
             return jsonify({'error': 'Email is required'}), 400
 
-        doctor_data = doctors_collection.find_one({'email': email})
+        doctor_data = radiologues_collection.find_one({'email': email})
         if not doctor_data:
             logger.debug(f"Email not found: {email}")
             return jsonify({'error': 'Email not found'}), 404
@@ -257,7 +257,7 @@ def forgot_password():
         logger.debug(f"Generated OTP: {otp}")
         
         if send_otp_email(email, otp):
-            doctors_collection.update_one(
+            radiologues_collection.update_one(
                 {'email': email},
                 {'$set': {
                     'reset_otp': otp,
@@ -283,7 +283,7 @@ def verify_otp():
     if not email or not otp:
         return jsonify({'error': 'Email and OTP are required'}), 400
         
-    result = doctors_collection.find_one({
+    result = radiologues_collection.find_one({
         'email': email,
         'reset_otp': otp,
         'otp_expiry': {'$gt': datetime.utcnow()}
@@ -304,7 +304,7 @@ def reset_password():
     if not all([email, otp, new_password]):
         return jsonify({'error': 'Missing required fields'}), 400
     
-    doctor_data = doctors_collection.find_one({
+    doctor_data = radiologues_collection.find_one({
         'email': email,
         'reset_otp': otp,
         'otp_expiry': {'$gt': datetime.utcnow()}
@@ -318,7 +318,7 @@ def reset_password():
     doctor.set_password(new_password)
     
     # Update the password hash and remove the OTP data
-    result = doctors_collection.update_one(
+    result = radiologues_collection.update_one(
         {'email': email},
         {
             '$set': {'password_hash': doctor.password_hash},
@@ -334,7 +334,7 @@ def reset_password():
 @app.route('/api/profile', methods=['GET'])
 @token_required
 def get_profile(user_id):
-    doctor_data = doctors_collection.find_one({'_id': ObjectId(user_id)})
+    doctor_data = radiologues_collection.find_one({'_id': ObjectId(user_id)})
     if not doctor_data:
         return jsonify({'error': 'Doctor not found'}), 404
     
@@ -348,7 +348,7 @@ def get_profile(user_id):
 @app.route('/api/doctors', methods=['GET'])
 def get_doctors():
     try:
-        doctors = doctors_collection.find()
+        doctors = radiologues_collection.find()
         doctors_list = [Doctor.from_dict(doc).to_dict() for doc in doctors]
         return jsonify(doctors_list), 200
     except Exception as e:
@@ -365,7 +365,7 @@ def change_password(user_id):
     if not all([current_password, new_password]):
         return jsonify({'error': 'Both current and new password are required'}), 400
 
-    doctor_data = doctors_collection.find_one({'_id': ObjectId(user_id)})
+    doctor_data = radiologues_collection.find_one({'_id': ObjectId(user_id)})
     if not doctor_data:
         return jsonify({'error': 'Doctor not found'}), 404
 
@@ -379,7 +379,7 @@ def change_password(user_id):
     doctor.set_password(new_password)
     
     # Update the password hash in the database
-    result = doctors_collection.update_one(
+    result = radiologues_collection.update_one(
         {'_id': ObjectId(user_id)},
         {'$set': {'password_hash': doctor.password_hash}}
     )
@@ -395,7 +395,7 @@ def update_profile(user_id):
     data = request.get_json()
     
     # Get current doctor data to preserve verification status
-    current_doctor = doctors_collection.find_one({'_id': ObjectId(user_id)})
+    current_doctor = radiologues_collection.find_one({'_id': ObjectId(user_id)})
     if not current_doctor:
         return jsonify({'error': 'Doctor not found'}), 404
 
@@ -410,13 +410,13 @@ def update_profile(user_id):
         update_fields['profile_image'] = data.get('profile_image')
 
     # Update while preserving verification status
-    doctors_collection.update_one(
+    radiologues_collection.update_one(
         {'_id': ObjectId(user_id)}, 
         {'$set': update_fields}
     )
     
     # Get updated doctor data
-    updated_doctor = doctors_collection.find_one({'_id': ObjectId(user_id)})
+    updated_doctor = radiologues_collection.find_one({'_id': ObjectId(user_id)})
     response_data = Doctor.from_dict(updated_doctor).to_dict()
     
     # Include verification status and details in response
@@ -544,7 +544,7 @@ def verify_doctor(user_id):
             return jsonify({'error': 'No image provided'}), 400
 
         # Get doctor's data from database
-        doctor_data = doctors_collection.find_one({'_id': ObjectId(user_id)})
+        doctor_data = radiologues_collection.find_one({'_id': ObjectId(user_id)})
         if not doctor_data:
             return jsonify({'error': 'Doctor not found'}), 404
 
@@ -578,7 +578,7 @@ def verify_doctor(user_id):
 
         if name_found:
             # Update verification status
-            result = doctors_collection.update_one(
+            result = radiologues_collection.update_one(
                 {'_id': ObjectId(user_id)},
                 {'$set': {
                     'is_verified': True,
@@ -708,14 +708,14 @@ def scrape_medtn_doctors():
 def scrape_and_store_doctors():
     doctors = scrape_medtn_doctors()
     if doctors:
-        medtn_doctors_collection.insert_many(doctors)  
+        medtn_radiologues_collection.insert_many(doctors)  
         return jsonify({'message': 'Données des médecins insérées avec succès.'}), 200
     else:
         return jsonify({'message': 'Aucune donnée à insérer.'}), 400
 
 @app.route('/api/doctors_med', methods=['GET'])
 def get_doctors_med():
-    doctors = list(medtn_doctors_collection.find({}, {'_id': 0}))  
+    doctors = list(medtn_radiologues_collection.find({}, {'_id': 0}))  
     return jsonify(doctors)
 
 

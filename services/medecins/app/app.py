@@ -40,7 +40,7 @@ app = health_check_middleware(Config)(app)
 
 # MongoDB configuration
 client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://admin:admin@localhost:27017/'))
-db = client.medicare
+db = client.medapp
 doctors_collection = db.doctors
 
 JWT_SECRET = os.getenv('JWT_SECRET', 'replace-with-strong-secret')
