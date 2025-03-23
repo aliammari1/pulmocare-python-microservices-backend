@@ -21,7 +21,7 @@ RUN pip install --upgrade pip && \
     pip install gunicorn
 
 # Copy application code
-COPY . .
+COPY ./app/ .
 
 # Create directory for exported files
 RUN mkdir -p /tmp/exports && \
@@ -39,4 +39,5 @@ EXPOSE ${PORT}
 EXPOSE 9090
 
 # Start both the main service and consumer
+CMD [ "sh","-c", "ls","-R" ]
 CMD ["sh", "-c", "python consumer.py & python app.py"]

@@ -14,3 +14,5 @@ python-consul==1.1.0
 redis
 pika
 psutil
+prometheus-flask-exporter==0.22.4
+prometheus_client

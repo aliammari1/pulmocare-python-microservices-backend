@@ -268,7 +268,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./services/medecins:/app
+      - ./services/medecins/app:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
       interval: 10s
@@ -314,7 +314,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./services/ordonnances:/app
+      - ./services/ordonnances/app:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8082/health" ]
       interval: 10s
@@ -360,7 +360,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./services/patients:/app
+      - ./services/patients/app:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8083/health" ]
       interval: 10s
@@ -406,7 +406,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./services/radiologues:/app
+      - ./services/radiologues/app:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8084/health" ]
       interval: 10s
@@ -454,7 +454,7 @@ services:
     networks:
       - medapp-network
     volumes:
-      - ./services/reports:/app
+      - ./services/reports/app:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8085/health" ]
       interval: 10s
