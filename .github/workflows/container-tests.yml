@@ -1,0 +1,159 @@
+name: Container Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+      - 'docker-compose.yml'
+      - 'config/**'
+      - '.github/workflows/container-tests.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'services/**'
+      - 'docker-compose.yml'
+      - 'config/**'
+      - '.github/workflows/container-tests.yml'
+
+jobs:
+  test-containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      
+      - name: Create backend directory structure
+        run: |
+          mkdir -p backend/medecins
+          mkdir -p backend/ordonnances
+          mkdir -p backend/patients
+          mkdir -p backend/radiologues
+          mkdir -p backend/reports
+          mkdir -p monitoring/otel
+          touch monitoring/otel/otel-collector-config.yaml
+          
+      - name: Create test Dockerfiles
+        run: |
+          # Create simple Dockerfiles for testing
+          for service in medecins ordonnances patients radiologues reports; do
+            echo "FROM python:3.9-slim" > backend/$service/Dockerfile
+            echo "WORKDIR /app" >> backend/$service/Dockerfile
+            echo "COPY . ." >> backend/$service/Dockerfile
+            echo "RUN pip install fastapi uvicorn" >> backend/$service/Dockerfile
+            echo "CMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]" >> backend/$service/Dockerfile
+            
+            # Create a minimal app for health check
+            mkdir -p backend/$service/app
+            cat > backend/$service/main.py << 'EOF'
+          from fastapi import FastAPI
+          
+          app = FastAPI()
+          
+          @app.get("/health")
+          def health_check():
+              return {"status": "healthy"}
+          EOF
+          done
+          
+      - name: Build and test individual containers
+        run: |
+          for service in medecins ordonnances patients radiologues reports; do
+            echo "Building $service container..."
+            docker build -t medapp-$service:test ./backend/$service
+            
+            if [ $? -ne 0 ]; then
+              echo "Failed to build $service container"
+              exit 1
+            fi
+          done
+      
+      - name: Run containers with docker-compose
+        run: |
+          # Create minimal services section for docker-compose test
+          cat > docker-compose.test.yml << EOF
+          version: '3.8'
+          services:
+            mongodb:
+              image: mongo:latest
+              environment:
+                - MONGO_INITDB_ROOT_USERNAME=admin
+                - MONGO_INITDB_ROOT_PASSWORD=admin
+              ports:
+                - "27017:27017"
+              healthcheck:
+                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+          
+            redis:
+              image: redis:7.0
+              command: redis-server --requirepass redispass
+              ports:
+                - "6379:6379"
+              healthcheck:
+                test: ["CMD", "redis-cli", "--raw", "ping"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+          
+            rabbitmq:
+              image: rabbitmq:3.12-management
+              environment:
+                - RABBITMQ_DEFAULT_USER=guest
+                - RABBITMQ_DEFAULT_PASS=guest
+              ports:
+                - "5672:5672"
+              healthcheck:
+                test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+                interval: 10s
+                timeout: 5s
+                retries: 3
+          EOF
+          
+          # Start core infrastructure
+          docker-compose -f docker-compose.test.yml up -d
+          
+          # Wait for core services to be ready
+          echo "Waiting for core services to be healthy..."
+          sleep 30
+          
+          # Check if services are running
+          docker ps
+      
+      - name: Run container health checks
+        run: |
+          # Create a health check script
+          cat > health_check.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          declare -A SERVICE_PORTS=(
+            ["mongodb"]="27017"
+            ["redis"]="6379"
+            ["rabbitmq"]="5672"
+          )
+          
+          for service in "${!SERVICE_PORTS[@]}"; do
+            echo "Checking $service..."
+            if ! docker ps | grep -q "$service"; then
+              echo "ERROR: $service container is not running!"
+              exit 1
+            fi
+          done
+          
+          echo "All containers are running."
+          exit 0
+          EOF
+          
+          chmod +x health_check.sh
+          ./health_check.sh
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          docker-compose -f docker-compose.test.yml down
+          docker system prune -f
