@@ -510,7 +510,6 @@ volumes:
   redis_data:
   kong_data:
   consul_data:
-  vault_data:
   grafana_data:
   prometheus_data:
   sonarqube_data:
