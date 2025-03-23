@@ -27,27 +27,28 @@ jobs:
       
       - name: Create backend directory structure
         run: |
-          mkdir -p backend/medecins
-          mkdir -p backend/ordonnances
-          mkdir -p backend/patients
-          mkdir -p backend/radiologues
-          mkdir -p backend/reports
+          # Changed directories from backend to services
+          mkdir -p services/medecins
+          mkdir -p services/ordonnances
+          mkdir -p services/patients
+          mkdir -p services/radiologues
+          mkdir -p services/reports
           mkdir -p monitoring/otel
           touch monitoring/otel/otel-collector-config.yaml
           
       - name: Create test Dockerfiles
         run: |
-          # Create simple Dockerfiles for testing
+          # Create simple Dockerfiles for testing in services directory
           for service in medecins ordonnances patients radiologues reports; do
-            echo "FROM python:3.9-slim" > backend/$service/Dockerfile
-            echo "WORKDIR /app" >> backend/$service/Dockerfile
-            echo "COPY . ." >> backend/$service/Dockerfile
-            echo "RUN pip install fastapi uvicorn" >> backend/$service/Dockerfile
-            echo "CMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]" >> backend/$service/Dockerfile
+            echo "FROM python:3.9-slim" > services/$service/Dockerfile
+            echo "WORKDIR /app" >> services/$service/Dockerfile
+            echo "COPY . ." >> services/$service/Dockerfile
+            echo "RUN pip install fastapi uvicorn" >> services/$service/Dockerfile
+            echo "CMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]" >> services/$service/Dockerfile
             
             # Create a minimal app for health check
-            mkdir -p backend/$service/app
-            cat > backend/$service/main.py << 'EOF'
+            mkdir -p services/$service/app
+            cat > services/$service/main.py << 'EOF'
           from fastapi import FastAPI
           
           app = FastAPI()
@@ -62,7 +63,7 @@ jobs:
         run: |
           for service in medecins ordonnances patients radiologues reports; do
             echo "Building $service container..."
-            docker build -t medapp-$service:test ./backend/$service
+            docker build -t medapp-$service:test ./services/$service
             
             if [ $? -ne 0 ]; then
               echo "Failed to build $service container"
@@ -72,56 +73,12 @@ jobs:
       
       - name: Run containers with docker-compose
         run: |
-          # Create minimal services section for docker-compose test
-          cat > docker-compose.test.yml << EOF
-          version: '3.8'
-          services:
-            mongodb:
-              image: mongo:latest
-              environment:
-                - MONGO_INITDB_ROOT_USERNAME=admin
-                - MONGO_INITDB_ROOT_PASSWORD=admin
-              ports:
-                - "27017:27017"
-              healthcheck:
-                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-                interval: 10s
-                timeout: 5s
-                retries: 3
+          # Use main docker-compose.yml instead of creating a custom file
+          docker compose -f docker-compose.yml up -d
           
-            redis:
-              image: redis:7.0
-              command: redis-server --requirepass redispass
-              ports:
-                - "6379:6379"
-              healthcheck:
-                test: ["CMD", "redis-cli", "--raw", "ping"]
-                interval: 10s
-                timeout: 5s
-                retries: 3
-          
-            rabbitmq:
-              image: rabbitmq:3.12-management
-              environment:
-                - RABBITMQ_DEFAULT_USER=guest
-                - RABBITMQ_DEFAULT_PASS=guest
-              ports:
-                - "5672:5672"
-              healthcheck:
-                test: ["CMD", "rabbitmq-diagnostics", "check_running"]
-                interval: 10s
-                timeout: 5s
-                retries: 3
-          EOF
-          
-          # Start core infrastructure
-          docker compose -f docker-compose.test.yml up -d
-          
-          # Wait for core services to be ready
           echo "Waiting for core services to be healthy..."
           sleep 30
           
-          # Check if services are running
           docker ps
       
       - name: Run container health checks
@@ -155,5 +112,5 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.test.yml down
+          docker compose -f docker-compose.yml down
           docker system prune -f

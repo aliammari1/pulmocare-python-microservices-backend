@@ -25,26 +25,27 @@ jobs:
       
       - name: Create test environment
         run: |
-          mkdir -p backend/medecins
-          mkdir -p backend/ordonnances
-          mkdir -p backend/patients
-          mkdir -p backend/radiologues
-          mkdir -p backend/reports
+          # Changed directories from backend to services
+          mkdir -p services/medecins
+          mkdir -p services/ordonnances
+          mkdir -p services/patients
+          mkdir -p services/radiologues
+          mkdir -p services/reports
           mkdir -p monitoring/otel
           touch monitoring/otel/otel-collector-config.yaml
           
           # Create simple Dockerfiles for each service
           for service in medecins ordonnances patients radiologues reports; do
-            echo "FROM python:3.9-slim" > backend/$service/Dockerfile
-            echo "WORKDIR /app" >> backend/$service/Dockerfile
-            echo "COPY . ." >> backend/$service/Dockerfile
-            echo "RUN pip install fastapi uvicorn requests" >> backend/$service/Dockerfile
-            echo "EXPOSE 8080" >> backend/$service/Dockerfile
-            echo "CMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]" >> backend/$service/Dockerfile
+            echo "FROM python:3.9-slim" > services/$service/Dockerfile
+            echo "WORKDIR /app" >> services/$service/Dockerfile
+            echo "COPY . ." >> services/$service/Dockerfile
+            echo "RUN pip install fastapi uvicorn requests" >> services/$service/Dockerfile
+            echo "EXPOSE 8080" >> services/$service/Dockerfile
+            echo "CMD [\"uvicorn\", \"main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8080\"]" >> services/$service/Dockerfile
             
             # Create a minimal app for health check
-            mkdir -p backend/$service/app
-            cat > backend/$service/main.py << 'EOF'
+            mkdir -p services/$service/app
+            cat > services/$service/main.py << 'EOF'
           from fastapi import FastAPI
           import requests
           
@@ -57,7 +58,6 @@ jobs:
           @app.get("/test-integration/{service}")
           def test_integration(service: str):
               try:
-                  # In a real app, this would call actual service endpoints
                   if service in ["medecins", "ordonnances", "patients", "radiologues", "reports"]:
                       return {"status": "success", "message": f"Integration with {service} service working"}
                   else:
@@ -69,73 +69,9 @@ jobs:
       
       - name: Start test environment
         run: |
-          # Create a simpler test docker-compose file
-          cat > docker-compose.integration.yml << EOF
-          version: '3.8'
-          services:
-            mongodb:
-              image: mongo:latest
-              environment:
-                - MONGO_INITDB_ROOT_USERNAME=admin
-                - MONGO_INITDB_ROOT_PASSWORD=admin
-              ports:
-                - "27017:27017"
-              healthcheck:
-                test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-                interval: 5s
-                timeout: 5s
-                retries: 3
+          # Use main docker-compose.yml instead of creating a new file
+          docker compose -f docker-compose.yml up -d
           
-            redis:
-              image: redis:7.0
-              command: redis-server --requirepass redispass
-              ports:
-                - "6379:6379"
-              healthcheck:
-                test: ["CMD", "redis-cli", "--raw", "ping"]
-                interval: 5s
-                timeout: 5s
-                retries: 3
-          
-            rabbitmq:
-              image: rabbitmq:3.12-management
-              environment:
-                - RABBITMQ_DEFAULT_USER=guest
-                - RABBITMQ_DEFAULT_PASS=guest
-              ports:
-                - "5672:5672"
-              healthcheck:
-                test: ["CMD", "rabbitmq-diagnostics", "check_running"]
-                interval: 5s
-                timeout: 5s
-                retries: 3
-                
-            medecins-service:
-              build:
-                context: ./backend/medecins
-              ports:
-                - "8081:8080"
-              environment:
-                - PORT=8080
-                - MONGODB_HOST=mongodb
-            
-            patients-service:
-              build:
-                context: ./backend/patients
-              ports:
-                - "8083:8080"
-              environment:
-                - PORT=8080
-                - MONGODB_HOST=mongodb
-              depends_on:
-                - mongodb
-                - redis
-                - rabbitmq
-          EOF
-          
-          docker compose -f docker-compose.integration.yml up -d
-          
-          # Wait for services to start
           echo "Waiting for services to start..."
           sleep 60
       
@@ -199,5 +135,5 @@ jobs:
       - name: Cleanup
         if: always()
         run: |
-          docker compose -f docker-compose.integration.yml down
+          docker compose -f docker-compose.yml down
           docker system prune -f
