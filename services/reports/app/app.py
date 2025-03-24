@@ -23,9 +23,46 @@ from services.report_service import ReportService
 from report_generator import ReportGenerator
 from decorator.health_check import health_check_middleware
 
+# Add OpenTelemetry imports at the top
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+from prometheus_client import start_http_server, Counter, Histogram
+
+# Configure OpenTelemetry before creating Flask app
+resource = Resource.create({
+    "service.name": Config.SERVICE_NAME,
+    "service.version": Config.VERSION,
+    "deployment.environment": Config.ENV
+})
+
+trace.set_tracer_provider(TracerProvider(resource=resource))
+otlp_exporter = OTLPSpanExporter(endpoint=Config.OTEL_EXPORTER_OTLP_ENDPOINT, insecure=True)
+span_processor = BatchSpanProcessor(otlp_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Initialize metrics
+REQUEST_COUNT = Counter('request_count', 'Total number of requests', ['method', 'endpoint', 'status'])
+REQUEST_LATENCY = Histogram('request_latency_seconds', 'Request latency in seconds', ['method', 'endpoint'])
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+# Initialize OpenTelemetry instrumentations
+FlaskInstrumentor().instrument_app(app)
+PymongoInstrumentor().instrument()
+RequestsInstrumentor().instrument()
+RedisInstrumentor().instrument()
+
+# Start Prometheus metrics server
+start_http_server(Config.METRICS_PORT)
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -180,7 +217,9 @@ def export_report(report_id):
         download_name=f"medical_report_{report_id}.pdf"
     )
 
-# Start the application
+# Register blueprints
+app.register_blueprint(api, url_prefix='/api/reports')
+
 if __name__ == '__main__':
     # Start Prometheus metrics server
     prometheus_service.start_metrics_server()

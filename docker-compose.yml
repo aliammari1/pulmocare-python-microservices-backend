@@ -16,7 +16,7 @@ services:
       - MONGO_INITDB_ROOT_PASSWORD=admin
       - MONGO_INITDB_DATABASE=medapp
     healthcheck:
-      test: [ "CMD", "mongosh", "--eval", "db.adminCommand('ping')" ]
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -38,65 +38,112 @@ services:
       CONSUL_CLIENT_INTERFACE: eth0
       CONSUL_ENABLE_SCRIPT_CHECKS: true
     healthcheck:
-      test: [ "CMD", "consul", "members" ]
+      test: ["CMD", "consul", "members"]
       interval: 10s
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
 
   # Kong API Gateway
-  kong:
-    build:
-      context: ./config/kong
-      dockerfile: Dockerfile
-    container_name: medapp-kong
-    restart: always
-    tty: true # Allocate a pseudo-TTY
-    stdin_open: true # Keep STDIN open
+  kong-migrations:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations bootstrap
+    profiles: ["database"]
+    depends_on:
+      - db
     environment:
-      - KONG_DATABASE=off
-      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
-      - KONG_PROXY_ACCESS_LOG=/dev/stdout
-      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
-      - KONG_PROXY_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_ERROR_LOG=/dev/stderr
-      - KONG_ADMIN_LISTEN=0.0.0.0:8001
-      - KONG_PROXY_LISTEN=0.0.0.0:8000
-      - KONG_PLUGINS=bundled,prometheus,cors,http-log,body-inspector
-      - KONG_LOG_LEVEL=debug
-      - KONG_NGINX_WORKER_PROCESSES=1
-      - KONG_NGINX_DAEMON=off
+      KONG_DATABASE: ${KONG_DATABASE:-off}
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: db
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_PASSWORD: kong
+    networks:
+      - medapp-network
+    restart: on-failure
+
+  kong-migrations-up:
+    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    command: kong migrations up && kong migrations finish
+    profiles: ["database"]
+    depends_on:
+      - db
+    environment:
+      KONG_DATABASE: ${KONG_DATABASE:-off}
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
+      KONG_PG_HOST: db
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_PASSWORD: kong
+    networks:
+      - medapp-network
+    restart: on-failure
+
+  kong:
+    image: kong:latest
+    user: kong
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: kong
+      KONG_PG_HOST: db
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_PASSWORD: kong
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: "${KONG_PROXY_LISTEN:-0.0.0.0:8000}"
+      KONG_ADMIN_LISTEN: "${KONG_ADMIN_LISTEN:-0.0.0.0:8001}"
+      KONG_ADMIN_GUI_LISTEN: "${KONG_ADMIN_GUI_LISTEN:-0.0.0.0:8002}"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
+      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
+    networks:
+      - medapp-network
     ports:
-      - "8000:8000"
-      - "8001:8001"
-      - "8002:8002"
+      - "${KONG_INBOUND_PROXY_LISTEN:-0.0.0.0}:8000:8000/tcp"
+      - "${KONG_INBOUND_SSL_PROXY_LISTEN:-0.0.0.0}:8443:8443/tcp"
+      - "8001:8001/tcp"
+      - "8444:8444/tcp"
+      - "8002:8002/tcp"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+    read_only: true
+    volumes:
+      - kong_prefix_vol:${KONG_PREFIX:-/var/run/kong}
+      - kong_tmp_vol:/tmp
+      - ./config:/opt/kong
+    security_opt:
+      - no-new-privileges
+
+  db:
+    image: postgres:13
+    profiles: ["database"]
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
+      POSTGRES_USER: ${KONG_PG_USER:-kong}
+      POSTGRES_PASSWORD: kong
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-d",
+          "${KONG_PG_DATABASE:-kong}",
+          "-U",
+          "${KONG_PG_USER:-kong}",
+        ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
     networks:
       - medapp-network
     volumes:
-      # Use a non-mounted Kong config or put it in a separate location to avoid permission issues
-      # - ./config/kong/kong.yml:/usr/local/kong/declarative/kong.yml
-      - kong_logs:/usr/local/kong/logs
-    depends_on:
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "kong", "health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Kong Traffic UI
-  kong-ui:
-    build:
-      context: ./monitoring/kong-ui
-      dockerfile: Dockerfile
-    container_name: medapp-kong-ui
-    depends_on:
-      - elasticsearch
-    ports:
-      - "8088:80"
-    networks:
-      - medapp-network
+      - kong_data:/var/lib/postgresql/data
 
   # RabbitMQ Service
   rabbitmq:
@@ -113,7 +160,7 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: [ "CMD", "rabbitmq-diagnostics", "check_running" ]
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -132,167 +179,119 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: [ "CMD", "redis-cli", "--raw", "ping" ]
+      test: ["CMD", "redis-cli", "--raw", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 10s
 
-  # Prometheus
-  prometheus:
-    image: prom/prometheus
-    container_name: medapp-prometheus
-    ports:
-      - "9090:9090"
+  # SigNoz Components
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: medapp-signoz-clickhouse
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
     volumes:
-      - ./monitoring/prometheus:/etc/prometheus
-      - prometheus_data:/prometheus
-    networks:
-      - medapp-network
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
-      - "--web.console.templates=/usr/share/prometheus/consoles"
-    healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Grafana
-  grafana:
-    image: grafana/grafana
-    container_name: medapp-grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - grafana_data:/var/lib/grafana
-    networks:
-      - medapp-network
-    depends_on:
-      - prometheus
+      - ./monitoring/clickhouse/data:/var/lib/clickhouse
+      - ./monitoring/clickhouse/config/clickhouse-config.xml:/etc/clickhouse-server/config.xml
+      - ./monitoring/clickhouse/users:/etc/clickhouse-server/users.d
+      - ./monitoring/clickhouse/config/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./logs:/var/log/clickhouse-server
     environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=
+      - CLICKHOUSE_DB=signoz_traces
+    networks:
+      - medapp-network
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health" ]
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
+      start_period: 20s
 
-  # OpenTelemetry Collector
   otel-collector:
-    image: otel/opentelemetry-collector
+    image: signoz/signoz-otel-collector:latest
     container_name: medapp-otel-collector
-    command: [ "--config=/etc/otel/config.yaml" ]
+    command: ["--config=/etc/otel-collector/config.yaml"]
     volumes:
-      - ./monitoring/otel/otel-collector-config.yaml:/etc/otel/config.yaml
+      - ./monitoring/otel-collector/config.yaml:/etc/otel-collector/config.yaml
     ports:
-      - "4317:4317"
-      - "14318:4318"
-      - "8888:8888"
-      - "8889:8889"
-      - "13133:13133"
+      - "4317:4317" # OTLP gRPC receiver
+      - "4318:4318" # OTLP http receiver
+      - "8889:8889" # Prometheus exporter
+    environment:
+      - CLICKHOUSE_ENDPOINT=tcp://clickhouse:9000
     networks:
       - medapp-network
     depends_on:
-      - jaeger
+      clickhouse:
+        condition: service_started
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--tries=1", "http://localhost:13133/-/healthy" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:13133",
+        ]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  # Jaeger
-  jaeger:
-    image: jaegertracing/all-in-one:1.53
-    container_name: medapp-jaeger
-    ports:
-      - "14555:16686"
-      - "14250:14250"
-      - "14268:14268"
+  query-service:
+    image: signoz/query-service:0.34.3
+    container_name: medapp-query-service
+    command: ["-config=/root/config/config.yaml"]
+    volumes:
+      - ./monitoring/signoz-config/config.yaml:/root/config/config.yaml
     environment:
-      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
-      - COLLECTOR_OTLP_ENABLED=true
+      - CLICKHOUSE_HOST=clickhouse
+      - CLICKHOUSE_PORT=9000
+      - SIGNOZ_LOG_LEVEL=debug
+      - SIGNOZ_LOCAL_DB_PATH=/var/lib/signoz
+      - SIGNOZ_ENABLE_PPROF=false
+    ports:
+      - "8086:8080" # Changed from 8080:8080 to avoid conflict
     networks:
       - medapp-network
+    depends_on:
+      clickhouse:
+        condition: service_started
+      otel-collector:
+        condition: service_started
     healthcheck:
-      test: [ "CMD", "wget", "-q", "--spider", "http://localhost:16686" ]
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:8080/health",
+        ]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
 
-  # Elasticsearch for storing logs
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.14.0
-    container_name: medapp-elasticsearch
+  frontend:
+    image: signoz/frontend:0.34.3
+    container_name: medapp-frontend
+    restart: on-failure
     environment:
-      - node.name=elasticsearch
-      - cluster.name=medapp-monitoring
-      - discovery.type=single-node
-      - bootstrap.memory_lock=true
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-changeme}
-      - xpack.security.enabled=true
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-    volumes:
-      - elasticsearch_data:/usr/share/elasticsearch/data
+      - BROWSER=none
+      - REACT_APP_API_ENDPOINT=/api
+      - REACT_APP_SIGNOZ_CLUSTER_HOST=http://localhost:8086
     ports:
-      - "9200:9200"
+      - "3301:3301"
     networks:
       - medapp-network
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9200" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # Logstash for processing Kong logs
-  logstash:
-    image: docker.elastic.co/logstash/logstash:7.14.0
-    container_name: medapp-logstash
     depends_on:
-      - elasticsearch
-    volumes:
-      - ./monitoring/logstash/pipeline:/usr/share/logstash/pipeline
-    environment:
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD:-changeme}
-    ports:
-      - "9999:8888"
-    networks:
-      - medapp-network
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9600/_node/stats" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  # Kibana for visualization
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.14.0
-    container_name: medapp-kibana
-    depends_on:
-      - elasticsearch
-    environment:
-      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=elastic
-      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD:-changeme}
-    ports:
-      - "5601:5601"
-    networks:
-      - medapp-network
-    healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:5601/api/status" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
+      - query-service
 
   # medecins Service
   medecins-service:
@@ -318,6 +317,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=medecins-service
+      - OTEL_SERVICE_NAME=medecins-service
       - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       mongodb:
@@ -335,7 +336,7 @@ services:
     volumes:
       - ./services/medecins/app:/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8081/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -364,6 +365,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=ordonnances-service
+      - OTEL_SERVICE_NAME=ordonnances-service
       - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       mongodb:
@@ -381,7 +384,7 @@ services:
     volumes:
       - ./services/ordonnances/app:/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8082/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -410,6 +413,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=patients-service
+      - OTEL_SERVICE_NAME=patients-service
       - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       mongodb:
@@ -427,7 +432,7 @@ services:
     volumes:
       - ./services/patients/app:/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8083/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -456,6 +461,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=radiologues-service
+      - OTEL_SERVICE_NAME=radiologues-service
       - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       mongodb:
@@ -473,7 +480,7 @@ services:
     volumes:
       - ./services/radiologues/app:/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8084/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -504,6 +511,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=reports-service
+      - OTEL_SERVICE_NAME=reports-service
       - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
     depends_on:
       mongodb:
@@ -521,7 +530,7 @@ services:
     volumes:
       - ./services/reports/app:/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8085/health" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -541,7 +550,7 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:9000/api/system/status" ]
+      test: ["CMD", "curl", "-f", "http://localhost:9000/api/system/status"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -561,7 +570,7 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/login" ]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -576,11 +585,16 @@ volumes:
   kong_data:
   kong_logs:
   kong_database:
+  kong_prefix_vol:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  kong_tmp_vol:
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
   consul_data:
-  grafana_data:
-  prometheus_data:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
   jenkins_home:
-  elasticsearch_data:

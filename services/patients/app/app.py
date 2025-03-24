@@ -18,15 +18,44 @@ from config import Config
 import sys
 from decorator.health_check import health_check_middleware
 
+# Add OpenTelemetry imports at the top
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
+
 print("Patient class parameters:", inspect.signature(Patient.__init__))
 print("Patient class source:", inspect.getsource(Patient.__init__))
-print("Current directory:", os.getcwd())
-print("List of files in models:", os.listdir("models"))
+
 
 load_dotenv()
 
+# Configure OpenTelemetry before creating Flask app
+resource = Resource.create({
+    "service.name": Config.SERVICE_NAME,
+    "service.version": Config.VERSION,
+    "deployment.environment": Config.ENV
+})
+
+trace.set_tracer_provider(TracerProvider(resource=resource))
+otlp_exporter = OTLPSpanExporter(endpoint=Config.OTEL_EXPORTER_OTLP_ENDPOINT, insecure=True)
+span_processor = BatchSpanProcessor(otlp_exporter)
+trace.get_tracer_provider().add_span_processor(span_processor)
+
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app)
+
+# Initialize OpenTelemetry instrumentations
+FlaskInstrumentor().instrument_app(app)
+PymongoInstrumentor().instrument()
+RequestsInstrumentor().instrument()
+RedisInstrumentor().instrument()
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)

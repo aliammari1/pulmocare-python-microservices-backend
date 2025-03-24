@@ -13,3 +13,12 @@ python-consul==1.1.0
 redis
 pika
 psutil
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-flask==0.42b0
+opentelemetry-instrumentation-pymongo==0.42b0
+opentelemetry-instrumentation-redis==0.42b0
+opentelemetry-instrumentation-requests==0.42b0
+opentelemetry-instrumentation-grpc==0.42b0
+opentelemetry-exporter-otlp-proto-grpc==1.21.0
+opentelemetry-semantic-conventions==0.42b0

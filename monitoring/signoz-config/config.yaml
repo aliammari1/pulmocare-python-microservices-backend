@@ -1,0 +1,39 @@
+clickhouse:
+  host: clickhouse
+  port: 9000
+  protocol: native
+  username: default
+  password: ""
+  database: signoz_traces
+
+application:
+  name: signoz-query-service
+  http:
+    port: 8080 # Updated to match our docker-compose port
+
+logging:
+  level: debug # Set to debug for better visibility during setup
+
+storage:
+  path: /var/lib/signoz
+
+queryService:
+  maxQueryLength: 5000
+  queryTimeout: 30s
+
+metrics:
+  enabled: true
+
+featureFlags:
+  experimentalFeatures: true
+
+telemetry:
+  enabled: true
+  otel:
+    collector:
+      address: otel-collector:4317
+
+alerts:
+  enablePagerduty: false
+  enableSlack: false
+  enableWebhook: false

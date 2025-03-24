@@ -1,0 +1,61 @@
+graph TD
+    subgraph API Gateway
+        Kong["Kong API Gateway<br/>(Port 8000/8001)"]
+        KongUI["Kong UI<br/>(Port 8088)"]
+    end
+
+    subgraph Core Services
+        Medecins["Medecins Service<br/>(Port 8081)"]
+        Ordonnances["Ordonnances Service<br/>(Port 8082)"]
+        Patients["Patients Service<br/>(Port 8083)"]
+        Radiologues["Radiologues Service<br/>(Port 8084)"]
+        Reports["Reports Service<br/>(Port 8085)"]
+    end
+
+    subgraph Service Discovery
+        Consul["Consul<br/>(Port 8500)"]
+    end
+
+    subgraph Message Broker
+        RabbitMQ["RabbitMQ<br/>(Port 5672/15672)"]
+    end
+
+    subgraph Data Storage
+        MongoDB["MongoDB<br/>(Port 27017)"]
+        Redis["Redis Cache<br/>(Port 6379)"]
+    end
+
+    subgraph Monitoring
+        Prometheus["Prometheus<br/>(Port 9090)"]
+        Grafana["Grafana<br/>(Port 3000)"]
+        OTel["OpenTelemetry<br/>Collector<br/>(Port 4317)"]
+        Jaeger["Jaeger<br/>(Port 14555)"]
+    end
+
+    subgraph Logging
+        Elastic["Elasticsearch<br/>(Port 9200)"]
+        Logstash["Logstash<br/>(Port 9999)"]
+        Kibana["Kibana<br/>(Port 5601)"]
+    end
+
+    subgraph CI/CD
+        Jenkins["Jenkins<br/>(Port 8080)"]
+        SonarQube["SonarQube<br/>(Port 9001)"]
+    end
+
+    Kong --> Medecins & Ordonnances & Patients & Radiologues & Reports
+    Kong --> Consul
+    Kong --> Redis
+
+    Medecins & Ordonnances & Patients & Radiologues & Reports --> Consul
+    Medecins & Ordonnances & Patients & Radiologues & Reports --> MongoDB
+    Medecins & Ordonnances & Patients & Radiologues & Reports --> Redis
+    Medecins & Ordonnances & Patients & Radiologues & Reports --> RabbitMQ
+    Medecins & Ordonnances & Patients & Radiologues & Reports --> OTel
+
+    OTel --> Jaeger
+    OTel --> Prometheus
+    Prometheus --> Grafana
+    Kong --> Logstash
+    Logstash --> Elastic
+    Elastic --> Kibana
