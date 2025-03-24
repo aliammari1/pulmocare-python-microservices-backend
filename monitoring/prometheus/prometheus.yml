@@ -20,6 +20,8 @@ scrape_configs:
         target_label: 'service'
       - source_labels: ['__meta_consul_node']
         target_label: 'node'
+      - source_labels: ['__meta_consul_service']
+        target_label: 'job'
 
   # Core Infrastructure
   - job_name: 'mongodb'
@@ -36,20 +38,6 @@ scrape_configs:
     static_configs:
       - targets: ['rabbitmq:15692']
     metrics_path: '/metrics'
-
-  # API Gateway
-  - job_name: 'gateway'
-    metrics_path: '/metrics'
-    consul_sd_configs:
-      - server: 'consul:8500'
-        services: ['gateway']
-
-  # Microservices
-  - job_name: 'microservices'
-    metrics_path: '/metrics'
-    consul_sd_configs:
-      - server: 'consul:8500'
-        services: ['reports', 'medecins', 'ordonnances', 'patients', 'radiologues']
 
   # System Monitoring
   - job_name: 'node-exporter'
@@ -69,30 +57,11 @@ scrape_configs:
     static_configs:
       - targets: ["kong:8001"]
     metrics_path: /metrics
-    
-  - job_name: "medecins-service"
+
+  # OpenTelemetry Collector metrics
+  - job_name: "otel-collector"
     static_configs:
-      - targets: ["medecins-service:8081"]
-    metrics_path: /metrics
-    
-  - job_name: "ordonnances-service"
-    static_configs:
-      - targets: ["ordonnances-service:8082"]
-    metrics_path: /metrics
-    
-  - job_name: "patients-service"
-    static_configs:
-      - targets: ["patients-service:8083"]
-    metrics_path: /metrics
-    
-  - job_name: "radiologues-service"
-    static_configs:
-      - targets: ["radiologues-service:8084"]
-    metrics_path: /metrics
-    
-  - job_name: "reports-service"
-    static_configs:
-      - targets: ["reports-service:9093"]
+      - targets: ["otel-collector:8889"]
     metrics_path: /metrics
 
 alerting:

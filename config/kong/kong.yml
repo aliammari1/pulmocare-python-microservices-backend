@@ -1,6 +1,9 @@
 _format_version: "3.0"
 _transform: true
 
+# The configuration remains the same, but it will now be imported to the database
+# rather than being used directly in DB-less mode
+
 upstreams:
   - name: medecins-service-upstream
     targets:
@@ -21,8 +24,6 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
-        headers:
-          User-Agent: ["Kong/3.x"]
   - name: patients-service-upstream
     targets:
       - target: patients-service:8083
@@ -42,8 +43,6 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
-        headers:
-          User-Agent: ["Kong/3.x"]
   - name: ordonnances-service-upstream
     targets:
       - target: ordonnances-service:8082
@@ -63,8 +62,6 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
-        headers:
-          User-Agent: ["Kong/3.x"]
   - name: radiologues-service-upstream
     targets:
       - target: radiologues-service:8084
@@ -84,8 +81,6 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
-        headers:
-          User-Agent: ["Kong/3.x"]
   - name: reports-service-upstream
     targets:
       - target: reports-service:8085
@@ -105,8 +100,6 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
-        headers:
-          User-Agent: ["Kong/3.x"]
 
 services:
   - name: medecins-service
@@ -124,7 +117,7 @@ services:
           - /api/verify-otp
           - /api/reset-password
         strip_path: false
-        methods: 
+        methods:
           - POST
         plugins:
           - name: rate-limiting
@@ -137,7 +130,11 @@ services:
                 password: ${REDIS_PASSWORD:-redispass}
                 database: 0
                 timeout: 2000
-      
+          # Add a specific exception for JWT on auth routes
+          # - name: jwt
+          #   config:
+          #     anonymous: "00000000-0000-0000-0000-000000000000" # Anonymous consumer ID
+          #     run_on_preflight: false
       - name: medecins-profile
         paths:
           - /api/profile
@@ -210,21 +207,6 @@ services:
           - /api/reports
         strip_path: false
 
-  - name: registry-service
-    url: http://service-registry:8761
-    routes:
-      - name: registry-api
-        paths:
-          - /registry
-        strip_path: false
-        preserve_host: true
-        plugins:
-          - name: jwt
-            config:
-              anonymous: null
-              claims_to_verify:
-                - exp
-
 plugins:
   - name: proxy-cache
     config:
@@ -235,7 +217,7 @@ plugins:
 
   - name: cors
     config:
-      origins: ['*']
+      origins: ["*"]
       methods:
         - GET
         - POST
@@ -276,11 +258,16 @@ plugins:
       upstream_health_metrics: true
       bandwidth_metrics: true
 
-  - name: jwt
-    config:
-      claims_to_verify:
-        - exp
-      key_claim_name: kid
+  # - name: jwt
+  #   config:
+  #     claims_to_verify:
+  #       - exp
+  #     key_claim_name: kid
+  #     # Remove the problematic fields
+  #     run_on_preflight: true
+  #     # We've removed:
+  #     # - anonymous: true
+  #     # - enabled_in_context: |
 
   - name: correlation-id
     config:
@@ -302,3 +289,14 @@ plugins:
         headers:
           - X-Kong-Upstream-Latency:${upstream_response_time}
           - X-Kong-Proxy:${kong.node.id}
+
+  - name: http-log
+    config:
+      http_endpoint: http://logstash:8888
+      method: POST
+      timeout: 10000
+      keepalive: 60000
+      flush_timeout: 2
+      retry_count: 5
+      queue_size: 10
+      content_type: application/json

@@ -50,9 +50,6 @@ class BaseConsulService:
                 }
             )
 
-            # Register additional metadata
-            self._register_metadata(container_ip)
-
             logger.info(f"Successfully registered {self.config.SERVICE_NAME} with Consul")
             return True
 
@@ -101,32 +98,3 @@ class BaseConsulService:
             return local_ip
         except:
             return '127.0.0.1'
-
-    def _register_metadata(self, container_ip: str) -> None:
-        """Register additional service metadata"""
-        try:
-            registry_host = "registry" if self.config.ENV == 'production' else "localhost"
-            registry_port = 8761
-            timeout = 3 if self.config.ENV == 'development' else 10
-
-            requests.post(
-                f"http://{registry_host}:{registry_port}/services/metadata",
-                json={
-                    'name': self.config.SERVICE_NAME,
-                    'address': container_ip,
-                    'port': self.config.PORT,
-                    'version': self.config.VERSION,
-                    'environment': self.config.ENV,
-                    'team': 'Medical Team',
-                    'documentation': f'https://github.com/aliammari/medapp/wiki/{self.config.SERVICE_NAME}'
-                },
-                timeout=timeout
-            )
-            logger.info(f"Registered metadata for {self.config.SERVICE_NAME}")
-        except Exception as e:
-            if hasattr(self.config, 'REGISTRY_IGNORE_ERRORS') and \
-               self.config.ENV == 'development' and \
-               self.config.REGISTRY_IGNORE_ERRORS:
-                logger.warning(f"Failed to register metadata (ignored in dev mode): {str(e)}")
-            else:
-                raise

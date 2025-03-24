@@ -17,7 +17,14 @@ receivers:
         - job_name: 'medapp-services'
           scrape_interval: 10s
           static_configs:
-            - targets: ['gateway:9090', 'reports-service:9090']
+            - targets: [
+                'gateway:9090', 
+                'reports-service:9090', 
+                'medecins-service:9090',
+                'ordonnances-service:9090',
+                'patients-service:9090',
+                'radiologues-service:9090'
+              ]
           metric_relabel_configs:
             - source_labels: [__name__]
               regex: '.*'
