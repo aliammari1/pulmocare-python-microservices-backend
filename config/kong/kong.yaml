@@ -103,7 +103,7 @@ upstreams:
 
 services:
   - name: medecins-service
-    url: http://medecins-service:8081
+    url: http://host.docker.internal:8081
     retries: 5
     connect_timeout: 1000
     write_timeout: 60000
@@ -119,22 +119,6 @@ services:
         strip_path: false
         methods:
           - POST
-        plugins:
-          - name: rate-limiting
-            config:
-              minute: 20
-              policy: redis
-              redis:
-                host: redis
-                port: 6379
-                password: ${REDIS_PASSWORD:-redispass}
-                database: 0
-                timeout: 2000
-          # Add a specific exception for JWT on auth routes
-          # - name: jwt
-          #   config:
-          #     anonymous: "00000000-0000-0000-0000-000000000000" # Anonymous consumer ID
-          #     run_on_preflight: false
       - name: medecins-profile
         paths:
           - /api/profile
@@ -208,13 +192,6 @@ services:
         strip_path: false
 
 plugins:
-  - name: proxy-cache
-    config:
-      content_type:
-        - application/json
-      cache_ttl: 300
-      strategy: memory
-
   - name: cors
     config:
       origins: ["*"]

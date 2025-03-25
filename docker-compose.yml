@@ -43,10 +43,8 @@ services:
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
-
-  # Kong API Gateway
   kong-migrations:
-    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    image: kong/kong-gateway:latest
     command: kong migrations bootstrap
     depends_on:
       - kong-database
@@ -54,14 +52,14 @@ services:
       KONG_DATABASE: postgres
       KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
       KONG_PG_HOST: kong-database
-      KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kong
+      KONG_PG_USER: ${POSTGRES_USER:-kong}
+      KONG_PG_PASSWORD: kongpass
     networks:
       - medapp-network
     restart: on-failure
 
   kong-migrations-up:
-    image: "${KONG_DOCKER_TAG:-kong:latest}"
+    image: kong/kong-gateway:latest
     command: kong migrations up && kong migrations finish
     depends_on:
       - kong-database
@@ -70,80 +68,50 @@ services:
       KONG_PG_DATABASE: kong
       KONG_PG_HOST: kong-database
       KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kong
+      KONG_PG_PASSWORD: kongpass
     networks:
       - medapp-network
     restart: on-failure
 
-  kong-init:
-    image: alpine:latest
-    volumes:
-      - kong_prefix_vol:/kong-prefix
-    command: chown -Rv 1000:1000 /kong-prefix
-
-  kong-database:
-    image: postgres:13
-    environment:
-      POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
-      POSTGRES_USER: ${KONG_PG_USER:-kong}
-      POSTGRES_PASSWORD: kong
-    healthcheck:
-      test: ["CMD", "pg_isready", "-d", "kong", "-U", "kong"]
-      interval: 30s
-      timeout: 30s
-      retries: 3
-    restart: on-failure
-    stdin_open: true
-    tty: true
-    networks:
-      - medapp-network
-    volumes:
-      - kong_data:/var/lib/postgresql/data
-
-  kong:
+  kong-gateway:
     build:
       context: ./config/kong
       dockerfile: Dockerfile
-    environment:
-      KONG_DATABASE: off
-      KONG_PG_DATABASE: kong
-      KONG_PG_HOST: kong-database
-      KONG_PG_USER: ${KONG_PG_USER:-kong}
-      KONG_PG_PASSWORD: kong
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_PROXY_LISTEN: 0.0.0.0:8000
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
-      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
     networks:
       - medapp-network
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong.yaml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_DNS_ORDER: LAST,A,CNAME
     ports:
       - "8000:8000"
-      - "8443:8443"
       - "8001:8001"
-      - "8444:8444"
       - "8002:8002"
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
       timeout: 10s
       retries: 10
-    restart: on-failure
-    read_only: true
-    volumes:
-      - kong_prefix_vol:/var/run/kong
-      - kong_tmp_vol:/tmp
-      - ./config/kong:/opt/kong
-    security_opt:
-      - no-new-privileges
-    depends_on:
-      - kong-database
-      - kong-init
-
+    restart: always
+  kong-database:
+    image: postgres:13
+    environment:
+      - POSTGRES_DB=kong
+      - POSTGRES_USER=kong
+      - POSTGRES_PASSWORD=kongpass
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "kong"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   # RabbitMQ Service
   rabbitmq:
     image: rabbitmq:3.12-management
@@ -184,133 +152,128 @@ services:
       retries: 5
       start_period: 10s
 
-  # SigNoz Components
-  clickhouse:
-    image: clickhouse/clickhouse-server:24.1.2-alpine
-    container_name: medapp-signoz-clickhouse
-    tty: true
-    labels:
-      signoz.io/scrape: "true"
-      signoz.io/port: "9363"
-      signoz.io/path: "/metrics"
-    ulimits:
-      nproc: 65535
-      nofile:
-        soft: 262144
-        hard: 262144
-    volumes:
-      - ./monitoring/clickhouse/config.xml:/etc/clickhouse-server/config.xml
-      - ./monitoring/clickhouse/users.xml:/etc/clickhouse-server/users.xml
-      - ./monitoring/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
-      - ./monitoring/clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
-      - ./monitoring/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
-      - clickhouse_data:/var/lib/clickhouse/
-      - ./logs:/var/log/clickhouse-server
-    environment:
-      - CLICKHOUSE_USER=default
-      - CLICKHOUSE_PASSWORD=
-      - CLICKHOUSE_DB=signoz_traces
-    networks:
-      - medapp-network
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
-    depends_on:
-      init-clickhouse:
-        condition: service_completed_successfully
-
-  otel-collector:
-    image: signoz/signoz-otel-collector:latest
-    container_name: medapp-otel-collector
-    command:
-      - --config=/etc/otel-collector-config.yaml
-      - --manager-config=/etc/manager-config.yaml
-      - --copy-path=/var/tmp/collector-config.yaml
-      - --feature-gates=-pkg.translator.prometheus.NormalizeName
-    volumes:
-      - ./monitoring/otel-collector/config.yaml:/etc/otel-collector-config.yaml
-      - ./monitoring/signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: medapp-prometheus
     ports:
-      - "4317:4317" # OTLP gRPC receiver
-      - "4318:4318" # OTLP http receiver
-      - "8889:8889" # Prometheus exporter
-    environment:
-      - OTEL_RESOURCE_ATTRIBUTES=host.name=medapp-host,os.type=linux
-      - LOW_CARDINAL_EXCEPTION_GROUPING=false
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
     networks:
       - medapp-network
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-      query-service:
-        condition: service_healthy
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:13133",
-        ]
+      test: ["CMD", "wget", "--spider", "-q", "localhost:9090/-/healthy"]
       interval: 10s
       timeout: 5s
       retries: 3
 
-  query-service:
-    image: signoz/query-service:latest
-    container_name: medapp-query-service
-    command: ["-config=/root/config/config.yaml"]
-    volumes:
-      - ./monitoring/signoz-config/config.yaml:/root/config/config.yaml
-      - ./monitoring/dashboards:/root/config/dashboards
-      - sqlite_data:/var/lib/signoz/
-    environment:
-      - ClickHouseUrl=tcp://clickhouse:9000
-      - SIGNOZ_ALERTMANAGER_PROVIDER=signoz
-      - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000?database=signoz_traces
-      - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
-      - DASHBOARDS_PATH=/root/config/dashboards
-      - STORAGE=clickhouse
-      - GODEBUG=netdns=go
-      - TELEMETRY_ENABLED=true
-      - DEPLOYMENT_TYPE=docker-standalone-amd
+  # Jaeger
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: medapp-jaeger
     ports:
-      - "8086:8080"
+      - "16686:16686" # UI
+      - "14250:14250" # gRPC
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
     networks:
       - medapp-network
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-      schema-migrator-sync:
-        condition: service_completed_successfully
-      zookeeper-1:
-        condition: service_healthy
-    restart: on-failure
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:8080/api/v1/health"]
-      interval: 30s
+      test: ["CMD", "wget", "--spider", "-q", "localhost:16686"]
+      interval: 10s
       timeout: 5s
       retries: 3
 
-  frontend:
-    image: signoz/frontend:latest
-    container_name: medapp-frontend
-    restart: on-failure
-    environment:
-      - BROWSER=none
-      - REACT_APP_API_ENDPOINT=/api
-      - REACT_APP_SIGNOZ_CLUSTER_HOST=http://localhost:8086
+  # Loki
+  loki:
+    image: grafana/loki:latest
+    container_name: medapp-loki
+    command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "3301:3301"
+      - "3100:3100"
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: medapp-otel-collector
+    command: ["--config=/etc/otel-collector/config.yaml"]
+    volumes:
+      - ./monitoring/otel-collector:/etc/otel-collector
+    ports:
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
+      - "8889:8889" # Prometheus exporter
+      - "13133:13133" # Health check
     networks:
       - medapp-network
     depends_on:
-      - query-service
+      - jaeger
+      - prometheus
+      - loki
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Update Grafana with additional datasources
+  grafana:
+    image: grafana/grafana:latest
+    container_name: medapp-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - medapp-network
+    depends_on:
+      - prometheus
+      - loki
+      - jaeger
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Node Exporter - System Metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: medapp-node-exporter
+    command:
+      - "--path.rootfs=/host"
+    ports:
+      - "9100:9100"
+    networks:
+      - medapp-network
+    volumes:
+      - "./:/host:ro,rslave"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "localhost:9100/metrics"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   # medecins Service
   medecins-service:
@@ -335,10 +298,9 @@ services:
       - MONGODB_USERNAME=admin
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=medecins-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_SERVICE_NAME=medecins-service
-      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=medecins-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -383,10 +345,9 @@ services:
       - MONGODB_USERNAME=admin
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=ordonnances-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_SERVICE_NAME=ordonnances-service
-      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=ordonnances-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -431,10 +392,9 @@ services:
       - MONGODB_USERNAME=admin
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=patients-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_SERVICE_NAME=patients-service
-      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=patients-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -479,10 +439,9 @@ services:
       - MONGODB_USERNAME=admin
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=radiologues-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
       - OTEL_SERVICE_NAME=radiologues-service
-      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=radiologues-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -530,9 +489,8 @@ services:
       - MONGODB_PASSWORD=admin
       - MONGODB_DATABASE=medapp
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=reports-service
       - OTEL_SERVICE_NAME=reports-service
-      - RATE_LIMIT_STORAGE_URL=redis://redis:6379/0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=reports-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -594,87 +552,6 @@ services:
       timeout: 10s
       retries: 3
 
-  init-clickhouse:
-    image: clickhouse/clickhouse-server:latest
-    container_name: medapp-init-clickhouse
-    command:
-      - bash
-      - -c
-      - |
-        version="v0.0.1"
-        node_os=$$(uname -s | tr '[:upper:]' '[:lower:]')
-        node_arch=$$(uname -m | sed s/aarch64/arm64/ | sed s/x86_64/amd64/)
-        echo "Fetching histogram-binary for $${node_os}/$${node_arch}"
-        cd /tmp
-        wget -O histogram-quantile.tar.gz "https://github.com/SigNoz/signoz/releases/download/histogram-quantile%2F$${version}/histogram-quantile_$${node_os}_$${node_arch}.tar.gz"
-        tar -xvzf histogram-quantile.tar.gz
-        mv histogram-quantile /var/lib/clickhouse/user_scripts/histogramQuantile
-    restart: on-failure
-    volumes:
-      - ./monitoring/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
-    networks:
-      - medapp-network
-
-  schema-migrator-sync:
-    image: signoz/signoz-schema-migrator:0.111.34
-    container_name: medapp-schema-migrator-sync
-    command:
-      - sync
-      - --dsn=tcp://clickhouse:9000
-      - --up=
-      - --replication=true
-      - --cluster-name=cluster
-    depends_on:
-      clickhouse:
-        condition: service_healthy
-      zookeeper-1:
-        condition: service_healthy
-    networks:
-      - medapp-network
-    restart: on-failure
-
-  schema-migrator-async:
-    image: signoz/signoz-schema-migrator:0.111.34
-    container_name: medapp-schema-migrator-async
-    command:
-      - async
-      - --dsn=tcp://clickhouse:9000
-      - --up=
-      - --replication=true
-      - --cluster-name=cluster
-    depends_on:
-      schema-migrator-sync:
-        condition: service_completed_successfully
-      clickhouse:
-        condition: service_healthy
-      zookeeper-1:
-        condition: service_healthy
-    networks:
-      - medapp-network
-    restart: on-failure
-
-  # ZooKeeper for ClickHouse replication
-  zookeeper-1:
-    image: bitnami/zookeeper:3.7.0
-    container_name: medapp-zookeeper
-    ports:
-      - "2181:2181"
-      - "2889:2888"
-      - "3889:3888"
-    environment:
-      - ZOO_MY_ID=1
-      - ZOO_SERVERS=server.1=zookeeper-1:2888:3888
-      - ALLOW_ANONYMOUS_LOGIN=yes
-      - ZOO_ENABLE_AUTH=false
-      - ZOO_HEAP_SIZE=256
-    networks:
-      - medapp-network
-    healthcheck:
-      test: ["CMD", "zkServer.sh", "status"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
 networks:
   medapp-network:
     driver: bridge
@@ -685,12 +562,11 @@ volumes:
   kong_data:
   kong_logs:
   kong_database:
-  kong_prefix_vol:
   kong_tmp_vol:
   consul_data:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
   jenkins_home:
-  clickhouse_data:
-  sqlite_data:
+  prometheus_data:
+  grafana_data:

@@ -1,3 +1,8 @@
 FROM kong:latest
 
-USER root
+USER kong
+
+COPY kong.yaml /kong.yaml
+
+CMD ["kong", "start"]
+
