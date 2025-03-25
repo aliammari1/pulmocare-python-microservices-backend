@@ -5,45 +5,121 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-
-exporters:
-  logging:
-    verbosity: detailed
   prometheus:
-    endpoint: "0.0.0.0:8889"
-  clickhouse:
-    dns: tcp://clickhouse:9000?database=signoz_traces
-    timeout: 10s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_attempts: 3
+    config:
+      global:
+        scrape_interval: 60s
+      scrape_configs:
+        - job_name: otel-collector
+          static_configs:
+            - targets:
+                - localhost:8888
+              labels:
+                job_name: otel-collector
+        - job_name: medapp-services
+          static_configs:
+            - targets:
+                - reports-service:9093
+              labels:
+                service_name: reports-service
 
 processors:
   batch:
-    timeout: 1s
-    send_batch_size: 1000
-  memory_limiter:
-    check_interval: 1s
-    limit_mib: 1536
-    spike_limit_mib: 512
-  servicegraph:
-    metrics_exporter: prometheus
+    send_batch_size: 10000
+    send_batch_max_size: 11000
+    timeout: 10s
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 2s
+  signozspanmetrics/delta:
+    metrics_exporter: clickhousemetricswrite
+    metrics_flush_interval: 60s
     latency_histogram_buckets:
-      [1ms, 2ms, 5ms, 10ms, 20ms, 50ms, 100ms, 200ms, 500ms, 1s, 2s, 5s, 10s]
-    dimensions: [service.namespace, service.name]
-    store:
-      ttl: 2s
-      max_items: 200
+      [
+        100us,
+        1ms,
+        2ms,
+        6ms,
+        10ms,
+        50ms,
+        100ms,
+        250ms,
+        500ms,
+        1000ms,
+        1400ms,
+        2000ms,
+        5s,
+        10s,
+        20s,
+        40s,
+        60s,
+      ]
+    dimensions_cache_size: 100000
+    aggregation_temporality: AGGREGATION_TEMPORALITY_DELTA
+    enable_exp_histogram: true
+    dimensions:
+      - name: service.namespace
+        default: default
+      - name: deployment.environment
+        default: default
+      - name: signoz.collector.id
+      - name: service.version
+      - name: browser.platform
+      - name: browser.mobile
+      - name: k8s.cluster.name
+      - name: k8s.node.name
+      - name: k8s.namespace.name
+      - name: host.name
+      - name: host.type
+      - name: container.name
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+  pprof:
+    endpoint: 0.0.0.0:1777
+
+exporters:
+  clickhousetraces:
+    datasource: tcp://clickhouse:9000/signoz_traces
+    low_cardinal_exception_grouping: ${env:LOW_CARDINAL_EXCEPTION_GROUPING}
+    use_new_schema: true
+  clickhousemetricswrite:
+    endpoint: tcp://clickhouse:9000/signoz_metrics
+    resource_to_telemetry_conversion:
+      enabled: true
+  clickhousemetricswrite/prometheus:
+    endpoint: tcp://clickhouse:9000/signoz_metrics
+  signozclickhousemetrics:
+    dsn: tcp://clickhouse:9000/signoz_metrics
+  clickhouselogsexporter:
+    dsn: tcp://clickhouse:9000/signoz_logs
+    timeout: 10s
+    use_new_schema: true
 
 service:
+  telemetry:
+    logs:
+      encoding: json
+    metrics:
+      address: 0.0.0.0:8888
+  extensions:
+    - health_check
+    - pprof
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, servicegraph]
-      exporters: [clickhouse, logging]
+      processors: [resourcedetection, signozspanmetrics/delta, batch]
+      exporters: [clickhousetraces]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [prometheus]
+      processors: [resourcedetection, batch]
+      exporters: [clickhousemetricswrite, signozclickhousemetrics]
+    metrics/prometheus:
+      receivers: [prometheus]
+      processors: [batch]
+      exporters: [clickhousemetricswrite/prometheus, signozclickhousemetrics]
+    logs:
+      receivers: [otlp]
+      processors: [resourcedetection, batch]
+      exporters: [clickhouselogsexporter]

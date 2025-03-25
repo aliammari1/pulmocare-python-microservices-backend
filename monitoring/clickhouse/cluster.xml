@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<clickhouse>
+    <!-- ZooKeeper is used to store metadata about replicas, when using Replicated tables. -->
+    <zookeeper>
+        <node index="1">
+            <host>zookeeper-1</host>
+            <port>2181</port>
+        </node>
+    </zookeeper>
+
+    <!-- Configuration of clusters that could be used in Distributed tables. -->
+    <remote_servers>
+        <cluster>
+            <shard>
+                <replica>
+                    <host>clickhouse</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+        </cluster>
+    </remote_servers>
+</clickhouse>

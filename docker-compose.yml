@@ -48,14 +48,13 @@ services:
   kong-migrations:
     image: "${KONG_DOCKER_TAG:-kong:latest}"
     command: kong migrations bootstrap
-    profiles: ["database"]
     depends_on:
-      - db
+      - kong-database
     environment:
-      KONG_DATABASE: ${KONG_DATABASE:-off}
+      KONG_DATABASE: postgres
       KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
-      KONG_PG_HOST: db
-      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
       KONG_PG_PASSWORD: kong
     networks:
       - medapp-network
@@ -64,76 +63,32 @@ services:
   kong-migrations-up:
     image: "${KONG_DOCKER_TAG:-kong:latest}"
     command: kong migrations up && kong migrations finish
-    profiles: ["database"]
     depends_on:
-      - db
-    environment:
-      KONG_DATABASE: ${KONG_DATABASE:-off}
-      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
-      KONG_PG_HOST: db
-      KONG_PG_USER: ${KONG_PG_USER:-kong}
-      KONG_PG_PASSWORD: kong
-    networks:
-      - medapp-network
-    restart: on-failure
-
-  kong:
-    image: kong:latest
-    user: kong
+      - kong-database
     environment:
       KONG_DATABASE: postgres
       KONG_PG_DATABASE: kong
-      KONG_PG_HOST: db
-      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: kong
       KONG_PG_PASSWORD: kong
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_PROXY_LISTEN: "${KONG_PROXY_LISTEN:-0.0.0.0:8000}"
-      KONG_ADMIN_LISTEN: "${KONG_ADMIN_LISTEN:-0.0.0.0:8001}"
-      KONG_ADMIN_GUI_LISTEN: "${KONG_ADMIN_GUI_LISTEN:-0.0.0.0:8002}"
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
-      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
     networks:
       - medapp-network
-    ports:
-      - "${KONG_INBOUND_PROXY_LISTEN:-0.0.0.0}:8000:8000/tcp"
-      - "${KONG_INBOUND_SSL_PROXY_LISTEN:-0.0.0.0}:8443:8443/tcp"
-      - "8001:8001/tcp"
-      - "8444:8444/tcp"
-      - "8002:8002/tcp"
-    healthcheck:
-      test: ["CMD", "kong", "health"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
     restart: on-failure
-    read_only: true
-    volumes:
-      - kong_prefix_vol:${KONG_PREFIX:-/var/run/kong}
-      - kong_tmp_vol:/tmp
-      - ./config:/opt/kong
-    security_opt:
-      - no-new-privileges
 
-  db:
+  kong-init:
+    image: alpine:latest
+    volumes:
+      - kong_prefix_vol:/kong-prefix
+    command: chown -Rv 1000:1000 /kong-prefix
+
+  kong-database:
     image: postgres:13
-    profiles: ["database"]
     environment:
       POSTGRES_DB: ${KONG_PG_DATABASE:-kong}
       POSTGRES_USER: ${KONG_PG_USER:-kong}
       POSTGRES_PASSWORD: kong
     healthcheck:
-      test:
-        [
-          "CMD",
-          "pg_isready",
-          "-d",
-          "${KONG_PG_DATABASE:-kong}",
-          "-U",
-          "${KONG_PG_USER:-kong}",
-        ]
+      test: ["CMD", "pg_isready", "-d", "kong", "-U", "kong"]
       interval: 30s
       timeout: 30s
       retries: 3
@@ -144,6 +99,50 @@ services:
       - medapp-network
     volumes:
       - kong_data:/var/lib/postgresql/data
+
+  kong:
+    build:
+      context: ./config/kong
+      dockerfile: Dockerfile
+    environment:
+      KONG_DATABASE: off
+      KONG_PG_DATABASE: kong
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: ${KONG_PG_USER:-kong}
+      KONG_PG_PASSWORD: kong
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_LISTEN: 0.0.0.0:8002
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_PREFIX: ${KONG_PREFIX:-/var/run/kong}
+      KONG_DECLARATIVE_CONFIG: "/opt/kong/kong.yaml"
+    networks:
+      - medapp-network
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+      - "8002:8002"
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+    read_only: true
+    volumes:
+      - kong_prefix_vol:/var/run/kong
+      - kong_tmp_vol:/tmp
+      - ./config/kong:/opt/kong
+    security_opt:
+      - no-new-privileges
+    depends_on:
+      - kong-database
+      - kong-init
 
   # RabbitMQ Service
   rabbitmq:
@@ -187,17 +186,25 @@ services:
 
   # SigNoz Components
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:24.1.2-alpine
     container_name: medapp-signoz-clickhouse
+    tty: true
+    labels:
+      signoz.io/scrape: "true"
+      signoz.io/port: "9363"
+      signoz.io/path: "/metrics"
     ulimits:
+      nproc: 65535
       nofile:
         soft: 262144
         hard: 262144
     volumes:
-      - ./monitoring/clickhouse/data:/var/lib/clickhouse
-      - ./monitoring/clickhouse/config/clickhouse-config.xml:/etc/clickhouse-server/config.xml
-      - ./monitoring/clickhouse/users:/etc/clickhouse-server/users.d
-      - ./monitoring/clickhouse/config/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./monitoring/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./monitoring/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./monitoring/clickhouse/custom-function.xml:/etc/clickhouse-server/custom-function.xml
+      - ./monitoring/clickhouse/cluster.xml:/etc/clickhouse-server/config.d/cluster.xml
+      - ./monitoring/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
+      - clickhouse_data:/var/lib/clickhouse/
       - ./logs:/var/log/clickhouse-server
     environment:
       - CLICKHOUSE_USER=default
@@ -206,29 +213,40 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
-      interval: 10s
+      test: ["CMD", "wget", "--spider", "-q", "0.0.0.0:8123/ping"]
+      interval: 30s
       timeout: 5s
       retries: 3
       start_period: 20s
+    depends_on:
+      init-clickhouse:
+        condition: service_completed_successfully
 
   otel-collector:
     image: signoz/signoz-otel-collector:latest
     container_name: medapp-otel-collector
-    command: ["--config=/etc/otel-collector/config.yaml"]
+    command:
+      - --config=/etc/otel-collector-config.yaml
+      - --manager-config=/etc/manager-config.yaml
+      - --copy-path=/var/tmp/collector-config.yaml
+      - --feature-gates=-pkg.translator.prometheus.NormalizeName
     volumes:
-      - ./monitoring/otel-collector/config.yaml:/etc/otel-collector/config.yaml
+      - ./monitoring/otel-collector/config.yaml:/etc/otel-collector-config.yaml
+      - ./monitoring/signoz/otel-collector-opamp-config.yaml:/etc/manager-config.yaml
     ports:
       - "4317:4317" # OTLP gRPC receiver
       - "4318:4318" # OTLP http receiver
       - "8889:8889" # Prometheus exporter
     environment:
-      - CLICKHOUSE_ENDPOINT=tcp://clickhouse:9000
+      - OTEL_RESOURCE_ATTRIBUTES=host.name=medapp-host,os.type=linux
+      - LOW_CARDINAL_EXCEPTION_GROUPING=false
     networks:
       - medapp-network
     depends_on:
       clickhouse:
-        condition: service_started
+        condition: service_healthy
+      query-service:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -244,42 +262,43 @@ services:
       retries: 3
 
   query-service:
-    image: signoz/query-service:0.34.3
+    image: signoz/query-service:latest
     container_name: medapp-query-service
     command: ["-config=/root/config/config.yaml"]
     volumes:
       - ./monitoring/signoz-config/config.yaml:/root/config/config.yaml
+      - ./monitoring/dashboards:/root/config/dashboards
+      - sqlite_data:/var/lib/signoz/
     environment:
-      - CLICKHOUSE_HOST=clickhouse
-      - CLICKHOUSE_PORT=9000
-      - SIGNOZ_LOG_LEVEL=debug
-      - SIGNOZ_LOCAL_DB_PATH=/var/lib/signoz
-      - SIGNOZ_ENABLE_PPROF=false
+      - ClickHouseUrl=tcp://clickhouse:9000
+      - SIGNOZ_ALERTMANAGER_PROVIDER=signoz
+      - SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN=tcp://clickhouse:9000?database=signoz_traces
+      - SIGNOZ_SQLSTORE_SQLITE_PATH=/var/lib/signoz/signoz.db
+      - DASHBOARDS_PATH=/root/config/dashboards
+      - STORAGE=clickhouse
+      - GODEBUG=netdns=go
+      - TELEMETRY_ENABLED=true
+      - DEPLOYMENT_TYPE=docker-standalone-amd
     ports:
-      - "8086:8080" # Changed from 8080:8080 to avoid conflict
+      - "8086:8080"
     networks:
       - medapp-network
     depends_on:
       clickhouse:
-        condition: service_started
-      otel-collector:
-        condition: service_started
+        condition: service_healthy
+      schema-migrator-sync:
+        condition: service_completed_successfully
+      zookeeper-1:
+        condition: service_healthy
+    restart: on-failure
     healthcheck:
-      test:
-        [
-          "CMD",
-          "wget",
-          "--no-verbose",
-          "--tries=1",
-          "--spider",
-          "http://localhost:8080/health",
-        ]
-      interval: 10s
+      test: ["CMD", "wget", "--spider", "-q", "localhost:8080/api/v1/health"]
+      interval: 30s
       timeout: 5s
       retries: 3
 
   frontend:
-    image: signoz/frontend:0.34.3
+    image: signoz/frontend:latest
     container_name: medapp-frontend
     restart: on-failure
     environment:
@@ -575,6 +594,87 @@ services:
       timeout: 10s
       retries: 3
 
+  init-clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: medapp-init-clickhouse
+    command:
+      - bash
+      - -c
+      - |
+        version="v0.0.1"
+        node_os=$$(uname -s | tr '[:upper:]' '[:lower:]')
+        node_arch=$$(uname -m | sed s/aarch64/arm64/ | sed s/x86_64/amd64/)
+        echo "Fetching histogram-binary for $${node_os}/$${node_arch}"
+        cd /tmp
+        wget -O histogram-quantile.tar.gz "https://github.com/SigNoz/signoz/releases/download/histogram-quantile%2F$${version}/histogram-quantile_$${node_os}_$${node_arch}.tar.gz"
+        tar -xvzf histogram-quantile.tar.gz
+        mv histogram-quantile /var/lib/clickhouse/user_scripts/histogramQuantile
+    restart: on-failure
+    volumes:
+      - ./monitoring/clickhouse/user_scripts:/var/lib/clickhouse/user_scripts/
+    networks:
+      - medapp-network
+
+  schema-migrator-sync:
+    image: signoz/signoz-schema-migrator:0.111.34
+    container_name: medapp-schema-migrator-sync
+    command:
+      - sync
+      - --dsn=tcp://clickhouse:9000
+      - --up=
+      - --replication=true
+      - --cluster-name=cluster
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      zookeeper-1:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    restart: on-failure
+
+  schema-migrator-async:
+    image: signoz/signoz-schema-migrator:0.111.34
+    container_name: medapp-schema-migrator-async
+    command:
+      - async
+      - --dsn=tcp://clickhouse:9000
+      - --up=
+      - --replication=true
+      - --cluster-name=cluster
+    depends_on:
+      schema-migrator-sync:
+        condition: service_completed_successfully
+      clickhouse:
+        condition: service_healthy
+      zookeeper-1:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    restart: on-failure
+
+  # ZooKeeper for ClickHouse replication
+  zookeeper-1:
+    image: bitnami/zookeeper:3.7.0
+    container_name: medapp-zookeeper
+    ports:
+      - "2181:2181"
+      - "2889:2888"
+      - "3889:3888"
+    environment:
+      - ZOO_MY_ID=1
+      - ZOO_SERVERS=server.1=zookeeper-1:2888:3888
+      - ALLOW_ANONYMOUS_LOGIN=yes
+      - ZOO_ENABLE_AUTH=false
+      - ZOO_HEAP_SIZE=256
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "zkServer.sh", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 networks:
   medapp-network:
     driver: bridge
@@ -586,15 +686,11 @@ volumes:
   kong_logs:
   kong_database:
   kong_prefix_vol:
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
   kong_tmp_vol:
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
   consul_data:
   sonarqube_data:
   sonarqube_logs:
   sonarqube_extensions:
   jenkins_home:
+  clickhouse_data:
+  sqlite_data:
