@@ -180,7 +180,7 @@ pipeline {
                         // Deploy infrastructure services first
                         sh """
                             ${DOCKER_COMPOSE} up -d consul mongodb redis rabbitmq elasticsearch kibana prometheus grafana jaeger
-                            sleep 30  // Wait for infrastructure to be ready
+                            sleep 30  # Wait for infrastructure to be ready
                         """
                     }
                 }
@@ -208,8 +208,9 @@ pipeline {
                     steps {
                         sh """
                             ${DOCKER_COMPOSE} up -d otel-collector
-                            // Import Grafana dashboards
-                            curl -X POST -H "Content-Type: application/json" -d @monitoring/grafana/dashboards/services-dashboard.json http://admin:admin@grafana:3000/api/dashboards/db
+                            curl -X POST -H "Content-Type: application/json" \\
+                                -d @monitoring/grafana/dashboards/services-dashboard.json \\
+                                http://admin:admin@grafana:3000/api/dashboards/db
                         """
                     }
                 }
@@ -219,7 +220,7 @@ pipeline {
                             sh '''
                                 # Check Kong Gateway
                                 curl --retry 5 --retry-delay 10 http://kong:8001/status
-                                
+
                                 # Check all services through Kong
                                 curl --retry 5 --retry-delay 10 http://kong:8000/medecins/health
                                 curl --retry 5 --retry-delay 10 http://kong:8000/ordonnances/health
@@ -238,29 +239,25 @@ pipeline {
         always {
             junit '**/test-results.xml'
             publishCoverage adapters: [coberturaAdapter('**/coverage.xml')]
-            
+
             script {
                 // Cleanup only if not on main branch
                 if (env.BRANCH_NAME != 'main') {
-                    sh '${DOCKER_COMPOSE} down --volumes --remove-orphans'
+                    sh "${DOCKER_COMPOSE} down --volumes --remove-orphans"
                 }
             }
             cleanWs()
         }
         success {
             script {
-                // Send notification to Slack/Teams
                 def message = "Pipeline for version ${VERSION} completed successfully!"
                 // Add your notification logic here
             }
         }
         failure {
             script {
-                // Send notification to Slack/Teams
                 def message = "Pipeline for version ${VERSION} failed! Check the logs for details."
                 // Add your notification logic here
-                
-                // Collect logs from services
                 sh '''
                     mkdir -p pipeline-logs
                     docker compose logs > pipeline-logs/docker-compose.log
