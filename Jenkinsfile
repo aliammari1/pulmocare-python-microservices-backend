@@ -2,11 +2,37 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_COMPOSE = 'docker-compose'
+        DOCKER_COMPOSE = 'docker compose'
         SONAR_HOST_URL = 'http://sonarqube:9000'
     }
 
+    tools {
+        // Define Python tool installation
+        python 'Python3'
+    }
+
     stages {
+        stage('Setup Tools') {
+            steps {
+                script {
+                    // Install pip and upgrade it
+                    sh '''
+                        curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+                        python3 get-pip.py --user
+                        python3 -m pip install --upgrade pip
+                    '''
+                    
+                    // Install Docker Compose if not present
+                    sh '''
+                        if ! command -v docker compose &> /dev/null; then
+                            curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                            chmod +x /usr/local/bin/docker-compose
+                        fi
+                    '''
+                }
+            }
+        }
+
         stage('Checkout') {
             steps {
                 checkout scm
@@ -18,11 +44,12 @@ pipeline {
                 script {
                     // Install dependencies for each service
                     sh '''
-                        cd services/medecins && pip install -r requirements.txt
-                        cd ../ordonnances && pip install -r requirements.txt
-                        cd ../patients && pip install -r requirements.txt
-                        cd ../radiologues && pip install -r requirements.txt
-                        cd ../reports && pip install -r requirements.txt
+                        python3 -m pip install --user pytest pytest-cov
+                        cd services/medecins && python3 -m pip install -r requirements.txt
+                        cd ../ordonnances && python3 -m pip install -r requirements.txt
+                        cd ../patients && python3 -m pip install -r requirements.txt
+                        cd ../radiologues && python3 -m pip install -r requirements.txt
+                        cd ../reports && python3 -m pip install -r requirements.txt
                     '''
                 }
             }
@@ -33,11 +60,11 @@ pipeline {
                 script {
                     // Run tests for each service and generate coverage reports
                     sh '''
-                        cd services/medecins && python -m pytest --cov=. --cov-report=xml -v
-                        cd ../ordonnances && python -m pytest --cov=. --cov-report=xml -v
-                        cd ../patients && python -m pytest --cov=. --cov-report=xml -v
-                        cd ../radiologues && python -m pytest --cov=. --cov-report=xml -v
-                        cd ../reports && python -m pytest --cov=. --cov-report=xml -v
+                        cd services/medecins && python3 -m pytest --cov=. --cov-report=xml -v
+                        cd ../ordonnances && python3 -m pytest --cov=. --cov-report=xml -v
+                        cd ../patients && python3 -m pytest --cov=. --cov-report=xml -v
+                        cd ../radiologues && python3 -m pytest --cov=. --cov-report=xml -v
+                        cd ../reports && python3 -m pytest --cov=. --cov-report=xml -v
                     '''
                 }
             }
@@ -65,7 +92,7 @@ pipeline {
         stage('Build Docker Images') {
             steps {
                 script {
-                    sh '${DOCKER_COMPOSE} build'
+                    sh 'docker compose build'
                 }
             }
         }
@@ -76,7 +103,7 @@ pipeline {
             }
             steps {
                 script {
-                    sh '${DOCKER_COMPOSE} up -d'
+                    sh 'docker compose up -d'
                 }
             }
         }
@@ -85,7 +112,7 @@ pipeline {
     post {
         always {
             // Clean up
-            sh '${DOCKER_COMPOSE} down || true'
+            sh 'docker compose down || true'
             cleanWs()
         }
         success {
