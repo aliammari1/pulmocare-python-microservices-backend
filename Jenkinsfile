@@ -3,11 +3,13 @@ pipeline {
 
     environment {
         DOCKER_COMPOSE = 'docker compose'
-        SONAR_HOST_URL = 'http://sonarqube:9000'
+        SONAR_HOST_URL = 'http://sonarqube:9001'
+        DOCKER_REGISTRY = 'localhost:5000'
+        VERSION = sh(script: 'git describe --tags --always || echo "dev"', returnStdout: true).trim()
+        CONSUL_HTTP_ADDR = 'http://localhost:8500'
     }
 
     tools {
-        // Define Python tool installation
         python 'Python3'
     }
 
@@ -15,19 +17,12 @@ pipeline {
         stage('Setup Tools') {
             steps {
                 script {
-                    // Install pip and upgrade it
+                    // Install required tools
                     sh '''
                         curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
                         python3 get-pip.py --user
                         python3 -m pip install --upgrade pip
-                    '''
-                    
-                    // Install Docker Compose if not present
-                    sh '''
-                        if ! command -v docker compose &> /dev/null; then
-                            curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                            chmod +x /usr/local/bin/docker-compose
-                        fi
+                        python3 -m pip install --user pytest pytest-cov pytest-asyncio aiohttp requests
                     '''
                 }
             }
@@ -36,36 +31,109 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
+                sh 'git fetch --tags'
             }
         }
 
         stage('Install Dependencies') {
-            steps {
-                script {
-                    // Install dependencies for each service
-                    sh '''
-                        python3 -m pip install --user pytest pytest-cov
-                        cd services/medecins && python3 -m pip install -r requirements.txt
-                        cd ../ordonnances && python3 -m pip install -r requirements.txt
-                        cd ../patients && python3 -m pip install -r requirements.txt
-                        cd ../radiologues && python3 -m pip install -r requirements.txt
-                        cd ../reports && python3 -m pip install -r requirements.txt
-                    '''
+            parallel {
+                stage('Medecins') {
+                    steps {
+                        dir('services/medecins') {
+                            sh 'python3 -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+                stage('Ordonnances') {
+                    steps {
+                        dir('services/ordonnances') {
+                            sh 'python3 -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+                stage('Patients') {
+                    steps {
+                        dir('services/patients') {
+                            sh 'python3 -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+                stage('Radiologues') {
+                    steps {
+                        dir('services/radiologues') {
+                            sh 'python3 -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+                stage('Reports') {
+                    steps {
+                        dir('services/reports') {
+                            sh 'python3 -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Static Code Analysis') {
+            parallel {
+                stage('Lint') {
+                    steps {
+                        sh '''
+                            python3 -m pip install flake8 black
+                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs flake8
+                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs black --check
+                        '''
+                    }
+                }
+                stage('Security Scan') {
+                    steps {
+                        sh '''
+                            python3 -m pip install bandit safety
+                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs bandit -r
+                            safety check
+                        '''
+                    }
                 }
             }
         }
 
         stage('Run Tests') {
-            steps {
-                script {
-                    // Run tests for each service and generate coverage reports
-                    sh '''
-                        cd services/medecins && python3 -m pytest --cov=. --cov-report=xml -v
-                        cd ../ordonnances && python3 -m pytest --cov=. --cov-report=xml -v
-                        cd ../patients && python3 -m pytest --cov=. --cov-report=xml -v
-                        cd ../radiologues && python3 -m pytest --cov=. --cov-report=xml -v
-                        cd ../reports && python3 -m pytest --cov=. --cov-report=xml -v
-                    '''
+            parallel {
+                stage('Medecins Tests') {
+                    steps {
+                        dir('services/medecins') {
+                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
+                }
+                stage('Ordonnances Tests') {
+                    steps {
+                        dir('services/ordonnances') {
+                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
+                }
+                stage('Patients Tests') {
+                    steps {
+                        dir('services/patients') {
+                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
+                }
+                stage('Radiologues Tests') {
+                    steps {
+                        dir('services/radiologues') {
+                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
+                }
+                stage('Reports Tests') {
+                    steps {
+                        dir('services/reports') {
+                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
                 }
             }
         }
@@ -75,7 +143,7 @@ pipeline {
                 script {
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQube') {
-                        sh "${scannerHome}/bin/sonar-scanner"
+                        sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectVersion=${VERSION}"
                     }
                 }
             }
@@ -89,10 +157,15 @@ pipeline {
             }
         }
 
-        stage('Build Docker Images') {
+        stage('Build and Push Images') {
             steps {
                 script {
-                    sh 'docker compose build'
+                    docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
+                        sh """
+                            ${DOCKER_COMPOSE} build
+                            ${DOCKER_COMPOSE} push
+                        """
+                    }
                 }
             }
         }
@@ -101,9 +174,61 @@ pipeline {
             when {
                 branch 'main'
             }
-            steps {
-                script {
-                    sh 'docker compose up -d'
+            stages {
+                stage('Infrastructure') {
+                    steps {
+                        // Deploy infrastructure services first
+                        sh """
+                            ${DOCKER_COMPOSE} up -d consul mongodb redis rabbitmq elasticsearch kibana prometheus grafana jaeger
+                            sleep 30  // Wait for infrastructure to be ready
+                        """
+                    }
+                }
+                stage('API Gateway') {
+                    steps {
+                        // Deploy Kong Gateway
+                        sh "${DOCKER_COMPOSE} up -d kong"
+                    }
+                }
+                stage('Core Services') {
+                    steps {
+                        script {
+                            def services = ['medecins', 'ordonnances', 'patients', 'radiologues', 'reports']
+                            for (service in services) {
+                                sh """
+                                    ${DOCKER_COMPOSE} up -d ${service}
+                                    // Wait for service to register with Consul
+                                    curl --retry 30 --retry-delay 2 --retry-connrefused ${CONSUL_HTTP_ADDR}/v1/health/service/${service}
+                                """
+                            }
+                        }
+                    }
+                }
+                stage('Monitoring Setup') {
+                    steps {
+                        sh """
+                            ${DOCKER_COMPOSE} up -d otel-collector
+                            // Import Grafana dashboards
+                            curl -X POST -H "Content-Type: application/json" -d @monitoring/grafana/dashboards/services-dashboard.json http://admin:admin@grafana:3000/api/dashboards/db
+                        """
+                    }
+                }
+                stage('Health Check') {
+                    steps {
+                        script {
+                            sh '''
+                                # Check Kong Gateway
+                                curl --retry 5 --retry-delay 10 http://kong:8001/status
+                                
+                                # Check all services through Kong
+                                curl --retry 5 --retry-delay 10 http://kong:8000/medecins/health
+                                curl --retry 5 --retry-delay 10 http://kong:8000/ordonnances/health
+                                curl --retry 5 --retry-delay 10 http://kong:8000/patients/health
+                                curl --retry 5 --retry-delay 10 http://kong:8000/radiologues/health
+                                curl --retry 5 --retry-delay 10 http://kong:8000/reports/health
+                            '''
+                        }
+                    }
                 }
             }
         }
@@ -111,15 +236,38 @@ pipeline {
 
     post {
         always {
-            // Clean up
-            sh 'docker compose down || true'
+            junit '**/test-results.xml'
+            publishCoverage adapters: [coberturaAdapter('**/coverage.xml')]
+            
+            script {
+                // Cleanup only if not on main branch
+                if (env.BRANCH_NAME != 'main') {
+                    sh '${DOCKER_COMPOSE} down --volumes --remove-orphans'
+                }
+            }
             cleanWs()
         }
         success {
-            echo 'Pipeline completed successfully!'
+            script {
+                // Send notification to Slack/Teams
+                def message = "Pipeline for version ${VERSION} completed successfully!"
+                // Add your notification logic here
+            }
         }
         failure {
-            echo 'Pipeline failed! Check the logs for details.'
+            script {
+                // Send notification to Slack/Teams
+                def message = "Pipeline for version ${VERSION} failed! Check the logs for details."
+                // Add your notification logic here
+                
+                // Collect logs from services
+                sh '''
+                    mkdir -p pipeline-logs
+                    docker compose logs > pipeline-logs/docker-compose.log
+                    tar -czf pipeline-logs.tar.gz pipeline-logs/
+                '''
+                archiveArtifacts artifacts: 'pipeline-logs.tar.gz', fingerprint: true
+            }
         }
     }
 }
