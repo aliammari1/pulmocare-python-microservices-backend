@@ -200,7 +200,7 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: medapp-loki
-    command: -config.file=/etc/loki/loki.yaml
+    command: -config.file=/etc/loki/local-config.yaml
     ports:
       - "3100:3100"
     networks:
