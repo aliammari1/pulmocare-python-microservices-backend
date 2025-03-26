@@ -86,7 +86,7 @@ services:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong.yaml
       KONG_CONF: /etc/kong/kong.conf
-      KONG_DNS_RESOLVER: 172.20.0.100:8600
+      KONG_DNS_RESOLVER: 127.0.0.11:53
     volumes:
       - ./config/kong/kong.conf:/etc/kong/kong.conf
       - ./config/kong/kong.yaml:/kong.yaml

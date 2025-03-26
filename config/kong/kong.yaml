@@ -7,7 +7,7 @@ _transform: true
 upstreams:
   - name: medecins-service-upstream
     targets:
-      - target: medecins-service.service.consul:8081
+      - target: host.docker.internal:8081
         weight: 100
     healthchecks:
       active:
@@ -26,7 +26,7 @@ upstreams:
         timeout: 1
   - name: patients-service-upstream
     targets:
-      - target: patients-service.service.consul:8083
+      - target: host.docker.internal:8083
         weight: 100
     healthchecks:
       active:
@@ -45,7 +45,7 @@ upstreams:
         timeout: 1
   - name: ordonnances-service-upstream
     targets:
-      - target: ordonnances-service.service.consul:8082
+      - target: host.docker.internal:8082
         weight: 100
     healthchecks:
       active:
@@ -64,7 +64,7 @@ upstreams:
         timeout: 1
   - name: radiologues-service-upstream
     targets:
-      - target: radiologues-service.service.consul:8084
+      - target: host.docker.internal:8084
         weight: 100
     healthchecks:
       active:
@@ -83,7 +83,7 @@ upstreams:
         timeout: 1
   - name: reports-service-upstream
     targets:
-      - target: reports-service.service.consul:8085
+      - target: host.docker.internal:8085
         weight: 100
     healthchecks:
       active:
@@ -103,7 +103,7 @@ upstreams:
 
 services:
   - name: medecins-service
-    url: http://medecins-service.service.consul:8081
+    url: http://host.docker.internal:8081
     retries: 5
     connect_timeout: 1000
     write_timeout: 60000
@@ -139,7 +139,7 @@ services:
         preserve_host: true
 
   - name: ordonnances-service
-    url: http://ordonnances-service.service.consul:8082
+    url: http://host.docker.internal:8082
     routes:
       - name: ordonnances-main
         paths:
@@ -156,7 +156,7 @@ services:
         strip_path: false
 
   - name: patients-service
-    url: http://patients-service.service.consul:8083
+    url: http://host.docker.internal:8083
     routes:
       - name: patients-auth
         paths:
@@ -175,7 +175,7 @@ services:
         strip_path: false
 
   - name: radiologues-service
-    url: http://radiologues-service.service.consul:8084
+    url: http://host.docker.internal:8084
     routes:
       - name: radiologues
         paths:
@@ -184,7 +184,7 @@ services:
         preserve_host: true
 
   - name: reports-service
-    url: http://reports-service.service.consul:8085
+    url: http://host.docker.internal:8085
     routes:
       - name: reports-api
         paths:
