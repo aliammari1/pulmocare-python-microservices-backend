@@ -1,7 +1,7 @@
 import logging
 import time
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
@@ -37,7 +37,7 @@ class TracingService:
             try:
                 # Create exporter with timeout
                 otlp_exporter = OTLPSpanExporter(
-                    endpoint=otlp_endpoint,
+                    endpoint=otlp_endpoint + "/v1/traces",
                     timeout=timeout
                 )
                 

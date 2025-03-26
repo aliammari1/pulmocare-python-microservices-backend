@@ -1,0 +1,78 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Medecins Service",
+            "type": "shell",
+            "command": "cd services/medecins && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Ordonnances Service",
+            "type": "shell",
+            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Patients Service",
+            "type": "shell",
+            "command": "cd services/patients && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Radiologues Service",
+            "type": "shell",
+            "command": "cd services/radiologues && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Reports Service",
+            "type": "shell",
+            "command": "cd services/reports && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run All Services",
+            "type": "shell",
+            "command": "echo Running all services...",
+            "dependsOn": [
+                "Run Medecins Service",
+                "Run Ordonnances Service",
+                "Run Patients Service",
+                "Run Radiologues Service",
+                "Run Reports Service"
+            ],
+            "dependsOrder": "parallel",
+            "presentation": {
+                "panel": "dedicated"
+            },
+            "problemMatcher": []
+        }
+    ],
+    "compounds": {
+        "Run All Services": {
+            "tasks": [
+                "Run Medecins Service",
+                "Run Ordonnances Service",
+                "Run Patients Service",
+                "Run Radiologues Service",
+                "Run Reports Service"
+            ]
+        }
+    }
+}

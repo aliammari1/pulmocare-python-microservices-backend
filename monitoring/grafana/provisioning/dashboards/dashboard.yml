@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: "MedApp"
+  - name: "MedApp Dashboards"
     orgId: 1
-    folder: ""
+    folder: "MedApp"
     type: file
     disableDeletion: false
     editable: true

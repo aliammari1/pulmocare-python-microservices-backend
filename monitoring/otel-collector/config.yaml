@@ -5,19 +5,58 @@ receivers:
         endpoint: "0.0.0.0:4317"
       http:
         endpoint: "0.0.0.0:4318"
+  filelog:
+    include:
+      - /var/log/pods/*/*/*.log
+    start_at: beginning
+    include_file_path: true
+    operators:
+      - type: router
+        id: get-format
+        routes:
+          - output: parser-docker
+            expr: 'body matches "^\\{"'
+      - type: json_parser
+        id: parser-docker
+        output: extract_metadata_from_filepath
+        timestamp:
+          parse_from: attributes.time
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+      - type: regex_parser
+        id: extract_metadata_from_filepath
+        regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]+)\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
+        parse_from: attributes.file_path
+        output: extract_metadata_from_filepath_2
+      - type: regex_parser
+        id: extract_metadata_from_filepath_2
+        regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]+)\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
+        parse_from: attributes.file_path
 
 processors:
   batch:
     timeout: 1s
     send_batch_size: 1024
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+  resource:
+    attributes:
+      - key: environment
+        value: production
+        action: insert
 
 exporters:
-  prometheus:
-    endpoint: "0.0.0.0:8889"
+  otlp:
+    endpoint: "jaeger:4318"
+    tls:
+      insecure: true
   debug:
     verbosity: detailed
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: medapp
   otlp/jaeger:
-    endpoint: "jaeger:14250"
+    endpoint: "http://jaeger:4318"
     tls:
       insecure: true
 
@@ -28,12 +67,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [batch]
-      exporters: [otlp/jaeger, debug]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp]
     metrics:
       receivers: [otlp]
-      processors: [batch]
+      processors: [memory_limiter, batch, resource]
       exporters: [prometheus, debug]
     logs:
-      receivers: [otlp]
-      exporters: [debug]
+      receivers: [otlp, filelog]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp/jaeger, debug]

@@ -67,7 +67,7 @@ class Config:
     ENABLE_METRICS = os.getenv("ENABLE_METRICS", "True").lower() in ("true", "t", "1", "yes")
     
     # Tracing settings
-    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317" if ENV == 'development' else "http://otel-collector:4317")
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318")
     OTEL_SERVICE_NAME = SERVICE_NAME
     OTEL_DISABLE_ON_ERROR = ENV == 'development'  # Disable tracing if collector is unavailable in dev
 

@@ -31,7 +31,8 @@ services:
     volumes:
       - consul_data:/consul/data
     networks:
-      - medapp-network
+      medapp-network:
+        ipv4_address: 172.20.0.100
     environment:
       CONSUL_LOCAL_CONFIG: '{"leave_on_terminate": true, "skip_leave_on_interrupt": true, "rejoin_after_leave": true}'
       CONSUL_BIND_INTERFACE: eth0
@@ -43,6 +44,7 @@ services:
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
+
   kong-migrations:
     image: kong/kong-gateway:latest
     command: kong migrations bootstrap
@@ -77,28 +79,31 @@ services:
     build:
       context: ./config/kong
       dockerfile: Dockerfile
+    user: root
     networks:
       - medapp-network
     environment:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong.yaml
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: 0.0.0.0:8001
-      KONG_PROXY_LISTEN: 0.0.0.0:8000
-      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_CONF: /etc/kong/kong.conf
+      KONG_DNS_RESOLVER: 172.20.0.100:8600
+    volumes:
+      - ./config/kong/kong.conf:/etc/kong/kong.conf
+      - ./config/kong/kong.yaml:/kong.yaml
     ports:
       - "8000:8000"
       - "8001:8001"
       - "8002:8002"
+    depends_on:
+      consul:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "kong", "health"]
       interval: 10s
       timeout: 10s
       retries: 10
     restart: always
+
   kong-database:
     image: postgres:13
     environment:
@@ -195,7 +200,7 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: medapp-loki
-    command: -config.file=/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/loki.yaml
     ports:
       - "3100:3100"
     networks:
@@ -217,7 +222,7 @@ services:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
       - "8889:8889" # Prometheus exporter
-      - "13133:13133" # Health check
+      - "3300:13133" # Health check
     networks:
       - medapp-network
     depends_on:
@@ -225,7 +230,7 @@ services:
       - prometheus
       - loki
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3300"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -249,7 +254,6 @@ services:
       - medapp-network
     depends_on:
       - prometheus
-      - loki
       - jaeger
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
@@ -338,7 +342,7 @@ services:
       - REDIS_PORT=6379
       - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
       - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
+      - RABMQ_USER=${RABBITMQ_USER:-guest}
       - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
       - MONGODB_HOST=mongodb
       - MONGODB_PORT=27017
@@ -540,10 +544,8 @@ services:
     user: root
     ports:
       - "8080:8080"
-      - "50000:50000"
     volumes:
       - jenkins_home:/var/jenkins_home
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - medapp-network
     healthcheck:
@@ -555,6 +557,9 @@ services:
 networks:
   medapp-network:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   mongo_data:

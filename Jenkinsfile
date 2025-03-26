@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         DOCKER_COMPOSE = 'docker compose'
-        SONAR_HOST_URL = 'http://sonarqube:9001'
+        SONAR_HOST_URL = 'http://sonarqube:9002'
         DOCKER_REGISTRY = 'localhost:5000'
         VERSION = sh(script: 'git describe --tags --always || echo "dev"', returnStdout: true).trim()
         CONSUL_HTTP_ADDR = 'http://localhost:8500'
