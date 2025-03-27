@@ -1,15 +1,16 @@
 import logging
 import time
+import os
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
-                                            ConsoleSpanExporter)
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import NoOpTracer
 
 from config import Config
@@ -27,12 +28,19 @@ class TracingService:
     def _setup_tracing(self):
         """Set up OpenTelemetry tracing"""
         try:
-            # Create a tracer provider
-            tracer_provider = TracerProvider()
+            # Create a resource identifying this service
+            service_name = os.getenv("OTEL_SERVICE_NAME", Config.SERVICE_NAME)
+            resource = Resource.create({"service.name": service_name})
+
+            # Create a tracer provider with the resource
+            tracer_provider = TracerProvider(resource=resource)
             trace.set_tracer_provider(tracer_provider)
 
             # Create an OTLP exporter using config
             otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT
+            if not otlp_endpoint.endswith("/v1/traces"):
+                otlp_endpoint = f"{otlp_endpoint}/v1/traces"
+
             self.logger.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"
             )
@@ -46,8 +54,15 @@ class TracingService:
                     endpoint=otlp_endpoint, timeout=timeout
                 )
 
-                # Add the exporter to the tracer provider
+                # Add the exporter to the tracer provider using BatchSpanProcessor
+                # This will send spans to the collector
                 tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+
+                # In development, also log to console for debugging
+                if Config.ENV == "development":
+                    tracer_provider.add_span_processor(
+                        BatchSpanProcessor(ConsoleSpanExporter())
+                    )
 
             except Exception as export_error:
                 self.logger.warning(
@@ -78,6 +93,7 @@ class TracingService:
                 # Instrument libraries
                 PymongoInstrumentor().instrument()
                 RedisInstrumentor().instrument()
+                RequestsInstrumentor().instrument()
 
                 # Create a tracer
                 self.tracer = trace.get_tracer(__name__)

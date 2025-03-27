@@ -32,7 +32,7 @@ class TracingService:
             trace.set_tracer_provider(tracer_provider)
 
             # Create an OTLP exporter using config
-            otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT
+            otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT + "/v1/traces"
             self.logger.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"
             )
@@ -43,7 +43,7 @@ class TracingService:
             try:
                 # Create exporter with timeout
                 otlp_exporter = OTLPSpanExporter(
-                    endpoint=otlp_endpoint + "/v1/traces", timeout=timeout
+                    endpoint=otlp_endpoint, timeout=timeout
                 )
 
                 # Add the exporter to the tracer provider

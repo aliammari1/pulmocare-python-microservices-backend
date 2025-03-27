@@ -47,11 +47,19 @@ if not os.path.exists(dotenv_file):
 load_dotenv(dotenv_path=dotenv_file)
 
 
-# Configure logging
+# Configure logging with file output
+log_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+os.makedirs(log_directory, exist_ok=True)
+log_file = os.path.join(log_directory, "medecins.log")
+
+# Configure root logger
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
+logger.info("Medecins service starting - Logs will be collected by Loki")
 
 # Initialize Flask app
 app = Flask(__name__)

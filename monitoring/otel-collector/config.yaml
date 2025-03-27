@@ -8,6 +8,11 @@ receivers:
   filelog:
     include:
       - /var/log/pods/*/*/*.log
+      - /var/log/medecins/**/*.log
+      - /var/log/ordonnances/**/*.log
+      - /var/log/patients/**/*.log
+      - /var/log/radiologues/**/*.log
+      - /var/log/reports/**/*.log
     start_at: beginning
     include_file_path: true
     operators:
@@ -33,12 +38,8 @@ receivers:
         parse_from: attributes.file_path
 
 processors:
-  batch:
-    timeout: 1s
-    send_batch_size: 1024
   memory_limiter:
-    check_interval: 1s
-    limit_mib: 512
+  batch:
   resource:
     attributes:
       - key: environment
@@ -56,7 +57,11 @@ exporters:
     endpoint: "0.0.0.0:8889"
     namespace: medapp
   otlp/jaeger:
-    endpoint: "http://jaeger:4318"
+    endpoint: "jaeger:4318"
+    tls:
+      insecure: true
+  otlphttp/logs:
+    endpoint: "loki:3100/otlp"
     tls:
       insecure: true
 
@@ -76,4 +81,4 @@ service:
     logs:
       receivers: [otlp, filelog]
       processors: [memory_limiter, batch, resource]
-      exporters: [otlp/jaeger, debug]
+      exporters: [otlp/jaeger, otlphttp/logs, debug]

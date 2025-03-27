@@ -8,7 +8,8 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (BatchSpanProcessor,ConsoleSpanExporter)
+from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
+                                            ConsoleSpanExporter)
 from opentelemetry.trace import NoOpTracer
 
 from config import Config
@@ -31,7 +32,7 @@ class TracingService:
             trace.set_tracer_provider(tracer_provider)
 
             # Create an OTLP exporter using config
-            otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT
+            otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT + "/v1/traces"
             self.logger.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"
             )
