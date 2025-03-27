@@ -1,5 +1,21 @@
 name: medapp
 
+x-service-env: &service-env
+  CONSUL_HOST: consul
+  CONSUL_PORT: "8500"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_USER: ${RABBITMQ_USER:-guest}
+  RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
+  MONGODB_HOST: mongodb
+  MONGODB_PORT: "27017"
+  MONGODB_USERNAME: admin
+  MONGODB_PASSWORD: admin
+  MONGODB_DATABASE: medapp
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+
 services:
   # MongoDB Service
   mongodb:
@@ -287,24 +303,11 @@ services:
     ports:
       - "8081:8081"
     environment:
-      - ENV=production
-      - PORT=8081
-      - CONSUL_HOST=consul
-      - CONSUL_PORT=8500
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - MONGODB_USERNAME=admin
-      - MONGODB_PASSWORD=admin
-      - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
-      - OTEL_SERVICE_NAME=medecins-service
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=medecins-service
+      <<: *service-env
+      ENV: production
+      PORT: "8081"
+      OTEL_SERVICE_NAME: medecins-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=medecins-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -334,24 +337,11 @@ services:
     ports:
       - "8082:8082"
     environment:
-      - ENV=production
-      - PORT=8082
-      - CONSUL_HOST=consul
-      - CONSUL_PORT=8500
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
-      - RABBITMQ_HOST=rabbitmq
-      - RABMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - MONGODB_USERNAME=admin
-      - MONGODB_PASSWORD=admin
-      - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
-      - OTEL_SERVICE_NAME=ordonnances-service
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=ordonnances-service
+      <<: *service-env
+      ENV: production
+      PORT: "8082"
+      OTEL_SERVICE_NAME: ordonnances-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=ordonnances-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -381,24 +371,11 @@ services:
     ports:
       - "8083:8083"
     environment:
-      - ENV=production
-      - PORT=8083
-      - CONSUL_HOST=consul
-      - CONSUL_PORT=8500
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - MONGODB_USERNAME=admin
-      - MONGODB_PASSWORD=admin
-      - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
-      - OTEL_SERVICE_NAME=patients-service
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=patients-service
+      <<: *service-env
+      ENV: production
+      PORT: "8083"
+      OTEL_SERVICE_NAME: patients-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=patients-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -428,24 +405,11 @@ services:
     ports:
       - "8084:8084"
     environment:
-      - ENV=production
-      - PORT=8084
-      - CONSUL_HOST=consul
-      - CONSUL_PORT=8500
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - MONGODB_USERNAME=admin
-      - MONGODB_PASSWORD=admin
-      - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
-      - OTEL_SERVICE_NAME=radiologues-service
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=radiologues-service
+      <<: *service-env
+      ENV: production
+      PORT: "8084"
+      OTEL_SERVICE_NAME: radiologues-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=radiologues-service
     depends_on:
       mongodb:
         condition: service_healthy
@@ -476,25 +440,12 @@ services:
       - "8085:8085"
       - "9093:9093"
     environment:
-      - ENV=production
-      - PORT=8085
-      - PROMETHEUS_PORT=9093
-      - CONSUL_HOST=consul
-      - CONSUL_PORT=8500
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-redispass}
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_USER=${RABBITMQ_USER:-guest}
-      - RABBITMQ_PASS=${RABBITMQ_PASS:-guest}
-      - MONGODB_HOST=mongodb
-      - MONGODB_PORT=27017
-      - MONGODB_USERNAME=admin
-      - MONGODB_PASSWORD=admin
-      - MONGODB_DATABASE=medapp
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_SERVICE_NAME=reports-service
-      - OTEL_RESOURCE_ATTRIBUTES=service.name=reports-service
+      <<: *service-env
+      ENV: production
+      PORT: "8085"
+      PROMETHEUS_PORT: "9093"
+      OTEL_SERVICE_NAME: reports-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=reports-service
     depends_on:
       mongodb:
         condition: service_healthy

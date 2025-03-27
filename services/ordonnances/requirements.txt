@@ -13,7 +13,8 @@ python-consul==1.1.0
 reportlab
 redis
 pika
-psutil
+prometheus-flask-exporter==0.22.4
+prometheus_client
 opentelemetry-api==1.31.0
 opentelemetry-sdk==1.31.0
 opentelemetry-instrumentation-flask==0.52b0

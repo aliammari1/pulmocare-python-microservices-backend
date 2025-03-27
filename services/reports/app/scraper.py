@@ -120,7 +120,12 @@ class DocumentationScraper:
 
 
 if __name__ == "__main__":
-    load_dotenv()
+    # Determine environment and load corresponding .env file
+    env = os.getenv("ENV", "development")
+    dotenv_file = f".env.{env}"
+    if not os.path.exists(dotenv_file):
+        dotenv_file = ".env"
+    load_dotenv(dotenv_path=dotenv_file)
 
     scraper = DocumentationScraper()
     scraper.pull_docs("https://docs.firecrawl.dev", "Firecrawl-docs", n_pages=3)

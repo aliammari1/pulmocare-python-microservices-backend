@@ -4,7 +4,7 @@
         {
             "label": "Run Medecins Service",
             "type": "shell",
-            "command": "cd services/medecins && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "command": "cd services/medecins && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -13,7 +13,7 @@
         {
             "label": "Run Ordonnances Service",
             "type": "shell",
-            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -22,7 +22,7 @@
         {
             "label": "Run Patients Service",
             "type": "shell",
-            "command": "cd services/patients && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "command": "cd services/patients && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -31,7 +31,7 @@
         {
             "label": "Run Radiologues Service",
             "type": "shell",
-            "command": "cd services/radiologues && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "command": "cd services/radiologues && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -40,7 +40,7 @@
         {
             "label": "Run Reports Service",
             "type": "shell",
-            "command": "cd services/reports && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && python app/app.py",
+            "command": "cd services/reports && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
             "presentation": {
                 "panel": "new"
             },
