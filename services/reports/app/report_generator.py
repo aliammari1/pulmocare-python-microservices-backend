@@ -1,48 +1,50 @@
+import logging
 import os
 import tempfile
-import logging
 from datetime import datetime
+
 import pdfkit
+
 
 class ReportGenerator:
     """Service for generating PDF reports"""
-    
+
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.temp_dir = tempfile.gettempdir()
-    
+
     def generate_pdf(self, report):
         """Generate PDF from report data"""
         try:
-            report_id = report['_id']
-            
+            report_id = report["_id"]
+
             # Generate HTML content
             html_content = self._generate_html(report)
-            
+
             # Create output path
             output_path = os.path.join(self.temp_dir, f"report_{report_id}.pdf")
-            
+
             # Generate PDF using pdfkit (wrapper for wkhtmltopdf)
             pdfkit.from_string(html_content, output_path)
-            
+
             self.logger.info(f"Generated PDF report for {report_id}")
             return output_path
         except Exception as e:
             self.logger.error(f"Error generating PDF: {str(e)}")
             raise
-    
+
     def _generate_html(self, report):
         """Generate HTML template for the report"""
-        title = report.get('title', 'Untitled Report')
-        content = report.get('content', '')
-        patient_name = report.get('patient_name', 'Unknown')
-        doctor_name = report.get('doctor_name', 'Unknown')
-        created_at = report.get('created_at', datetime.utcnow().isoformat())
-        
+        title = report.get("title", "Untitled Report")
+        content = report.get("content", "")
+        patient_name = report.get("patient_name", "Unknown")
+        doctor_name = report.get("doctor_name", "Unknown")
+        created_at = report.get("created_at", datetime.utcnow().isoformat())
+
         # Format date if it's not already a string
         if not isinstance(created_at, str):
             created_at = created_at.isoformat()
-        
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -106,5 +108,5 @@ class ReportGenerator:
         </body>
         </html>
         """
-        
+
         return html

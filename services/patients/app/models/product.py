@@ -1,5 +1,6 @@
 from config import db
 
+
 class Product:
     collection = db["products"]
 
