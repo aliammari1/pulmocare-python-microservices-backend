@@ -6,38 +6,33 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     curl \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    libsm6 \
-    libxext6 \
-    libxrender1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python packages
 COPY requirements.txt .
-RUN pip install --upgrade pip && \
-    pip install setuptools wheel && \
-    pip install -r requirements.txt && \
-    pip install gunicorn
+RUN pip install -r requirements.txt
 
 # Copy application code
 COPY ./app/ .
 
-# Create directory for exported files
-RUN mkdir -p /tmp/exports && \
-    chmod 777 /tmp/exports
+# Create log directory with appropriate permissions
+RUN mkdir -p /app/logs && \
+    chmod 777 /app/logs
 
 # Environment variables
 ENV PORT=8085 \
+    METRICS_PORT=9095 \
     PYTHONUNBUFFERED=1 \
     PATH="/usr/local/bin:$PATH" \
     PYTHONPATH="/app:$PYTHONPATH" \
-    PDF_EXPORT_PATH="/tmp/exports"
+    LOG_PATH="/app/logs"
+
+# Make sure log directory persists
+VOLUME ["/app/logs"]
 
 # Expose ports
 EXPOSE ${PORT}
-EXPOSE 9090
+EXPOSE ${METRICS_PORT}
 
-# Start both the main service and consumer
-CMD [ "sh","-c", "ls","-R" ]
-CMD ["sh", "-c", "python consumer.py & python app.py"]
+# Start the service with proper logging
+CMD ["sh", "-c", "python app.py 2>&1 | tee -a /app/logs/reports.log"]

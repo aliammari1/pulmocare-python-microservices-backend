@@ -8,71 +8,83 @@ logger = logging.getLogger(__name__)
 
 # RabbitMQ metrics
 RABBITMQ_MESSAGES_PUBLISHED = Counter(
-    "rabbitmq_messages_published_total",
-    "Total number of messages published",
+    "patients_service_rabbitmq_messages_published_total",
+    "Total number of messages published by patients service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_PUBLISH_LATENCY = Histogram(
-    "rabbitmq_publish_latency_seconds",
-    "Message publish latency in seconds",
+    "patients_service_rabbitmq_publish_latency_seconds",
+    "Message publish latency in seconds for patients service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_CONSUME_LATENCY = Histogram(
-    "rabbitmq_consume_latency_seconds", "Message consume latency in seconds", ["queue"]
+    "patients_service_rabbitmq_consume_latency_seconds",
+    "Message consume latency in seconds for patients service",
+    ["queue"],
 )
 
 RABBITMQ_QUEUE_SIZE = Gauge(
-    "rabbitmq_queue_size", "Number of messages in queue", ["queue"]
+    "patients_service_rabbitmq_queue_size",
+    "Number of messages in queue for patients service",
+    ["queue"],
 )
 
-RABBITMQ_CONSUMER_COUNT = Gauge("rabbitmq_consumers", "Number of consumers", ["queue"])
+RABBITMQ_CONSUMER_COUNT = Gauge(
+    "patients_service_rabbitmq_consumers",
+    "Number of consumers for patients service",
+    ["queue"],
+)
 
 # Circuit breaker metrics
 CIRCUIT_BREAKER_STATE = Gauge(
-    "circuit_breaker_state",
-    "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+    "patients_service_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=open, 2=half-open) for patients service",
     ["name"],
 )
 
 CIRCUIT_BREAKER_FAILURES = Counter(
-    "circuit_breaker_failures_total", "Number of circuit breaker failures", ["name"]
+    "patients_service_circuit_breaker_failures_total",
+    "Number of circuit breaker failures for patients service",
+    ["name"],
 )
 
 CIRCUIT_BREAKER_SUCCESS = Counter(
-    "circuit_breaker_success_total", "Number of circuit breaker successes", ["name"]
+    "patients_service_circuit_breaker_success_total",
+    "Number of circuit breaker successes for patients service",
+    ["name"],
 )
 
 CIRCUIT_BREAKER_REJECTED = Counter(
-    "circuit_breaker_rejected_total",
-    "Number of requests rejected due to open circuit",
+    "patients_service_circuit_breaker_rejected_total",
+    "Number of requests rejected due to open circuit for patients service",
     ["name"],
 )
 
 # Cache metrics
-CACHE_HITS = Counter("cache_hits_total", "Number of cache hits", ["cache"])
-
-CACHE_MISSES = Counter("cache_misses_total", "Number of cache misses", ["cache"])
-
-CACHE_HIT = Counter(
-    "report_cache_hit_total", "Total number of cache hits", ["cache_name"]
+CACHE_HITS = Counter(
+    "patients_service_cache_hits_total",
+    "Number of cache hits for patients service",
+    ["cache"],
 )
 
-CACHE_MISS = Counter(
-    "report_cache_miss_total", "Total number of cache misses", ["cache_name"]
+CACHE_MISSES = Counter(
+    "patients_service_cache_misses_total",
+    "Number of cache misses for patients service",
+    ["cache"],
 )
 
 # Service dependency metrics
 SERVICE_DEPENDENCY_UP = Gauge(
-    "service_dependency_up",
-    "Whether a service dependency is available (1=up, 0=down)",
+    "patients_service_dependency_up",
+    "Whether a service dependency is available (1=up, 0=down) for patients service",
     ["service"],
 )
 
 SERVICE_DEPENDENCY_LATENCY = Histogram(
-    "service_dependency_latency_seconds",
-    "Service dependency request latency in seconds",
+    "patients_service_dependency_latency_seconds",
+    "Service dependency request latency in seconds for patients service",
     ["service", "operation"],
 )
 
@@ -168,10 +180,8 @@ def track_cache_metrics(hit: bool, cache_name: str):
     try:
         if hit:
             CACHE_HITS.labels(cache=cache_name).inc()
-            CACHE_HIT.labels(cache_name=cache_name).inc()
         else:
             CACHE_MISSES.labels(cache=cache_name).inc()
-            CACHE_MISS.labels(cache_name=cache_name).inc()
     except Exception as e:
         logger.warning(f"Error tracking cache metrics: {str(e)}")
 

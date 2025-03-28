@@ -3,7 +3,7 @@ import os
 import socket
 import urllib.parse
 from datetime import timedelta
-
+import sys
 from dotenv import load_dotenv
 
 # Determine environment and load corresponding .env file
@@ -73,7 +73,9 @@ class Config:
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
 
     # Monitoring settings
-    METRICS_PORT = int(os.getenv("METRICS_PORT", "9090"))
+    METRICS_PORT = int(
+        os.getenv("METRICS_PORT", "9095")
+    )  # Updated to match prometheus.yml configuration
     ENABLE_METRICS = os.getenv("ENABLE_METRICS", "True").lower() in (
         "true",
         "t",
@@ -231,39 +233,68 @@ class Config:
             f"{cls.RABBITMQ_HOST}:{cls.RABBITMQ_PORT}/{cls.RABBITMQ_VHOST}"
         )
 
-    @classmethod
-    def init_logging(cls):
+    @staticmethod
+    def init_logging():
         """Initialize logging configuration"""
-        os.makedirs(cls.LOG_DIR, exist_ok=True)
-        return {
+        log_dir = "logs"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+
+        log_file = os.path.join(log_dir, "service.log")
+
+        logging_config = {
             "version": 1,
             "disable_existing_loggers": False,
             "formatters": {
-                "standard": {"format": cls.LOG_FORMAT},
-            },
-            "handlers": {
-                "file": {
-                    "level": cls.LOG_LEVEL,
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "filename": cls.LOG_FILE,
-                    "maxBytes": cls.LOG_MAX_SIZE,
-                    "backupCount": cls.LOG_BACKUP_COUNT,
-                    "formatter": "standard",
+                "json": {
+                    "format": '{"timestamp":"%(asctime)s", "level":"%(levelname)s", "service":"%(name)s", "message":"%(message)s", "traceID":"%(otelTraceID)s", "spanID":"%(otelSpanID)s"}',
+                    "datefmt": "%Y-%m-%dT%H:%M:%S.%fZ",
                 },
-                "console": {
-                    "level": cls.LOG_LEVEL,
-                    "class": "logging.StreamHandler",
-                    "formatter": "standard",
+                "standard": {
+                    "format": "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
                 },
             },
-            "loggers": {
-                "": {
-                    "handlers": ["console", "file"],
-                    "level": cls.LOG_LEVEL,
-                    "propagate": True,
+            "filters": {
+                "otel_trace_context": {
+                    "()": "services.log_filters.OpenTelemetryTraceContextFilter",
                 }
             },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "level": "INFO",
+                    "formatter": "standard",
+                    "stream": sys.stdout,
+                    "filters": ["otel_trace_context"],
+                },
+                "file": {
+                    "class": "logging.handlers.RotatingFileHandler",
+                    "level": "INFO",
+                    "formatter": "json",
+                    "filename": log_file,
+                    "maxBytes": 10485760,  # 10MB
+                    "backupCount": 5,
+                    "filters": ["otel_trace_context"],
+                },
+            },
+            "root": {
+                "handlers": ["console", "file"],
+                "level": "INFO",
+            },
+            "loggers": {
+                "werkzeug": {
+                    "level": "WARNING",
+                },
+                "requests": {
+                    "level": "WARNING",
+                },
+                "urllib3": {
+                    "level": "WARNING",
+                },
+            },
         }
+
+        return logging_config
 
     @classmethod
     def validate(cls):

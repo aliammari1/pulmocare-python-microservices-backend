@@ -6,40 +6,26 @@ receivers:
       http:
         endpoint: "0.0.0.0:4318"
   filelog:
-    include:
-      - /var/log/pods/*/*/*.log
-      - /var/log/medecins/**/*.log
-      - /var/log/ordonnances/**/*.log
-      - /var/log/patients/**/*.log
-      - /var/log/radiologues/**/*.log
-      - /var/log/reports/**/*.log
+    include: ["/var/log/containers/*/*.log"]
     start_at: beginning
     include_file_path: true
     operators:
-      - type: router
-        id: get-format
-        routes:
-          - output: parser-docker
-            expr: 'body matches "^\\{"'
       - type: json_parser
-        id: parser-docker
-        output: extract_metadata_from_filepath
-        timestamp:
-          parse_from: attributes.time
-          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
       - type: regex_parser
-        id: extract_metadata_from_filepath
-        regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]+)\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
-        parse_from: attributes.file_path
-        output: extract_metadata_from_filepath_2
-      - type: regex_parser
-        id: extract_metadata_from_filepath_2
-        regex: '^.*\/(?P<namespace>[^_]+)_(?P<pod_name>[^_]+)_(?P<uid>[a-f0-9\-]+)\/(?P<container_name>[^\._]+)\/(?P<restart_count>\d+)\.log$'
-        parse_from: attributes.file_path
+        regex: "^(?P<container_id>[a-f0-9]{64})$"
+        parse_from: attributes["container.id"]
+      - type: move
+        from: attributes["log.file.path"]
+        to: attributes["file.path"]
 
 processors:
   memory_limiter:
+    check_interval: 1s
+    limit_mib: 1536
+    spike_limit_mib: 512
   batch:
+    timeout: 1s
+    send_batch_size: 1024
   resource:
     attributes:
       - key: environment
@@ -47,21 +33,17 @@ processors:
         action: insert
 
 exporters:
-  otlp:
-    endpoint: "jaeger:4318"
-    tls:
-      insecure: true
   debug:
     verbosity: detailed
   prometheus:
     endpoint: "0.0.0.0:8889"
     namespace: medapp
-  otlp/jaeger:
-    endpoint: "jaeger:4318"
-    tls:
-      insecure: true
   otlphttp/logs:
     endpoint: "loki:3100/otlp"
+    tls:
+      insecure: true
+  otlp/tempo:
+    endpoint: tempo:4317
     tls:
       insecure: true
 
@@ -72,13 +54,13 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [otlp]
+      processors: [batch]
+      exporters: [otlp/tempo]
     metrics:
       receivers: [otlp]
-      processors: [memory_limiter, batch, resource]
-      exporters: [prometheus, debug]
+      processors: [batch]
+      exporters: [prometheus]
     logs:
-      receivers: [otlp, filelog]
-      processors: [memory_limiter, batch, resource]
-      exporters: [otlp/jaeger, otlphttp/logs, debug]
+      receivers: [filelog, otlp]
+      processors: [batch]
+      exporters: [otlphttp/logs]

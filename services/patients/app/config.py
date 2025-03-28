@@ -69,7 +69,9 @@ class Config:
     LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
 
     # Monitoring settings
-    METRICS_PORT = int(os.getenv("METRICS_PORT", "9090"))
+    METRICS_PORT = int(
+        os.getenv("METRICS_PORT", "9093")
+    )  # Updated to match prometheus.yml configuration
     ENABLE_METRICS = os.getenv("ENABLE_METRICS", "True").lower() in (
         "true",
         "t",

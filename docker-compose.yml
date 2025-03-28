@@ -1,20 +1,20 @@
 name: medapp
 
 x-service-env: &service-env
-  CONSUL_HOST: consul
+  CONSUL_HOST: "consul"
   CONSUL_PORT: "8500"
-  REDIS_HOST: redis
+  MONGODB_URI: "mongodb://mongodb:27017"
+  REDIS_HOST: "redis"
   REDIS_PORT: "6379"
-  REDIS_PASSWORD: ${REDIS_PASSWORD:-redispass}
-  RABBITMQ_HOST: rabbitmq
-  RABBITMQ_USER: ${RABBITMQ_USER:-guest}
-  RABBITMQ_PASS: ${RABBITMQ_PASS:-guest}
-  MONGODB_HOST: mongodb
-  MONGODB_PORT: "27017"
-  MONGODB_USERNAME: admin
-  MONGODB_PASSWORD: admin
-  MONGODB_DATABASE: medapp
-  OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_PYTHON_LOG_CORRELATION: "true"
+  OTEL_METRICS_EXPORTER: "otlp"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_LOGS_EXPORTER: "otlp"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
 
 services:
   # MongoDB Service
@@ -24,7 +24,7 @@ services:
     ports:
       - "27017:27017"
     volumes:
-      - ./data/mongodb:/data/db
+      - mongo_data:/data/db
     networks:
       - medapp-network
     environment:
@@ -65,7 +65,8 @@ services:
     image: kong/kong-gateway:latest
     command: kong migrations bootstrap
     depends_on:
-      - kong-database
+      kong-database:
+        condition: service_healthy
     environment:
       KONG_DATABASE: postgres
       KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
@@ -78,31 +79,42 @@ services:
 
   kong-migrations-up:
     image: kong/kong-gateway:latest
-    command: kong migrations up && kong migrations finish
+    command: bash -c "kong migrations up && kong migrations finish && kong config db_import /kong.yaml"
     depends_on:
-      - kong-database
+      kong-migrations:
+        condition: service_completed_successfully
+      kong-database:
+        condition: service_healthy
     environment:
       KONG_DATABASE: postgres
       KONG_PG_DATABASE: kong
       KONG_PG_HOST: kong-database
       KONG_PG_USER: kong
       KONG_PG_PASSWORD: kongpass
+      KONG_PG_PORT: "5432"
+    volumes:
+      - ./config/kong/kong.yaml:/kong.yaml
     networks:
       - medapp-network
     restart: on-failure
 
   kong-gateway:
-    build:
-      context: ./config/kong
-      dockerfile: Dockerfile
-    user: root
+    image: kong/kong-gateway:latest
+    container_name: medapp-kong-gateway
     networks:
       - medapp-network
     environment:
-      KONG_DATABASE: "off"
-      KONG_DECLARATIVE_CONFIG: /kong.yaml
-      KONG_CONF: /etc/kong/kong.conf
-      KONG_DNS_RESOLVER: 127.0.0.11:53
+      KONG_DATABASE: "postgres"
+      KONG_PG_HOST: "kong-database"
+      KONG_PG_PORT: "5432"
+      KONG_PG_DATABASE: "kong"
+      KONG_PG_USER: "kong"
+      KONG_PG_PASSWORD: "kongpass"
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
     volumes:
       - ./config/kong/kong.conf:/etc/kong/kong.conf
       - ./config/kong/kong.yaml:/kong.yaml
@@ -111,7 +123,9 @@ services:
       - "8001:8001"
       - "8002:8002"
     depends_on:
-      consul:
+      kong-migrations-up:
+        condition: service_completed_successfully
+      kong-database:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "kong", "health"]
@@ -126,6 +140,8 @@ services:
       - POSTGRES_DB=kong
       - POSTGRES_USER=kong
       - POSTGRES_PASSWORD=kongpass
+    volumes:
+      - kong_database:/var/lib/postgresql/data
     networks:
       - medapp-network
     healthcheck:
@@ -133,6 +149,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
   # RabbitMQ Service
   rabbitmq:
     image: rabbitmq:3.12-management
@@ -195,26 +212,22 @@ services:
       timeout: 5s
       retries: 3
 
-  # Jaeger
-  jaeger:
-    image: jaegertracing/jaeger:latest
-    container_name: medapp-jaeger
+  # Tempo - Distributed Tracing
+  tempo:
+    image: grafana/tempo:latest
+    container_name: medapp-tempo
+    command: [ "-config.file=/etc/tempo/tempo.yaml" ]
+    user: root  # Run as root to avoid permission issues
+    volumes:
+      - ./monitoring/tempo:/etc/tempo
+      - tempo_data:/tmp/tempo
     ports:
-      - "16686:16686" # UI
-      - "14250:14250" # gRPC 
-      - "6831:6831/udp"
-      - "14268:14268"
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-      - JAEGER_AGENT_PORT=6831
-      - JAEGER_COLLECTOR_OTLP_ENABLED=true
-      - JAEGER_REPORTER_LOG_SPANS=true
-      - JAEGER_SAMPLER_TYPE=const
-      - JAEGER_SAMPLER_PARAM=1
+      - "3200:3200"  # tempo UI
+      - "9411:9411"  # zipkin
     networks:
       - medapp-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:16686"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3200/status"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -223,12 +236,13 @@ services:
   loki:
     image: grafana/loki:latest
     container_name: medapp-loki
-    command: -config.file=/etc/loki/config/loki.yaml
+    volumes:
+      - ./monitoring/loki/loki.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
     ports:
       - "3100:3100"
-    volumes:
-      - ./monitoring/loki:/etc/loki/config
-      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
     networks:
       - medapp-network
     healthcheck:
@@ -243,23 +257,26 @@ services:
     container_name: medapp-otel-collector
     command: ["--config=/etc/otel-collector/config.yaml"]
     volumes:
-      - ./monitoring/otel-collector:/etc/otel-collector
+      - ./monitoring/otel-collector/config.yaml:/etc/otel-collector/config.yaml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/log:/var/log:ro
     ports:
-      - "4317:4317" # OTLP gRPC
-      - "4318:4318" # OTLP HTTP
-      - "8889:8889" # Prometheus exporter
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+      - "8889:8889"  # Prometheus exporter
       - "3300:13133" # Health check
     networks:
       - medapp-network
     depends_on:
-      - jaeger
+      - tempo
       - prometheus
       - loki
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3300"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
       interval: 10s
       timeout: 5s
       retries: 3
+    restart: unless-stopped
 
   # Update Grafana with additional datasources
   grafana:
@@ -280,27 +297,9 @@ services:
       - medapp-network
     depends_on:
       - prometheus
-      - jaeger
+      - tempo
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # Node Exporter - System Metrics
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: medapp-node-exporter
-    command:
-      - "--path.rootfs=/host"
-    ports:
-      - "9100:9100"
-    networks:
-      - medapp-network
-    volumes:
-      - "./:/host:ro,rslave"
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "localhost:9100/metrics"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -310,12 +309,15 @@ services:
     build:
       context: ./services/medecins
       dockerfile: Dockerfile
+    container_name: medapp-medecins-service
     ports:
       - "8081:8081"
+      - "9091:9091"  # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8081"
+      METRICS_PORT: "9091"
       OTEL_SERVICE_NAME: medecins-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=medecins-service
     depends_on:
@@ -333,6 +335,7 @@ services:
       - medapp-network
     volumes:
       - ./services/medecins/app:/app
+      - ./services/medecins/app/logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: 10s
@@ -344,12 +347,15 @@ services:
     build:
       context: ./services/ordonnances
       dockerfile: Dockerfile
+    container_name: medapp-ordonnances-service
     ports:
       - "8082:8082"
+      - "9092:9092"  # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8082"
+      METRICS_PORT: "9092"
       OTEL_SERVICE_NAME: ordonnances-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=ordonnances-service
     depends_on:
@@ -367,6 +373,7 @@ services:
       - medapp-network
     volumes:
       - ./services/ordonnances/app:/app
+      - ./services/ordonnances/app/logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
       interval: 10s
@@ -378,12 +385,15 @@ services:
     build:
       context: ./services/patients
       dockerfile: Dockerfile
+    container_name: medapp-patients-service
     ports:
       - "8083:8083"
+      - "9093:9093"  # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8083"
+      METRICS_PORT: "9093"
       OTEL_SERVICE_NAME: patients-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=patients-service
     depends_on:
@@ -401,6 +411,7 @@ services:
       - medapp-network
     volumes:
       - ./services/patients/app:/app
+      - ./services/patients/app/logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8083/health"]
       interval: 10s
@@ -412,12 +423,15 @@ services:
     build:
       context: ./services/radiologues
       dockerfile: Dockerfile
+    container_name: medapp-radiologues-service
     ports:
       - "8084:8084"
+      - "9094:9094"  # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8084"
+      METRICS_PORT: "9094"
       OTEL_SERVICE_NAME: radiologues-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=radiologues-service
     depends_on:
@@ -435,6 +449,7 @@ services:
       - medapp-network
     volumes:
       - ./services/radiologues/app:/app
+      - ./services/radiologues/app/logs:/app/logs
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8084/health"]
       interval: 10s
@@ -446,16 +461,20 @@ services:
     build:
       context: ./services/reports
       dockerfile: Dockerfile
+    container_name: medapp-reports-service
     ports:
       - "8085:8085"
-      - "9093:9093"
+      - "9095:9095"  # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8085"
-      PROMETHEUS_PORT: "9093"
+      METRICS_PORT: "9095"
       OTEL_SERVICE_NAME: reports-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=reports-service
+    volumes:
+      - ./services/reports/app:/app
+      - ./services/reports/app/logs:/app/logs
     depends_on:
       mongodb:
         condition: service_healthy
@@ -469,8 +488,6 @@ services:
         condition: service_started
     networks:
       - medapp-network
-    volumes:
-      - ./services/reports/app:/app
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8085/health"]
       interval: 10s
@@ -525,10 +542,7 @@ networks:
 volumes:
   mongo_data:
   redis_data:
-  kong_data:
-  kong_logs:
   kong_database:
-  kong_tmp_vol:
   consul_data:
   sonarqube_data:
   sonarqube_logs:
@@ -537,3 +551,4 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  tempo_data:

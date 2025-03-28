@@ -8,71 +8,95 @@ logger = logging.getLogger(__name__)
 
 # RabbitMQ metrics
 RABBITMQ_MESSAGES_PUBLISHED = Counter(
-    "rabbitmq_messages_published_total",
-    "Total number of messages published",
+    "medecins_service_rabbitmq_messages_published_total",
+    "Total number of messages published by medecins service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_PUBLISH_LATENCY = Histogram(
-    "rabbitmq_publish_latency_seconds",
-    "Message publish latency in seconds",
+    "medecins_service_rabbitmq_publish_latency_seconds",
+    "Message publish latency in seconds for medecins service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_CONSUME_LATENCY = Histogram(
-    "rabbitmq_consume_latency_seconds", "Message consume latency in seconds", ["queue"]
+    "medecins_service_rabbitmq_consume_latency_seconds",
+    "Message consume latency in seconds for medecins service",
+    ["queue"],
 )
 
 RABBITMQ_QUEUE_SIZE = Gauge(
-    "rabbitmq_queue_size", "Number of messages in queue", ["queue"]
+    "medecins_service_rabbitmq_queue_size",
+    "Number of messages in queue for medecins service",
+    ["queue"],
 )
 
-RABBITMQ_CONSUMER_COUNT = Gauge("rabbitmq_consumers", "Number of consumers", ["queue"])
+RABBITMQ_CONSUMER_COUNT = Gauge(
+    "medecins_service_rabbitmq_consumers",
+    "Number of consumers for medecins service",
+    ["queue"],
+)
 
 # Circuit breaker metrics
 CIRCUIT_BREAKER_STATE = Gauge(
-    "circuit_breaker_state",
-    "Circuit breaker state (0=closed, 1=open, 2=half-open)",
+    "medecins_service_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=open, 2=half-open) for medecins service",
     ["name"],
 )
 
 CIRCUIT_BREAKER_FAILURES = Counter(
-    "circuit_breaker_failures_total", "Number of circuit breaker failures", ["name"]
+    "medecins_service_circuit_breaker_failures_total",
+    "Number of circuit breaker failures for medecins service",
+    ["name"],
 )
 
 CIRCUIT_BREAKER_SUCCESS = Counter(
-    "circuit_breaker_success_total", "Number of circuit breaker successes", ["name"]
+    "medecins_service_circuit_breaker_success_total",
+    "Number of circuit breaker successes for medecins service",
+    ["name"],
 )
 
 CIRCUIT_BREAKER_REJECTED = Counter(
-    "circuit_breaker_rejected_total",
-    "Number of requests rejected due to open circuit",
+    "medecins_service_circuit_breaker_rejected_total",
+    "Number of requests rejected due to open circuit for medecins service",
     ["name"],
 )
 
 # Cache metrics
-CACHE_HITS = Counter("cache_hits_total", "Number of cache hits", ["cache"])
+CACHE_HITS = Counter(
+    "medecins_service_cache_hits_total",
+    "Number of cache hits for medecins service",
+    ["cache"],
+)
 
-CACHE_MISSES = Counter("cache_misses_total", "Number of cache misses", ["cache"])
+CACHE_MISSES = Counter(
+    "medecins_service_cache_misses_total",
+    "Number of cache misses for medecins service",
+    ["cache"],
+)
 
 CACHE_HIT = Counter(
-    "report_cache_hit_total", "Total number of cache hits", ["cache_name"]
+    "medecins_service_cache_hit_total",
+    "Total number of cache hits for medecins service",
+    ["cache_name"],
 )
 
 CACHE_MISS = Counter(
-    "report_cache_miss_total", "Total number of cache misses", ["cache_name"]
+    "medecins_service_cache_miss_total",
+    "Total number of cache misses for medecins service",
+    ["cache_name"],
 )
 
 # Service dependency metrics
 SERVICE_DEPENDENCY_UP = Gauge(
-    "service_dependency_up",
-    "Whether a service dependency is available (1=up, 0=down)",
+    "medecins_service_dependency_up",
+    "Whether a service dependency is available (1=up, 0=down) for medecins service",
     ["service"],
 )
 
 SERVICE_DEPENDENCY_LATENCY = Histogram(
-    "service_dependency_latency_seconds",
-    "Service dependency request latency in seconds",
+    "medecins_service_dependency_latency_seconds",
+    "Service dependency request latency in seconds for medecins service",
     ["service", "operation"],
 )
 

@@ -8,26 +8,26 @@ datasources:
     isDefault: true
     editable: false
 
-  - name: jaeger
-    type: jaeger
+  - name: Tempo
+    type: tempo
     access: proxy
-    url: http://jaeger:16686
-    uid: jaeger
+    url: http://tempo:3200
+    uid: tempo
     jsonData:
       httpMethod: GET
       tracesToLogs:
-        datasourceUid: 'loki'
-        spanStartTimeShift: '1h'
-        spanEndTimeShift: '-1h'
-        tags: ['job', 'instance', 'pod', 'namespace']
+        datasourceUid: "loki"
+        spanStartTimeShift: "1h"
+        spanEndTimeShift: "-1h"
+        tags: ["job", "instance", "pod", "namespace"]
       serviceMap:
-        datasourceUid: 'prometheus'
+        datasourceUid: "prometheus"
       nodeGraph:
         enabled: true
       search:
         hide: false
       lokiSearch:
-        datasourceUid: 'loki'
+        datasourceUid: "loki"
     editable: false
 
   - name: Loki
@@ -38,7 +38,7 @@ datasources:
     jsonData:
       maxLines: 1000
       derivedFields:
-        - datasourceUid: jaeger
+        - datasourceUid: tempo
           matcherRegex: "traceID=(\\w+)"
           name: TraceID
           url: "$${__value.raw}"

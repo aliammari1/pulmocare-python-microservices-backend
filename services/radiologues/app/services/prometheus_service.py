@@ -15,17 +15,17 @@ class PrometheusService:
         # Initialize Prometheus metrics
         self.metrics = PrometheusMetrics(app)
         self.metrics.info(
-            "reports_service_info", "Reports service info", version="1.0.0"
+            "radiologues_service_info", "Radiologues service info", version="1.0.0"
         )
 
         # Define custom metrics
         self.request_count = Counter(
-            "report_service_requests_total",
-            "Total requests to report service",
+            "radiologues_service_requests_total",
+            "Total requests to radiologues service",
             ["method", "endpoint", "status"],
         )
         self.request_latency = Histogram(
-            "report_service_request_latency_seconds",
+            "radiologues_service_request_latency_seconds",
             "Request latency in seconds",
             ["method", "endpoint"],
         )

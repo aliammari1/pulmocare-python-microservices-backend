@@ -1,0 +1,22 @@
+{
+    "dbcode.connections": [
+        {
+            "connectionId": "BmLdgshByOgvm3ks8qDxU",
+            "name": "mongodb",
+            "driver": "mongodb",
+            "connectionType": "host",
+            "driverOptions": {
+                "protocol": "mongodb://"
+            },
+            "host": "localhost",
+            "port": 27017,
+            "ssl": false,
+            "username": "admin",
+            "password": "",
+            "savePassword": "secretStorage",
+            "readOnly": false,
+            "role": "development",
+            "connectionTimeout": 30
+        }
+    ]
+}

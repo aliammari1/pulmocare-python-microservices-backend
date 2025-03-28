@@ -1,0 +1,25 @@
+{
+    "servers": {
+        "sequentialthinking": {
+            "command": "docker",
+            "args": [
+                "run",
+                "--rm",
+                "-i",
+                "mcp/sequentialthinking"
+            ],
+            "env": {}
+        },
+        "fetch": {
+            "type": "stdio",
+            "command": "docker",
+            "args": [
+                "run",
+                "-i",
+                "--rm",
+                "mcp/fetch"
+            ],
+            "env": {}
+        }
+    }
+}
