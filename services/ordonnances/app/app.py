@@ -1,4 +1,3 @@
-import logging
 import os
 
 from decorator.health_check import health_check_middleware
@@ -19,6 +18,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pymongo import MongoClient
 from routes.ordonnance_routes import ordonnance_bp
 from services.consul_service import ConsulService
+from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
@@ -56,11 +56,6 @@ mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
 prometheus_service = PrometheusService(app, Config)
 
-# Initialize MongoDB client for health checks
-mongo_client = MongoClient("mongodb://admin:admin@localhost:27017/")
-
-logger = logging.getLogger(__name__)
-
 
 @app.before_request
 def handle_preflight():
@@ -91,30 +86,6 @@ def after_request(response):
     return response
 
 
-# Add health check endpoint for Consul
-# @app.route('/health', methods=['GET'])
-# def health_check():
-#     """Health check endpoint for Consul"""
-#     try:
-#         # Ping MongoDB to verify connection
-#         mongo_client.admin.command('ping')
-
-#         return jsonify({
-#             'status': 'UP',
-#             'service': 'ordonnances-service',
-#             'timestamp': datetime.datetime.utcnow().isoformat(),
-#             'dependencies': {
-#                 'mongodb': 'UP'
-#             }
-#         }), 200
-#     except Exception as e:
-#         app.logger.error(f"Health check failed: {str(e)}")
-#         return jsonify({
-#             'status': 'DOWN',
-#             'error': str(e),
-#             'timestamp': datetime.datetime.utcnow().isoformat()
-#         }), 503
-
 app.register_blueprint(ordonnance_bp, url_prefix="/api/ordonnances")
 
 if __name__ == "__main__":
@@ -122,8 +93,8 @@ if __name__ == "__main__":
     try:
         consul_service = ConsulService(Config)
         consul_service.register_service()
-        logger.info(f"Registered {Config.SERVICE_NAME} with Consul")
+        logger_service.info(f"Registered {Config.SERVICE_NAME} with Consul")
     except Exception as e:
-        logger.error(f"Failed to register with Consul: {e}")
+        logger_service.error(f"Failed to register with Consul: {e}")
 
     app.run(host=Config.HOST, port=Config.PORT, debug=True)

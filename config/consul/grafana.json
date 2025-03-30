@@ -1,0 +1,14 @@
+{
+  "service": {
+    "name": "grafana",
+    "tags": ["monitoring", "visualization"],
+    "port": 3000,
+    "check": {
+      "id": "grafana",
+      "name": "Grafana health check",
+      "http": "http://grafana:3000/api/health",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+    "service": {
+        "name": "mongodb",
+        "tags": [
+            "database",
+            "nosql"
+        ],
+        "port": 27017,
+        "check": {
+            "id": "mongodb",
+            "name": "MongoDB health check",
+            "tcp": "mongodb:27017",
+            "interval": "10s",
+            "timeout": "5s"
+        }
+    }
+}

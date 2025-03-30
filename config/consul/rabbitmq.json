@@ -1,0 +1,17 @@
+{
+    "service": {
+        "name": "rabbitmq",
+        "tags": [
+            "message-queue",
+            "amqp"
+        ],
+        "port": 5672,
+        "check": {
+            "id": "rabbitmq",
+            "name": "RabbitMQ health check",
+            "tcp": "rabbitmq:5672",
+            "interval": "10s",
+            "timeout": "5s"
+        }
+    }
+}

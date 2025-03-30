@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from services.logger_service import logger_service
 from werkzeug.security import check_password_hash, generate_password_hash
 
 

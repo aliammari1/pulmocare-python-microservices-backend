@@ -1,15 +1,12 @@
 import functools
-import logging
 import time
 from enum import Enum, auto
 from typing import Any, Callable, Optional, Type
 
-from metrics import (track_circuit_breaker_failure,
-                     track_circuit_breaker_rejection,
-                     track_circuit_breaker_state,
-                     track_circuit_breaker_success)
-
-logger = logging.getLogger(__name__)
+from services.metrics import (track_circuit_breaker_failure,
+                              track_circuit_breaker_rejection,
+                              track_circuit_breaker_state,
+                              track_circuit_breaker_success)
 
 
 class CircuitState(Enum):
@@ -44,7 +41,7 @@ class CircuitBreaker:
         # Initialize metrics for this circuit breaker
         track_circuit_breaker_state(name, "closed")
 
-        logger.info(
+        logger_service.info(
             f"Circuit breaker '{name}' initialized (threshold={failure_threshold}, timeout={recovery_timeout}s)"
         )
 
@@ -61,11 +58,13 @@ class CircuitBreaker:
         """Execute the function with circuit breaker logic"""
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time > self.recovery_timeout:
-                logger.info(f"Circuit '{self.name}' attempting reset (half-open)")
+                logger_service.info(
+                    f"Circuit '{self.name}' attempting reset (half-open)"
+                )
                 self.state = CircuitState.HALF_OPEN
                 track_circuit_breaker_state(self.name, "half_open")
             else:
-                logger.warning(f"Circuit '{self.name}' is OPEN - failing fast")
+                logger_service.warning(f"Circuit '{self.name}' is OPEN - failing fast")
                 track_circuit_breaker_rejection(self.name)
                 raise CircuitBreakerError(f"Circuit '{self.name}' is open")
 
@@ -74,7 +73,9 @@ class CircuitBreaker:
 
             # On success in half-open state, reset the circuit
             if self.state == CircuitState.HALF_OPEN:
-                logger.info(f"Circuit '{self.name}' reset successful - closing circuit")
+                logger_service.info(
+                    f"Circuit '{self.name}' reset successful - closing circuit"
+                )
                 self.reset()
 
             # Track success
@@ -88,7 +89,7 @@ class CircuitBreaker:
 
         except Exception as e:
             # Unexpected exception - don't count towards circuit breaker
-            logger.error(f"Unexpected error in circuit '{self.name}': {str(e)}")
+            logger_service.error(f"Unexpected error in circuit '{self.name}': {str(e)}")
             raise
 
     def record_failure(self):
@@ -100,7 +101,7 @@ class CircuitBreaker:
 
         # In half-open state, a single failure opens the circuit again
         if self.state == CircuitState.HALF_OPEN:
-            logger.warning(
+            logger_service.warning(
                 f"Circuit '{self.name}' failed in half-open state - opening circuit"
             )
             self.state = CircuitState.OPEN
@@ -110,12 +111,12 @@ class CircuitBreaker:
 
         # In closed state, count failures until threshold
         self.failure_count += 1
-        logger.debug(
+        logger_service.debug(
             f"Circuit '{self.name}' failure count: {self.failure_count}/{self.failure_threshold}"
         )
 
         if self.failure_count >= self.failure_threshold:
-            logger.warning(
+            logger_service.warning(
                 f"Circuit '{self.name}' exceeded failure threshold - opening circuit"
             )
             self.state = CircuitState.OPEN
@@ -123,7 +124,7 @@ class CircuitBreaker:
 
     def reset(self):
         """Reset the circuit breaker to closed state"""
-        logger.info(f"Resetting circuit '{self.name}'")
+        logger_service.info(f"Resetting circuit '{self.name}'")
         self.failure_count = 0
         self.state = CircuitState.CLOSED
         track_circuit_breaker_state(self.name, "closed")

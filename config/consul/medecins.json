@@ -1,0 +1,21 @@
+{
+    "service": {
+        "name": "medecins-service",
+        "tags": [
+            "python",
+            "api",
+            "metrics"
+        ],
+        "port": 8081,
+        "meta": {
+            "metrics_port": "9091"
+        },
+        "check": {
+            "id": "medecins",
+            "name": "Medecins API health check",
+            "http": "http://medecins-service:8081/health",
+            "interval": "10s",
+            "timeout": "5s"
+        }
+    }
+}

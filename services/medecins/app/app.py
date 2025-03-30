@@ -1,6 +1,5 @@
 import base64
 import io
-import logging
 import os
 import random
 import re
@@ -17,10 +16,10 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 from models.doctor import Doctor
-
 # OpenTelemetry imports
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
+    OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
@@ -31,6 +30,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from PIL import Image
 from pymongo import MongoClient
 from services.consul_service import ConsulService
+from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
@@ -46,21 +46,6 @@ if not os.path.exists(dotenv_file):
     dotenv_file = ".env"
 load_dotenv(dotenv_path=dotenv_file)
 
-
-# Configure logging with file output
-log_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
-os.makedirs(log_directory, exist_ok=True)
-log_file = os.path.join(log_directory, "medecins.log")
-
-# Configure root logger
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(log_file), logging.StreamHandler()],
-)
-logger = logging.getLogger(__name__)
-logger.info("Medecins service starting - Logs will be collected by Loki")
-
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
@@ -70,7 +55,6 @@ FlaskInstrumentor().instrument_app(app)
 PymongoInstrumentor().instrument()
 RequestsInstrumentor().instrument()
 RedisInstrumentor().instrument()
-
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -83,14 +67,6 @@ rabbitmq_client = RabbitMQClient(Config)
 prometheus_service = PrometheusService(app, Config)
 
 
-# MongoDB configuration
-client = MongoClient("mongodb://admin:admin@localhost:27017/")
-db = client.medapp
-doctors_collection = db.doctors
-
-JWT_SECRET = os.getenv("JWT_SECRET", "replace-with-strong-secret")
-
-
 def token_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -99,7 +75,7 @@ def token_required(f):
             return jsonify({"error": "Token missing"}), 401
         token = auth_header.split()[1]
         try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
             user_id = payload["user_id"]
         except:
             return jsonify({"error": "Invalid token"}), 401
@@ -113,12 +89,12 @@ def send_otp_email(to_email, otp):
         sender_email = os.getenv("EMAIL_ADDRESS")
         sender_password = os.getenv("EMAIL_PASSWORD")
 
-        logger.debug(
+        logger_service.debug(
             f"Email configuration - Sender: {sender_email}, Password length: {len(sender_password) if sender_password else 0}"
         )
 
         if not sender_email or not sender_password:
-            logger.error("Email configuration missing")
+            logger_service.error("Email configuration missing")
             raise Exception("Email configuration missing")
 
         msg = MIMEText(
@@ -140,37 +116,39 @@ def send_otp_email(to_email, otp):
         msg["To"] = to_email
 
         try:
-            logger.debug("Attempting SMTP connection to smtp.gmail.com:465")
+            logger_service.debug("Attempting SMTP connection to smtp.gmail.com:465")
             smtp = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-            logger.debug("SMTP connection successful")
+            logger_service.debug("SMTP connection successful")
 
-            logger.debug("Attempting SMTP login")
+            logger_service.debug("Attempting SMTP login")
             smtp.login(sender_email, sender_password)
-            logger.debug("SMTP login successful")
+            logger_service.debug("SMTP login successful")
 
-            logger.debug("Sending email")
+            logger_service.debug("Sending email")
             smtp.send_message(msg)
-            logger.debug("Email sent successfully")
+            logger_service.debug("Email sent successfully")
 
             smtp.quit()
             return True
 
         except smtplib.SMTPAuthenticationError as auth_error:
-            logger.error(f"SMTP Authentication failed - Details: {str(auth_error)}")
+            logger_service.error(
+                f"SMTP Authentication failed - Details: {str(auth_error)}"
+            )
             raise Exception(
                 f"Email authentication failed. Please check your credentials."
             )
 
         except smtplib.SMTPException as smtp_error:
-            logger.error(f"SMTP error occurred: {str(smtp_error)}")
+            logger_service.error(f"SMTP error occurred: {str(smtp_error)}")
             raise Exception(f"Email sending failed: {str(smtp_error)}")
 
         except Exception as e:
-            logger.error(f"Unexpected SMTP error: {str(e)}")
+            logger_service.error(f"Unexpected SMTP error: {str(e)}")
             raise Exception(f"Unexpected error while sending email: {str(e)}")
 
     except Exception as e:
-        logger.error(f"Email sending error: {str(e)}")
+        logger_service.error(f"Email sending error: {str(e)}")
         return False
 
 
@@ -178,7 +156,7 @@ def send_otp_email(to_email, otp):
 def signup():
     data = request.get_json()
 
-    if doctors_collection.find_one({"email": data["email"]}):
+    if mongodb_client.db.doctors.find_one({"email": data["email"]}):
         return jsonify({"error": "Email already registered"}), 400
 
     doctor = Doctor(
@@ -191,7 +169,7 @@ def signup():
     )
 
     # Insert the doctor document with is_verified field
-    result = doctors_collection.insert_one(
+    result = mongodb_client.db.doctors.insert_one(
         {
             "_id": doctor._id,
             "name": doctor.name,
@@ -211,14 +189,16 @@ def signup():
 def login():
     try:
         data = request.get_json()
-        logger.debug(f"Login attempt for email: {data.get('email')}")  # Add debug log
+        logger_service.debug(
+            f"Login attempt for email: {data.get('email')}"
+        )  # Add debug log
 
         if not data or "email" not in data or "password" not in data:
             return jsonify({"error": "Email and password are required"}), 400
 
-        doctor_data = doctors_collection.find_one({"email": data["email"]})
+        doctor_data = mongodb_client.db.doctors.find_one({"email": data["email"]})
         if not doctor_data:
-            logger.debug("Email not found")  # Add debug log
+            logger_service.debug("Email not found")  # Add debug log
             return jsonify({"error": "Invalid credentials"}), 401
 
         doctor = Doctor.from_dict(doctor_data)
@@ -230,7 +210,7 @@ def login():
                     "user_id": str(doctor_data["_id"]),
                     "exp": datetime.utcnow() + timedelta(days=1),
                 },
-                JWT_SECRET,
+                Config.JWT_SECRET_KEY,
                 algorithm="HS256",
             )
 
@@ -249,14 +229,14 @@ def login():
                 "signature": doctor_data.get("signature"),  # Add this line
             }
 
-            logger.debug("Login successful")  # Add debug log
+            logger_service.debug("Login successful")  # Add debug log
             return jsonify(response_data), 200
         else:
-            logger.debug("Invalid password")  # Add debug log
+            logger_service.debug("Invalid password")  # Add debug log
             return jsonify({"error": "Invalid credentials"}), 401
 
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")  # Add debug log
+        logger_service.error(f"Login error: {str(e)}")  # Add debug log
         return jsonify({"error": "Server error: " + str(e)}), 500
 
 
@@ -266,21 +246,21 @@ def forgot_password():
         data = request.get_json()
         email = data.get("email")
 
-        logger.debug(f"Forgot password request received for email: {email}")
+        logger_service.debug(f"Forgot password request received for email: {email}")
 
         if not email:
             return jsonify({"error": "Email is required"}), 400
 
-        doctor_data = doctors_collection.find_one({"email": email})
+        doctor_data = mongodb_client.db.doctors.find_one({"email": email})
         if not doctor_data:
-            logger.debug(f"Email not found: {email}")
+            logger_service.debug(f"Email not found: {email}")
             return jsonify({"error": "Email not found"}), 404
 
         otp = str(random.randint(100000, 999999))
-        logger.debug(f"Generated OTP: {otp}")
+        logger_service.debug(f"Generated OTP: {otp}")
 
         if send_otp_email(email, otp):
-            doctors_collection.update_one(
+            mongodb_client.db.doctors.update_one(
                 {"email": email},
                 {
                     "$set": {
@@ -289,17 +269,17 @@ def forgot_password():
                     }
                 },
             )
-            logger.debug("OTP sent and saved successfully")
+            logger_service.debug("OTP sent and saved successfully")
             return jsonify({"message": "OTP sent successfully"}), 200
         else:
-            logger.error("Failed to send OTP email")
+            logger_service.error("Failed to send OTP email")
             return (
                 jsonify({"error": "Failed to send OTP. Please try again later."}),
                 500,
             )
 
     except Exception as e:
-        logger.error(f"Unexpected error in forgot_password: {str(e)}")
+        logger_service.error(f"Unexpected error in forgot_password: {str(e)}")
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 
@@ -312,7 +292,7 @@ def verify_otp():
     if not email or not otp:
         return jsonify({"error": "Email and OTP are required"}), 400
 
-    result = doctors_collection.find_one(
+    result = mongodb_client.db.doctors.find_one(
         {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
     )
 
@@ -332,7 +312,7 @@ def reset_password():
     if not all([email, otp, new_password]):
         return jsonify({"error": "Missing required fields"}), 400
 
-    doctor_data = doctors_collection.find_one(
+    doctor_data = mongodb_client.db.doctors.find_one(
         {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
     )
 
@@ -344,7 +324,7 @@ def reset_password():
     doctor.set_password(new_password)
 
     # Update the password hash and remove the OTP data
-    result = doctors_collection.update_one(
+    result = mongodb_client.db.doctors.update_one(
         {"email": email},
         {
             "$set": {"password_hash": doctor.password_hash},
@@ -361,7 +341,7 @@ def reset_password():
 @app.route("/api/profile", methods=["GET"])
 @token_required
 def get_profile(user_id):
-    doctor_data = doctors_collection.find_one({"_id": ObjectId(user_id)})
+    doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not doctor_data:
         return jsonify({"error": "Doctor not found"}), 404
 
@@ -386,7 +366,7 @@ def change_password(user_id):
     if not all([current_password, new_password]):
         return jsonify({"error": "Both current and new password are required"}), 400
 
-    doctor_data = doctors_collection.find_one({"_id": ObjectId(user_id)})
+    doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not doctor_data:
         return jsonify({"error": "Doctor not found"}), 404
 
@@ -400,7 +380,7 @@ def change_password(user_id):
     doctor.set_password(new_password)
 
     # Update the password hash in the database
-    result = doctors_collection.update_one(
+    result = mongodb_client.db.doctors.update_one(
         {"_id": ObjectId(user_id)}, {"$set": {"password_hash": doctor.password_hash}}
     )
 
@@ -416,7 +396,7 @@ def update_profile(user_id):
     data = request.get_json()
 
     # Get current doctor data to preserve verification status
-    current_doctor = doctors_collection.find_one({"_id": ObjectId(user_id)})
+    current_doctor = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not current_doctor:
         return jsonify({"error": "Doctor not found"}), 404
 
@@ -431,10 +411,10 @@ def update_profile(user_id):
         update_fields["profile_image"] = data.get("profile_image")
 
     # Update while preserving verification status
-    doctors_collection.update_one({"_id": ObjectId(user_id)}, {"$set": update_fields})
+    mongodb_client.db.doctors.update_one({"_id": ObjectId(user_id)}, {"$set": update_fields})
 
     # Get updated doctor data
-    updated_doctor = doctors_collection.find_one({"_id": ObjectId(user_id)})
+    updated_doctor = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     response_data = Doctor.from_dict(updated_doctor).to_dict()
 
     # Include verification status and details in response
@@ -503,14 +483,14 @@ def verify_doctor(user_id):
             return jsonify({"error": "No image provided"}), 400
 
         # Get doctor's data from database
-        doctor_data = doctors_collection.find_one({"_id": ObjectId(user_id)})
+        doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
         if not doctor_data:
             return jsonify({"error": "Doctor not found"}), 404
 
         # Get doctor's name from database
         doctor_name = doctor_data["name"].lower().strip()
 
-        logger.debug(f"Checking for Name='{doctor_name}'")
+        logger_service.debug(f"Checking for Name='{doctor_name}'")
 
         # Process the image
         image = Image.open(io.BytesIO(base64.b64decode(image_data)))
@@ -523,7 +503,7 @@ def verify_doctor(user_id):
         extracted_text = pytesseract.image_to_string(image)
         extracted_text = extracted_text.lower().strip()
 
-        logger.debug(f"Extracted text: {extracted_text}")
+        logger_service.debug(f"Extracted text: {extracted_text}")
 
         # Simple text matching for name
         name_found = doctor_name in extracted_text
@@ -533,11 +513,11 @@ def verify_doctor(user_id):
             name_parts = doctor_name.split()
             name_found = all(part in extracted_text for part in name_parts)
 
-        logger.debug(f"Name found: {name_found}")
+        logger_service.debug(f"Name found: {name_found}")
 
         if name_found:
             # Update verification status
-            result = doctors_collection.update_one(
+            result = mongodb_client.db.doctors.update_one(
                 {"_id": ObjectId(user_id)},
                 {
                     "$set": {
@@ -575,7 +555,7 @@ def verify_doctor(user_id):
             )
 
     except Exception as e:
-        logger.error(f"Verification error: {str(e)}")
+        logger_service.error(f"Verification error: {str(e)}")
         return jsonify({"error": f"Verification failed: {str(e)}"}), 500
 
 
@@ -658,13 +638,13 @@ def update_signature(user_id):
         if not signature:
             return jsonify({"error": "No signature provided"}), 400
 
-        result = doctors_collection.update_one(
+        result = mongodb_client.db.doctors.update_one(
             {"_id": ObjectId(user_id)}, {"$set": {"signature": signature}}
         )
 
         if result.modified_count > 0:
             # Get updated doctor data
-            doctor_data = doctors_collection.find_one({"_id": ObjectId(user_id)})
+            doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
             return (
                 jsonify(
                     {
@@ -678,7 +658,7 @@ def update_signature(user_id):
             return jsonify({"error": "Failed to update signature"}), 500
 
     except Exception as e:
-        logger.error(f"Signature update error: {str(e)}")
+        logger_service.error(f"Signature update error: {str(e)}")
         return jsonify({"error": f"Signature update failed: {str(e)}"}), 500
 
 
@@ -687,8 +667,8 @@ if __name__ == "__main__":
     try:
         consul_service = ConsulService(Config)
         consul_service.register_service()
-        logger.info(f"Registered {Config.SERVICE_NAME} with Consul")
+        logger_service.info(f"Registered {Config.SERVICE_NAME} with Consul")
     except Exception as e:
-        logger.error(f"Failed to register with Consul: {e}")
+        logger_service.error(f"Failed to register with Consul: {e}")
 
     app.run(host=Config.HOST, port=Config.PORT, debug=True)

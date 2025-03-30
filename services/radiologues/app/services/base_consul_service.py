@@ -1,4 +1,3 @@
-import logging
 import os
 import socket
 import uuid
@@ -6,8 +5,7 @@ from typing import Optional
 
 import consul
 import requests
-
-logger = logging.getLogger(__name__)
+from services.logger_service import logger_service
 
 
 class BaseConsulService:
@@ -52,7 +50,7 @@ class BaseConsulService:
                 },
             )
 
-            logger.info(
+            logger_service.info(
                 f"Successfully registered {self.config.SERVICE_NAME} with Consul"
             )
             return True
@@ -63,21 +61,21 @@ class BaseConsulService:
                 and self.config.ENV == "development"
                 and self.config.REGISTRY_IGNORE_ERRORS
             ):
-                logger.warning(
+                logger_service.warning(
                     f"Failed to register with Consul (ignored in dev mode): {str(e)}"
                 )
                 return False
-            logger.error(f"Failed to register service with Consul: {str(e)}")
+            logger_service.error(f"Failed to register service with Consul: {str(e)}")
             raise
 
     def deregister_service(self) -> bool:
         """Deregister service from Consul"""
         try:
             self.consul.agent.service.deregister(self.service_id)
-            logger.info(f"Deregistered service {self.service_id} from Consul")
+            logger_service.info(f"Deregistered service {self.service_id} from Consul")
             return True
         except Exception as e:
-            logger.error(f"Failed to deregister service: {str(e)}")
+            logger_service.error(f"Failed to deregister service: {str(e)}")
             raise
 
     def _get_container_ip(self) -> str:

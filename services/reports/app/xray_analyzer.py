@@ -1,13 +1,11 @@
-import logging
 import os
 import random
 from datetime import datetime
 
 import cv2
 import numpy as np
+from services.logger_service import logger_service
 from xray_processor import ChestImageProcessor
-
-logger = logging.getLogger(__name__)
 
 
 class XRayAnalyzer:
@@ -27,7 +25,7 @@ class XRayAnalyzer:
         Returns:
             dict: Analysis results including findings and technical details
         """
-        logger.info(f"Analyzing X-ray image in {image_format} format")
+        logger_service.info(f"Analyzing X-ray image in {image_format} format")
 
         try:
             # Load and process the image
@@ -50,7 +48,7 @@ class XRayAnalyzer:
             return analysis_results
 
         except Exception as e:
-            logger.error(f"Error analyzing image: {str(e)}")
+            logger_service.error(f"Error analyzing image: {str(e)}")
             raise
 
     def _generate_findings(self, image_stats):

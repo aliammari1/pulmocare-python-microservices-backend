@@ -1,8 +1,8 @@
 import json
-import logging
 
 import redis
-from metrics import track_cache_metrics
+from services.logger_service import logger_service
+from services.metrics import track_cache_metrics
 
 
 class RedisClient:
@@ -10,7 +10,6 @@ class RedisClient:
 
     def __init__(self, config):
         self.config = config
-        self.logger = logging.getLogger(__name__)
 
         # Initialize Redis client
         self.client = redis.Redis(
@@ -31,7 +30,7 @@ class RedisClient:
             track_cache_metrics(hit=False, cache_name="reports")
             return None
         except Exception as e:
-            self.logger.error(f"Redis get error: {str(e)}")
+            logger_service.error(f"Redis get error: {str(e)}")
             return None
 
     def set(self, key, value, ttl=None):
@@ -41,7 +40,7 @@ class RedisClient:
             self.client.setex(key, ttl, value)
             return True
         except Exception as e:
-            self.logger.error(f"Redis set error: {str(e)}")
+            logger_service.error(f"Redis set error: {str(e)}")
             return False
 
     def delete(self, key):
@@ -50,7 +49,7 @@ class RedisClient:
             self.client.delete(key)
             return True
         except Exception as e:
-            self.logger.error(f"Redis delete error: {str(e)}")
+            logger_service.error(f"Redis delete error: {str(e)}")
             return False
 
     def get_report(self, report_id):
@@ -61,7 +60,7 @@ class RedisClient:
                 return json.loads(cached_report)
             return None
         except Exception as e:
-            self.logger.error(f"Redis get_report error: {str(e)}")
+            logger_service.error(f"Redis get_report error: {str(e)}")
             return None
 
     def cache_report(self, report_id, report_data):
@@ -70,7 +69,7 @@ class RedisClient:
             self.set(f"report:{report_id}", json.dumps(report_data))
             return True
         except Exception as e:
-            self.logger.error(f"Redis cache_report error: {str(e)}")
+            logger_service.error(f"Redis cache_report error: {str(e)}")
             return False
 
     def invalidate_report(self, report_id):
@@ -81,9 +80,9 @@ class RedisClient:
         """Close Redis connection"""
         try:
             self.client.close()
-            self.logger.info("Closed Redis connection")
+            logger_service.info("Closed Redis connection")
         except Exception as e:
-            self.logger.error(f"Error closing Redis connection: {str(e)}")
+            logger_service.error(f"Error closing Redis connection: {str(e)}")
 
     def check_health(self):
         """Check Redis health"""

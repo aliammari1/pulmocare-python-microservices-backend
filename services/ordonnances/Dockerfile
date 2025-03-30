@@ -15,17 +15,12 @@ RUN pip install -r requirements.txt
 # Copy application code
 COPY ./app/ .
 
-# Create log directory with appropriate permissions
-RUN mkdir -p /var/log/medapp/ordonnances && \
-    chmod 777 /var/log/medapp/ordonnances
-
 # Environment variables
 ENV PORT=8082 \
     METRICS_PORT=9092 \
     PYTHONUNBUFFERED=1 \
     PATH="/usr/local/bin:$PATH" \
-    PYTHONPATH="/app:$PYTHONPATH" \
-    LOG_PATH="/app/logs"
+    PYTHONPATH="/app:$PYTHONPATH" 
 
 # Expose ports
 EXPOSE ${PORT}

@@ -1,9 +1,9 @@
-import logging
 import time
 from datetime import datetime
 
 from bson import ObjectId
 from pymongo import MongoClient
+from services.logger_service import logger_service
 
 
 class MongoDBClient:
@@ -11,7 +11,7 @@ class MongoDBClient:
 
     def __init__(self, config):
         self.config = config
-        self.logger = logging.getLogger(__name__)
+
         self.client = None
         self.db = None
         self.reports_collection = None
@@ -24,7 +24,9 @@ class MongoDBClient:
 
         for attempt in range(max_retries):
             try:
-                self.client = MongoClient("mongodb://admin:admin@localhost:27017/")
+                self.client = MongoClient(
+                    f"mongodb://admin:admin@{self.config.MONGODB_HOST}:27017/"
+                )
                 self.db = self.client[self.config.MONGODB_DATABASE]
 
                 # Set up collection with schema validation
@@ -38,17 +40,17 @@ class MongoDBClient:
                     )
 
                 self.reports_collection = self.db["reports"]
-                self.logger.info("Connected to MongoDB successfully")
+                logger_service.info("Connected to MongoDB successfully")
                 break
             except Exception as e:
-                self.logger.error(
+                logger_service.error(
                     f"MongoDB connection attempt {attempt+1} failed: {str(e)}"
                 )
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 else:
-                    self.logger.error(
+                    logger_service.error(
                         "Failed to connect to MongoDB after multiple attempts"
                     )
 
@@ -62,7 +64,7 @@ class MongoDBClient:
                 report["_id"] = str(report["_id"])
             return reports
         except Exception as e:
-            self.logger.error(f"MongoDB find_reports error: {str(e)}")
+            logger_service.error(f"MongoDB find_reports error: {str(e)}")
             raise
 
     def find_report_by_id(self, report_id):
@@ -73,7 +75,7 @@ class MongoDBClient:
                 report["_id"] = str(report["_id"])
             return report
         except Exception as e:
-            self.logger.error(f"MongoDB find_report_by_id error: {str(e)}")
+            logger_service.error(f"MongoDB find_report_by_id error: {str(e)}")
             return None
 
     def insert_report(self, report_data):
@@ -86,7 +88,7 @@ class MongoDBClient:
             report_data["_id"] = str(result.inserted_id)
             return report_data
         except Exception as e:
-            self.logger.error(f"MongoDB insert_report error: {str(e)}")
+            logger_service.error(f"MongoDB insert_report error: {str(e)}")
             raise
 
     def update_report(self, report_id, report_data):
@@ -104,7 +106,7 @@ class MongoDBClient:
             report_data["_id"] = report_id
             return report_data
         except Exception as e:
-            self.logger.error(f"MongoDB update_report error: {str(e)}")
+            logger_service.error(f"MongoDB update_report error: {str(e)}")
             raise
 
     def delete_report(self, report_id):
@@ -113,7 +115,7 @@ class MongoDBClient:
             result = self.reports_collection.delete_one({"_id": ObjectId(report_id)})
             return result.deleted_count > 0
         except Exception as e:
-            self.logger.error(f"MongoDB delete_report error: {str(e)}")
+            logger_service.error(f"MongoDB delete_report error: {str(e)}")
             raise
 
     def close(self):
@@ -121,9 +123,9 @@ class MongoDBClient:
         try:
             if self.client:
                 self.client.close()
-                self.logger.info("Closed MongoDB connection")
+                logger_service.info("Closed MongoDB connection")
         except Exception as e:
-            self.logger.error(f"Error closing MongoDB connection: {str(e)}")
+            logger_service.error(f"Error closing MongoDB connection: {str(e)}")
 
     def check_health(self):
         """Check MongoDB health"""

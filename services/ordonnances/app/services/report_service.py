@@ -1,5 +1,6 @@
-import logging
 from datetime import datetime
+
+from services.logger_service import logger_service
 
 
 class ReportService:
@@ -9,7 +10,6 @@ class ReportService:
         self.mongodb_client = mongodb_client
         self.redis_client = redis_client
         self.rabbitmq_client = rabbitmq_client
-        self.logger = logging.getLogger(__name__)
 
     def get_all_reports(self, search=None):
         """Get all reports with optional filtering"""
@@ -24,7 +24,7 @@ class ReportService:
                 }
             return self.mongodb_client.find_reports(query)
         except Exception as e:
-            self.logger.error(f"Error getting reports: {str(e)}")
+            logger_service.error(f"Error getting reports: {str(e)}")
             raise
 
     def get_report_by_id(self, report_id):
@@ -43,7 +43,7 @@ class ReportService:
 
             return report
         except Exception as e:
-            self.logger.error(f"Error getting report {report_id}: {str(e)}")
+            logger_service.error(f"Error getting report {report_id}: {str(e)}")
             raise
 
     def get_raw_report(self, report_id):
@@ -51,7 +51,7 @@ class ReportService:
         try:
             return self.mongodb_client.find_report_by_id(report_id)
         except Exception as e:
-            self.logger.error(f"Error getting raw report {report_id}: {str(e)}")
+            logger_service.error(f"Error getting raw report {report_id}: {str(e)}")
             raise
 
     def create_report(self, report_data):
@@ -65,7 +65,7 @@ class ReportService:
 
             return report
         except Exception as e:
-            self.logger.error(f"Error creating report: {str(e)}")
+            logger_service.error(f"Error creating report: {str(e)}")
             raise
 
     def update_report(self, report_id, report_data):
@@ -83,7 +83,7 @@ class ReportService:
 
             return updated_report
         except Exception as e:
-            self.logger.error(f"Error updating report {report_id}: {str(e)}")
+            logger_service.error(f"Error updating report {report_id}: {str(e)}")
             raise
 
     def delete_report(self, report_id):
@@ -101,5 +101,5 @@ class ReportService:
 
             return success
         except Exception as e:
-            self.logger.error(f"Error deleting report {report_id}: {str(e)}")
+            logger_service.error(f"Error deleting report {report_id}: {str(e)}")
             raise

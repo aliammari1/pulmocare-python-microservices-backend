@@ -1,16 +1,16 @@
-import logging
 import os
 import tempfile
 from datetime import datetime
 
 import pdfkit
+from services.logger_service import logger_service
 
 
 class ReportGenerator:
     """Service for generating PDF reports"""
 
     def __init__(self):
-        self.logger = logging.getLogger(__name__)
+
         self.temp_dir = tempfile.gettempdir()
 
     def generate_pdf(self, report):
@@ -27,10 +27,10 @@ class ReportGenerator:
             # Generate PDF using pdfkit (wrapper for wkhtmltopdf)
             pdfkit.from_string(html_content, output_path)
 
-            self.logger.info(f"Generated PDF report for {report_id}")
+            logger_service.info(f"Generated PDF report for {report_id}")
             return output_path
         except Exception as e:
-            self.logger.error(f"Error generating PDF: {str(e)}")
+            logger_service.error(f"Error generating PDF: {str(e)}")
             raise
 
     def _generate_html(self, report):

@@ -1,10 +1,11 @@
 import json
-import logging
 import time
 from datetime import datetime
 
 import pika
-from metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
+from services.logger_service import logger_service
+from services.metrics import (RABBITMQ_MESSAGES_PUBLISHED,
+                              RABBITMQ_PUBLISH_LATENCY)
 
 
 class RabbitMQClient:
@@ -12,7 +13,6 @@ class RabbitMQClient:
 
     def __init__(self, config):
         self.config = config
-        self.logger = logging.getLogger(__name__)
         self.connection = None
         self.channel = None
         self._setup_connection()
@@ -63,10 +63,10 @@ class RabbitMQClient:
                 routing_key="report.#",
             )
 
-            self.logger.info("Successfully connected to RabbitMQ")
+            logger_service.info("Successfully connected to RabbitMQ")
 
         except Exception as e:
-            self.logger.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
             raise
 
     def publish_message(self, exchange, routing_key, message, correlation_id=None):
@@ -104,10 +104,10 @@ class RabbitMQClient:
                 exchange=exchange, routing_key=routing_key
             ).observe(time.time() - start_time)
 
-            self.logger.debug(f"Published message to {exchange}:{routing_key}")
+            logger_service.debug(f"Published message to {exchange}:{routing_key}")
 
         except Exception as e:
-            self.logger.error(f"Failed to publish message: {str(e)}")
+            logger_service.error(f"Failed to publish message: {str(e)}")
             raise
 
     def publish_report_created(self, report_id):

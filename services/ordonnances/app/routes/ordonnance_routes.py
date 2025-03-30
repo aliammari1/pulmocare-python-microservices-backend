@@ -1,6 +1,5 @@
 import datetime
 import json  # Ajout de l'import manquant
-import logging
 import os
 import traceback  # Pour le stack trace détaillé
 
@@ -8,10 +7,11 @@ from bson import ObjectId
 from dbconfig.db import get_database
 from flask import Blueprint, jsonify, make_response, request, send_file
 from models.ordonnance import Ordonnance
+from services.logger_service import logger_service
 from services.pdf_service import generate_ordonnance_pdf
 
 # Configure logger
-logger = logging.getLogger(__name__)
+
 
 ordonnance_bp = Blueprint("ordonnances", __name__)
 db = get_database()

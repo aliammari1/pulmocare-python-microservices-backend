@@ -15,21 +15,15 @@ RUN pip install -r requirements.txt
 # Copy application code
 COPY ./app/ .
 
-# Create log directory with appropriate permissions
-RUN mkdir -p /var/log/medapp/medecins && \
-    chmod 777 /var/log/medapp/medecins
-
 # Environment variables
 ENV PORT=8081 \
     METRICS_PORT=9091 \
     PYTHONUNBUFFERED=1 \
     PATH="/usr/local/bin:$PATH" \
-    PYTHONPATH="/app:$PYTHONPATH" \
-    LOG_PATH="/app/logs"
-
+    PYTHONPATH="/app:$PYTHONPATH"
 # Expose ports
 EXPOSE ${PORT}
 EXPOSE ${METRICS_PORT}
 
 # Start the service with proper logging
-CMD ["python", "app.py"]
+CMD ["bash", "-c", "python app.py && python consumer.py"]

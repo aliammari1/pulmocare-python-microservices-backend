@@ -1,6 +1,5 @@
 import base64
 import io
-import logging
 import os
 import random
 import re
@@ -36,6 +35,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from PIL import Image
 from pymongo import DESCENDING, MongoClient
 from services.consul_service import ConsulService
+from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
@@ -50,13 +50,6 @@ dotenv_file = f".env.{env}"
 if not os.path.exists(dotenv_file):
     dotenv_file = ".env"
 load_dotenv(dotenv_path=dotenv_file)
-
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
 
 
 # Initialize Flask app
@@ -90,30 +83,6 @@ medtn_radiologues_collection = db["medtn_radiologues"]
 
 JWT_SECRET = os.getenv("JWT_SECRET", "replace-with-strong-secret")
 
-# Add health check endpoint for Consul
-# @app.route('/health', methods=['GET'])
-# def health_check():
-#     """Health check endpoint for Consul"""
-#     try:
-#         # Ping the MongoDB to check connection
-#         client.admin.command('ping')
-
-#         return jsonify({
-#             'status': 'UP',
-#             'service': Config.SERVICE_NAME,
-#             'timestamp': datetime.utcnow().isoformat(),
-#             'dependencies': {
-#                 'mongodb': 'UP'
-#             }
-#         }), 200
-#     except Exception as e:
-#         logger.error(f"Health check failed: {str(e)}")
-#         return jsonify({
-#             'status': 'DOWN',
-#             'error': str(e),
-#             'timestamp': datetime.utcnow().isoformat()
-#         }), 503
-
 
 def token_required(f):
     @wraps(f)
@@ -137,12 +106,12 @@ def send_otp_email(to_email, otp):
         sender_email = os.getenv("EMAIL_ADDRESS")
         sender_password = os.getenv("EMAIL_PASSWORD")
 
-        logger.debug(
+        logger_service.debug(
             f"Email configuration - Sender: {sender_email}, Password length: {len(sender_password) if sender_password else 0}"
         )
 
         if not sender_email or not sender_password:
-            logger.error("Email configuration missing")
+            logger_service.error("Email configuration missing")
             raise Exception("Email configuration missing")
 
         msg = MIMEText(
@@ -164,37 +133,39 @@ def send_otp_email(to_email, otp):
         msg["To"] = to_email
 
         try:
-            logger.debug("Attempting SMTP connection to smtp.gmail.com:465")
+            logger_service.debug("Attempting SMTP connection to smtp.gmail.com:465")
             smtp = smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=10)
-            logger.debug("SMTP connection successful")
+            logger_service.debug("SMTP connection successful")
 
-            logger.debug("Attempting SMTP login")
+            logger_service.debug("Attempting SMTP login")
             smtp.login(sender_email, sender_password)
-            logger.debug("SMTP login successful")
+            logger_service.debug("SMTP login successful")
 
-            logger.debug("Sending email")
+            logger_service.debug("Sending email")
             smtp.send_message(msg)
-            logger.debug("Email sent successfully")
+            logger_service.debug("Email sent successfully")
 
             smtp.quit()
             return True
 
         except smtplib.SMTPAuthenticationError as auth_error:
-            logger.error(f"SMTP Authentication failed - Details: {str(auth_error)}")
+            logger_service.error(
+                f"SMTP Authentication failed - Details: {str(auth_error)}"
+            )
             raise Exception(
                 f"Email authentication failed. Please check your credentials."
             )
 
         except smtplib.SMTPException as smtp_error:
-            logger.error(f"SMTP error occurred: {str(smtp_error)}")
+            logger_service.error(f"SMTP error occurred: {str(smtp_error)}")
             raise Exception(f"Email sending failed: {str(smtp_error)}")
 
         except Exception as e:
-            logger.error(f"Unexpected SMTP error: {str(e)}")
+            logger_service.error(f"Unexpected SMTP error: {str(e)}")
             raise Exception(f"Unexpected error while sending email: {str(e)}")
 
     except Exception as e:
-        logger.error(f"Email sending error: {str(e)}")
+        logger_service.error(f"Email sending error: {str(e)}")
         return False
 
 
@@ -235,14 +206,16 @@ def signup():
 def login():
     try:
         data = request.get_json()
-        logger.debug(f"Login attempt for email: {data.get('email')}")  # Add debug log
+        logger_service.debug(
+            f"Login attempt for email: {data.get('email')}"
+        )  # Add debug log
 
         if not data or "email" not in data or "password" not in data:
             return jsonify({"error": "Email and password are required"}), 400
 
         radiologue_data = radiologues_collection.find_one({"email": data["email"]})
         if not radiologue_data:
-            logger.debug("Email not found")  # Add debug log
+            logger_service.debug("Email not found")  # Add debug log
             return jsonify({"error": "Invalid credentials"}), 401
 
         radiologue = Radiologue.from_dict(radiologue_data)
@@ -274,14 +247,14 @@ def login():
                 ),
             }
 
-            logger.debug("Login successful")  # Add debug log
+            logger_service.debug("Login successful")  # Add debug log
             return jsonify(response_data), 200
         else:
-            logger.debug("Invalid password")  # Add debug log
+            logger_service.debug("Invalid password")  # Add debug log
             return jsonify({"error": "Invalid credentials"}), 401
 
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")  # Add debug log
+        logger_service.error(f"Login error: {str(e)}")  # Add debug log
         return jsonify({"error": "Server error: " + str(e)}), 500
 
 
@@ -291,18 +264,18 @@ def forgot_password():
         data = request.get_json()
         email = data.get("email")
 
-        logger.debug(f"Forgot password request received for email: {email}")
+        logger_service.debug(f"Forgot password request received for email: {email}")
 
         if not email:
             return jsonify({"error": "Email is required"}), 400
 
         radiologue_data = radiologues_collection.find_one({"email": email})
         if not radiologue_data:
-            logger.debug(f"Email not found: {email}")
+            logger_service.debug(f"Email not found: {email}")
             return jsonify({"error": "Email not found"}), 404
 
         otp = str(random.randint(100000, 999999))
-        logger.debug(f"Generated OTP: {otp}")
+        logger_service.debug(f"Generated OTP: {otp}")
 
         if send_otp_email(email, otp):
             radiologues_collection.update_one(
@@ -314,17 +287,17 @@ def forgot_password():
                     }
                 },
             )
-            logger.debug("OTP sent and saved successfully")
+            logger_service.debug("OTP sent and saved successfully")
             return jsonify({"message": "OTP sent successfully"}), 200
         else:
-            logger.error("Failed to send OTP email")
+            logger_service.error("Failed to send OTP email")
             return (
                 jsonify({"error": "Failed to send OTP. Please try again later."}),
                 500,
             )
 
     except Exception as e:
-        logger.error(f"Unexpected error in forgot_password: {str(e)}")
+        logger_service.error(f"Unexpected error in forgot_password: {str(e)}")
         return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
 
 
@@ -571,7 +544,7 @@ def ajouter_rapport():
             201,
         )
     except Exception as e:
-        logger.error(f"Error creating report: {str(e)}")
+        logger_service.error(f"Error creating report: {str(e)}")
         return jsonify({"error": "Failed to create report", "details": str(e)}), 500
 
 
@@ -622,7 +595,7 @@ def verify_radiologue(user_id):
         # Get radiologue's name from database
         radiologue_name = radiologue_data["name"].lower().strip()
 
-        logger.debug(f"Checking for Name='{radiologue_name}'")
+        logger_service.debug(f"Checking for Name='{radiologue_name}'")
 
         # Process the image
         image = Image.open(io.BytesIO(base64.b64decode(image_data)))
@@ -635,7 +608,7 @@ def verify_radiologue(user_id):
         extracted_text = pytesseract.image_to_string(image)
         extracted_text = extracted_text.lower().strip()
 
-        logger.debug(f"Extracted text: {extracted_text}")
+        logger_service.debug(f"Extracted text: {extracted_text}")
 
         # Simple text matching for name
         name_found = radiologue_name in extracted_text
@@ -645,7 +618,7 @@ def verify_radiologue(user_id):
             name_parts = radiologue_name.split()
             name_found = all(part in extracted_text for part in name_parts)
 
-        logger.debug(f"Name found: {name_found}")
+        logger_service.debug(f"Name found: {name_found}")
 
         if name_found:
             # Update verification status
@@ -687,7 +660,7 @@ def verify_radiologue(user_id):
             )
 
     except Exception as e:
-        logger.error(f"Verification error: {str(e)}")
+        logger_service.error(f"Verification error: {str(e)}")
         return jsonify({"error": f"Verification failed: {str(e)}"}), 500
 
 
@@ -822,8 +795,8 @@ if __name__ == "__main__":
     try:
         consul_service = ConsulService(Config)
         consul_service.register_service()
-        logger.info(f"Registered {Config.SERVICE_NAME} with Consul")
+        logger_service.info(f"Registered {Config.SERVICE_NAME} with Consul")
     except Exception as e:
-        logger.error(f"Failed to register with Consul: {e}")
+        logger_service.error(f"Failed to register with Consul: {e}")
 
     app.run(host=Config.HOST, port=Config.PORT, debug=True)

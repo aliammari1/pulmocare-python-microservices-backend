@@ -1,15 +1,13 @@
 import io
-import logging
 import random
 from datetime import datetime
 
 import cv2
 import numpy as np
 import pydicom  # For DICOM format support
+from services.logger_service import logger_service
 from skimage.filters import threshold_otsu
 from skimage.measure import shannon_entropy
-
-logger = logging.getLogger(__name__)
 
 
 class ChestImageProcessor:
@@ -26,7 +24,7 @@ class ChestImageProcessor:
             else:
                 return self._load_standard_image(image_bytes)
         except Exception as e:
-            logger.error(f"Error loading image: {str(e)}")
+            logger_service.error(f"Error loading image: {str(e)}")
             raise
 
     def _load_dicom(self, image_bytes):
@@ -41,7 +39,7 @@ class ChestImageProcessor:
             )
             return cv2.resize(image, self.target_size)
         except Exception as e:
-            logger.error(f"Error loading DICOM image: {str(e)}")
+            logger_service.error(f"Error loading DICOM image: {str(e)}")
             raise
 
     def _load_standard_image(self, image_bytes):
@@ -51,7 +49,7 @@ class ChestImageProcessor:
             image = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
             return cv2.resize(image, self.target_size)
         except Exception as e:
-            logger.error(f"Error loading standard image: {str(e)}")
+            logger_service.error(f"Error loading standard image: {str(e)}")
             raise
 
     def extract_image_stats(self, image):
@@ -99,7 +97,7 @@ class ChestImageProcessor:
                 "foreground_ratio": float(foreground_ratio),
             }
         except Exception as e:
-            logger.error(f"Error extracting image statistics: {str(e)}")
+            logger_service.error(f"Error extracting image statistics: {str(e)}")
             raise
 
     def enhance_image(self, image):
@@ -114,7 +112,7 @@ class ChestImageProcessor:
 
             return enhanced
         except Exception as e:
-            logger.error(f"Error enhancing image: {str(e)}")
+            logger_service.error(f"Error enhancing image: {str(e)}")
             raise
 
     def extract_roi(self, image):
@@ -142,10 +140,10 @@ class ChestImageProcessor:
                 roi = cv2.bitwise_and(image, mask)
                 return roi
             else:
-                logger.warning("No contours found in image")
+                logger_service.warning("No contours found in image")
                 return image
         except Exception as e:
-            logger.error(f"Error extracting ROI: {str(e)}")
+            logger_service.error(f"Error extracting ROI: {str(e)}")
             raise
 
 
@@ -159,7 +157,7 @@ class ChestXRayModel:
     """
 
     def __init__(self):
-        logger.info("Initializing Chest X-Ray Analysis Model")
+        logger_service.info("Initializing Chest X-Ray Analysis Model")
         # In a real implementation, we would load ML models here
         self.preprocessor = ChestImageProcessor()
 
@@ -174,7 +172,7 @@ class ChestXRayModel:
         Returns:
             dict: Analysis results including findings and technical details
         """
-        logger.info("Analyzing X-ray image")
+        logger_service.info("Analyzing X-ray image")
 
         try:
             # Load and process the image
@@ -190,7 +188,7 @@ class ChestXRayModel:
             return analysis_results
 
         except Exception as e:
-            logger.error(f"Error analyzing image: {str(e)}")
+            logger_service.error(f"Error analyzing image: {str(e)}")
             raise
 
     def _generate_simulated_findings(self, image_stats):

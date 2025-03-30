@@ -1,0 +1,17 @@
+{
+    "service": {
+        "name": "tempo",
+        "tags": [
+            "tracing",
+            "monitoring"
+        ],
+        "port": 3200,
+        "check": {
+            "id": "tempo",
+            "name": "Tempo health check",
+            "http": "http://tempo:3200/status",
+            "interval": "10s",
+            "timeout": "5s"
+        }
+    }
+}

@@ -1,4 +1,3 @@
-import logging
 import os
 import re
 from pathlib import Path
@@ -7,9 +6,9 @@ from typing import List
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 from pydantic import BaseModel, Field
+from services.logger_service import logger_service
 
 # Get logger for the scraper module
-logger = logging.getLogger(__name__)
 
 
 class DocPage(BaseModel):
@@ -26,7 +25,7 @@ class DocumentationScraper:
         """
         Get all documentation page links from a given base URL.
         """
-        logger.info(f"Getting documentation links from {base_url}")
+        logger_service.info(f"Getting documentation links from {base_url}")
 
         # First, get all links from the base URL
         initial_crawl = self.app.crawl_url(
@@ -45,14 +44,14 @@ class DocumentationScraper:
             [link.split("#")[0] for link in all_links if link.startswith(base_url)]
         )
 
-        logger.info(f"Found {len(filtered_links)} unique documentation links")
+        logger_service.info(f"Found {len(filtered_links)} unique documentation links")
         return list(filtered_links)
 
     def scrape_documentation(self, base_url: str, limit: int = None) -> List[DocPage]:
         """
         Scrape documentation pages from a given base URL.
         """
-        logger.info(f"Scraping doc pages from {base_url}")
+        logger_service.info(f"Scraping doc pages from {base_url}")
 
         # Get all documentation links
         filtered_links = self.get_documentation_links(base_url)
@@ -61,10 +60,10 @@ class DocumentationScraper:
 
         # Batch scrape the URLs
         try:
-            logger.info(f"Scraping {len(filtered_links)} documentation pages")
+            logger_service.info(f"Scraping {len(filtered_links)} documentation pages")
             crawl_results = self.app.batch_scrape_urls(filtered_links)
         except Exception as e:
-            logger.error(f"Error scraping documentation pages: {str(e)}")
+            logger_service.error(f"Error scraping documentation pages: {str(e)}")
             return []
 
         # Process results into DocPage objects
@@ -79,11 +78,11 @@ class DocumentationScraper:
                     )
                 )
             else:
-                logger.warning(
+                logger_service.warning(
                     f"Failed to scrape {result.get('metadata', {}).get('url', 'unknown URL')}"
                 )
 
-        logger.info(
+        logger_service.info(
             f"Successfully scraped {len(doc_pages)} pages out of {len(filtered_links)} URLs"
         )
 
@@ -112,7 +111,7 @@ class DocumentationScraper:
                 f.write("---\n\n")
                 f.write(page.content)
 
-        logger.info(f"Saved {len(doc_pages)} pages to {docs_dir}")
+        logger_service.info(f"Saved {len(doc_pages)} pages to {docs_dir}")
 
     def pull_docs(self, base_url: str, docs_dir: str, n_pages: int = None):
         doc_pages = self.scrape_documentation(base_url, n_pages)

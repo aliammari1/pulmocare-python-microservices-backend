@@ -1,233 +1,64 @@
-import functools
-import logging
-import time
-
-from prometheus_client import Counter, Gauge, Histogram
-
-logger = logging.getLogger(__name__)
-
-# RabbitMQ metrics
-RABBITMQ_MESSAGES_PUBLISHED = Counter(
-    "medecins_service_rabbitmq_messages_published_total",
-    "Total number of messages published by medecins service",
-    ["exchange", "routing_key"],
-)
-
-RABBITMQ_PUBLISH_LATENCY = Histogram(
-    "medecins_service_rabbitmq_publish_latency_seconds",
-    "Message publish latency in seconds for medecins service",
-    ["exchange", "routing_key"],
-)
-
-RABBITMQ_CONSUME_LATENCY = Histogram(
-    "medecins_service_rabbitmq_consume_latency_seconds",
-    "Message consume latency in seconds for medecins service",
-    ["queue"],
-)
-
-RABBITMQ_QUEUE_SIZE = Gauge(
-    "medecins_service_rabbitmq_queue_size",
-    "Number of messages in queue for medecins service",
-    ["queue"],
-)
-
-RABBITMQ_CONSUMER_COUNT = Gauge(
-    "medecins_service_rabbitmq_consumers",
-    "Number of consumers for medecins service",
-    ["queue"],
-)
-
-# Circuit breaker metrics
-CIRCUIT_BREAKER_STATE = Gauge(
-    "medecins_service_circuit_breaker_state",
-    "Circuit breaker state (0=closed, 1=open, 2=half-open) for medecins service",
-    ["name"],
-)
-
-CIRCUIT_BREAKER_FAILURES = Counter(
-    "medecins_service_circuit_breaker_failures_total",
-    "Number of circuit breaker failures for medecins service",
-    ["name"],
-)
-
-CIRCUIT_BREAKER_SUCCESS = Counter(
-    "medecins_service_circuit_breaker_success_total",
-    "Number of circuit breaker successes for medecins service",
-    ["name"],
-)
-
-CIRCUIT_BREAKER_REJECTED = Counter(
-    "medecins_service_circuit_breaker_rejected_total",
-    "Number of requests rejected due to open circuit for medecins service",
-    ["name"],
-)
-
-# Cache metrics
-CACHE_HITS = Counter(
-    "medecins_service_cache_hits_total",
-    "Number of cache hits for medecins service",
-    ["cache"],
-)
-
-CACHE_MISSES = Counter(
-    "medecins_service_cache_misses_total",
-    "Number of cache misses for medecins service",
-    ["cache"],
-)
-
-CACHE_HIT = Counter(
-    "medecins_service_cache_hit_total",
-    "Total number of cache hits for medecins service",
-    ["cache_name"],
-)
-
-CACHE_MISS = Counter(
-    "medecins_service_cache_miss_total",
-    "Total number of cache misses for medecins service",
-    ["cache_name"],
-)
-
-# Service dependency metrics
-SERVICE_DEPENDENCY_UP = Gauge(
-    "medecins_service_dependency_up",
-    "Whether a service dependency is available (1=up, 0=down) for medecins service",
-    ["service"],
-)
-
-SERVICE_DEPENDENCY_LATENCY = Histogram(
-    "medecins_service_dependency_latency_seconds",
-    "Service dependency request latency in seconds for medecins service",
-    ["service", "operation"],
-)
+from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_flask_exporter import PrometheusMetrics
+from services.logger_service import logger_service
 
 
-def track_rabbitmq_metrics(func):
-    """Decorator to track RabbitMQ operation metrics"""
+class PrometheusService:
+    """Service for Prometheus metrics"""
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        # Get exchange and routing key from args/kwargs based on the function
-        exchange = kwargs.get("exchange", "default")
-        routing_key = kwargs.get("routing_key", "default")
-        queue = kwargs.get("queue", "default")
+    def __init__(self, app, config):
+        self.app = app
+        self.config = config
 
-        start_time = time.time()
+        # Initialize Prometheus metrics
+        self.metrics = PrometheusMetrics(app)
+        self.metrics.info(
+            "reports_service_info", "Reports service info", version="1.0.0"
+        )
+
+        # Define custom metrics
+        self.request_count = Counter(
+            "report_service_requests_total",
+            "Total requests to report service",
+            ["method", "endpoint", "status"],
+        )
+        self.request_latency = Histogram(
+            "report_service_request_latency_seconds",
+            "Request latency in seconds",
+            ["method", "endpoint"],
+        )
+
+    def record_request(self, method, endpoint, status):
+        """Record request metrics"""
+        self.request_count.labels(method=method, endpoint=endpoint, status=status).inc()
+
+    def record_latency(self, method, endpoint, duration):
+        """Record request latency"""
+        self.request_latency.labels(method=method, endpoint=endpoint).observe(duration)
+
+    def start_metrics_server(self):
+        """Start Prometheus metrics server"""
         try:
-            result = func(*args, **kwargs)
-
-            # Record metrics based on operation type
-            if func.__name__ == "publish":
-                RABBITMQ_MESSAGES_PUBLISHED.labels(
-                    exchange=exchange, routing_key=routing_key
-                ).inc()
-                RABBITMQ_PUBLISH_LATENCY.labels(
-                    exchange=exchange, routing_key=routing_key
-                ).observe(time.time() - start_time)
-            elif func.__name__ == "basic_consume":
-                RABBITMQ_CONSUME_LATENCY.labels(queue=queue).observe(
-                    time.time() - start_time
+            start_http_server(self.config.METRICS_PORT)
+            logger_service.info(
+                f"Prometheus metrics server started on port {self.config.METRICS_PORT}"
+            )
+        except OSError as e:
+            if e.errno == 98:  # Address already in use
+                fallback_port = self.config.METRICS_PORT + 1
+                logger_service.warning(
+                    f"Port {self.config.METRICS_PORT} is already in use. Trying fallback port {fallback_port}"
                 )
-
-            return result
-        except Exception as e:
-            # Log the error but don't prevent it from propagating
-            logger.exception(f"Error in RabbitMQ operation: {str(e)}")
-            raise
-
-    return wrapper
-
-
-def update_queue_metrics(channel, queue_name):
-    """Update queue-related metrics"""
-    try:
-        # Get queue statistics
-        queue = channel.queue_declare(queue=queue_name, passive=True)
-        message_count = queue.method.message_count
-        consumer_count = queue.method.consumer_count
-
-        # Update Prometheus metrics
-        RABBITMQ_QUEUE_SIZE.labels(queue=queue_name).set(message_count)
-        RABBITMQ_CONSUMER_COUNT.labels(queue=queue_name).set(consumer_count)
-    except Exception as e:
-        # Log but don't fail if we can't get metrics
-        logger.warning(f"Error updating queue metrics: {str(e)}")
-
-
-def track_circuit_breaker_state(name: str, state: str):
-    """Update circuit breaker state metric"""
-    state_values = {"closed": 0, "open": 1, "half_open": 2}
-    try:
-        CIRCUIT_BREAKER_STATE.labels(name=name).set(state_values.get(state, 0))
-        logger.debug(f"Circuit breaker '{name}' state changed to {state}")
-    except Exception as e:
-        logger.warning(f"Error tracking circuit breaker state: {str(e)}")
-
-
-def track_circuit_breaker_failure(name: str):
-    """Increment circuit breaker failure counter"""
-    try:
-        CIRCUIT_BREAKER_FAILURES.labels(name=name).inc()
-    except Exception as e:
-        logger.warning(f"Error tracking circuit breaker failure: {str(e)}")
-
-
-def track_circuit_breaker_success(name: str):
-    """Increment circuit breaker success counter"""
-    try:
-        CIRCUIT_BREAKER_SUCCESS.labels(name=name).inc()
-    except Exception as e:
-        logger.warning(f"Error tracking circuit breaker success: {str(e)}")
-
-
-def track_circuit_breaker_rejection(name: str):
-    """Increment circuit breaker rejection counter"""
-    try:
-        CIRCUIT_BREAKER_REJECTED.labels(name=name).inc()
-    except Exception as e:
-        logger.warning(f"Error tracking circuit breaker rejection: {str(e)}")
-
-
-def track_cache_metrics(hit: bool, cache_name: str):
-    """Track cache hit/miss metrics"""
-    try:
-        if hit:
-            CACHE_HITS.labels(cache=cache_name).inc()
-            CACHE_HIT.labels(cache_name=cache_name).inc()
-        else:
-            CACHE_MISSES.labels(cache=cache_name).inc()
-            CACHE_MISS.labels(cache_name=cache_name).inc()
-    except Exception as e:
-        logger.warning(f"Error tracking cache metrics: {str(e)}")
-
-
-def track_dependency_status(service: str, is_available: bool):
-    """Track service dependency availability"""
-    try:
-        SERVICE_DEPENDENCY_UP.labels(service=service).set(1 if is_available else 0)
-    except Exception as e:
-        logger.warning(f"Error tracking dependency status for {service}: {str(e)}")
-
-
-def track_dependency_request(func):
-    """Decorator to track service dependency request metrics"""
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        service = kwargs.get("service", func.__name__)
-        operation = kwargs.get("operation", "request")
-
-        start_time = time.time()
-        try:
-            result = func(*args, **kwargs)
-            # Record successful dependency call
-            track_dependency_status(service, True)
-            SERVICE_DEPENDENCY_LATENCY.labels(
-                service=service, operation=operation
-            ).observe(time.time() - start_time)
-            return result
-        except Exception as e:
-            # Record failed dependency call
-            track_dependency_status(service, False)
-            raise
-
-    return wrapper
+                try:
+                    start_http_server(fallback_port)
+                    logger_service.info(
+                        f"Prometheus metrics server started on fallback port {fallback_port}"
+                    )
+                except Exception as fallback_error:
+                    logger_service.error(
+                        f"Failed to start Prometheus metrics server on fallback port: {str(fallback_error)}"
+                    )
+            else:
+                logger_service.error(
+                    f"Failed to start Prometheus metrics server: {str(e)}"
+                )

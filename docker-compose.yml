@@ -46,6 +46,7 @@ services:
       - "8600:8600/udp"
     volumes:
       - consul_data:/consul/data
+      - ./config/consul:/consul/config
     networks:
       medapp-network:
         ipv4_address: 172.20.0.100
@@ -60,13 +61,20 @@ services:
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
-
   kong-migrations:
     image: kong/kong-gateway:latest
     command: kong migrations bootstrap
     depends_on:
-      kong-database:
-        condition: service_healthy
+      medecins-service:
+        condition: service_started
+      ordonnances-service:
+        condition: service_started
+      patients-service:
+        condition: service_started
+      radiologues-service:
+        condition: service_started
+      reports-service:
+        condition: service_started
     environment:
       KONG_DATABASE: postgres
       KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
@@ -287,8 +295,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource,grafana-piechart-panel
     volumes:
       - grafana_data:/var/lib/grafana
@@ -323,14 +329,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      consul:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      consul:
+        condition: service_healthy
     networks:
       - medapp-network
     volumes:
@@ -361,14 +367,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      consul:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      consul:
+        condition: service_healthy
     networks:
       - medapp-network
     volumes:
@@ -399,14 +405,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      consul:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      consul:
+        condition: service_healthy
     networks:
       - medapp-network
     volumes:
@@ -437,14 +443,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      consul:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      consul:
+        condition: service_healthy
     networks:
       - medapp-network
     volumes:
@@ -478,14 +484,14 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
-      consul:
-        condition: service_healthy
       redis:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
       otel-collector:
         condition: service_started
+      consul:
+        condition: service_healthy
     networks:
       - medapp-network
     healthcheck:

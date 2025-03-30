@@ -1,17 +1,19 @@
-import logging
-import time
 import os
+import time
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
+    OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
+                                            ConsoleSpanExporter)
 from opentelemetry.trace import NoOpTracer
+from services.logger_service import logger_service
 
 from config import Config
 
@@ -21,7 +23,7 @@ class TracingService:
 
     def __init__(self, app):
         self.app = app
-        self.logger = logging.getLogger(__name__)
+
         self.enabled = True
         self._setup_tracing()
 
@@ -47,7 +49,7 @@ class TracingService:
             if not otlp_endpoint.endswith("/v1/traces"):
                 otlp_endpoint = f"{otlp_endpoint}/v1/traces"
 
-            self.logger.info(
+            logger_service.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"
             )
 
@@ -64,20 +66,15 @@ class TracingService:
                 # This will send spans to the collector
                 tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
-                # In development, also log to console for debugging
-                if Config.ENV == "development":
-                    tracer_provider.add_span_processor(
-                        BatchSpanProcessor(ConsoleSpanExporter())
-                    )
 
             except Exception as export_error:
-                self.logger.warning(
+                logger_service.warning(
                     f"Failed to configure OTLP exporter: {str(export_error)}"
                 )
 
                 # In development mode, use console exporter as fallback
                 if Config.ENV == "development":
-                    self.logger.info(
+                    logger_service.info(
                         "Using console exporter as fallback in development mode"
                     )
                     tracer_provider.add_span_processor(
@@ -87,7 +84,7 @@ class TracingService:
                 # Disable tracing completely if specified in config
                 if Config.OTEL_DISABLE_ON_ERROR:
                     self.enabled = False
-                    self.logger.warning(
+                    logger_service.warning(
                         "Tracing disabled due to connection error (OTEL_DISABLE_ON_ERROR=True)"
                     )
 
@@ -104,13 +101,15 @@ class TracingService:
                 # Create a tracer
                 self.tracer = trace.get_tracer(__name__)
 
-                self.logger.info("OpenTelemetry tracing initialized successfully")
+                logger_service.info("OpenTelemetry tracing initialized successfully")
             else:
                 # Create a no-op tracer as fallback
                 self.tracer = NoOpTracer()
 
         except Exception as e:
-            self.logger.error(f"Failed to initialize OpenTelemetry tracing: {str(e)}")
+            logger_service.error(
+                f"Failed to initialize OpenTelemetry tracing: {str(e)}"
+            )
             # Create a no-op tracer as fallback
             self.tracer = NoOpTracer()
             self.enabled = False

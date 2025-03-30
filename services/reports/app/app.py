@@ -1,6 +1,3 @@
-import json
-import logging
-import os
 import signal
 import sys
 import time
@@ -27,6 +24,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import Counter, Histogram, start_http_server
 from report_generator import ReportGenerator
 from services.consul_service import ConsulService
+from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
@@ -64,10 +62,6 @@ start_http_server(Config.METRICS_PORT)
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
 
-# Set up logging
-logging.config.dictConfig(Config.init_logging())
-logger = logging.getLogger(__name__)
-
 # Initialize services
 tracing_service = TracingService(app)
 redis_client = RedisClient(Config)
@@ -90,13 +84,13 @@ limiter.init_app(app)
 # Handle graceful shutdown
 def signal_handler(sig, frame):
     """Handle graceful shutdown"""
-    logger.info("Received shutdown signal, cleaning up...")
+    logger_service.info("Received shutdown signal, cleaning up...")
     try:
         rabbitmq_client.close()
         mongodb_client.close()
         redis_client.close()
     except Exception as e:
-        logger.error(f"Error during cleanup: {str(e)}")
+        logger_service.error(f"Error during cleanup: {str(e)}")
 
     sys.exit(0)
 
@@ -132,7 +126,7 @@ def handle_service_error(func):
                     "path": request.path,
                     "method": request.method,
                 }
-                logger.error(f"Service error: {error_response}")
+                logger_service.error(f"Service error: {error_response}")
                 prometheus_service.record_request(method, endpoint, status)
                 span.set_attribute("error", True)
                 span.set_attribute("error.message", str(e))

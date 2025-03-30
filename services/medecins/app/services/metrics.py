@@ -1,90 +1,100 @@
 import functools
-import logging
 import time
 
 from prometheus_client import Counter, Gauge, Histogram
-
-logger = logging.getLogger(__name__)
+from services.logger_service import logger_service
 
 # RabbitMQ metrics
 RABBITMQ_MESSAGES_PUBLISHED = Counter(
-    "ordonnances_service_rabbitmq_messages_published_total",
-    "Total number of messages published by ordonnances service",
+    "medecins_service_rabbitmq_messages_published_total",
+    "Total number of messages published by medecins service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_PUBLISH_LATENCY = Histogram(
-    "ordonnances_service_rabbitmq_publish_latency_seconds",
-    "Message publish latency in seconds for ordonnances service",
+    "medecins_service_rabbitmq_publish_latency_seconds",
+    "Message publish latency in seconds for medecins service",
     ["exchange", "routing_key"],
 )
 
 RABBITMQ_CONSUME_LATENCY = Histogram(
-    "ordonnances_service_rabbitmq_consume_latency_seconds",
-    "Message consume latency in seconds for ordonnances service",
+    "medecins_service_rabbitmq_consume_latency_seconds",
+    "Message consume latency in seconds for medecins service",
     ["queue"],
 )
 
 RABBITMQ_QUEUE_SIZE = Gauge(
-    "ordonnances_service_rabbitmq_queue_size",
-    "Number of messages in queue for ordonnances service",
+    "medecins_service_rabbitmq_queue_size",
+    "Number of messages in queue for medecins service",
     ["queue"],
 )
 
 RABBITMQ_CONSUMER_COUNT = Gauge(
-    "ordonnances_service_rabbitmq_consumers",
-    "Number of consumers for ordonnances service",
+    "medecins_service_rabbitmq_consumers",
+    "Number of consumers for medecins service",
     ["queue"],
 )
 
 # Circuit breaker metrics
 CIRCUIT_BREAKER_STATE = Gauge(
-    "ordonnances_service_circuit_breaker_state",
-    "Circuit breaker state (0=closed, 1=open, 2=half-open) for ordonnances service",
+    "medecins_service_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=open, 2=half-open) for medecins service",
     ["name"],
 )
 
 CIRCUIT_BREAKER_FAILURES = Counter(
-    "ordonnances_service_circuit_breaker_failures_total",
-    "Number of circuit breaker failures for ordonnances service",
+    "medecins_service_circuit_breaker_failures_total",
+    "Number of circuit breaker failures for medecins service",
     ["name"],
 )
 
 CIRCUIT_BREAKER_SUCCESS = Counter(
-    "ordonnances_service_circuit_breaker_success_total",
-    "Number of circuit breaker successes for ordonnances service",
+    "medecins_service_circuit_breaker_success_total",
+    "Number of circuit breaker successes for medecins service",
     ["name"],
 )
 
 CIRCUIT_BREAKER_REJECTED = Counter(
-    "ordonnances_service_circuit_breaker_rejected_total",
-    "Number of requests rejected due to open circuit for ordonnances service",
+    "medecins_service_circuit_breaker_rejected_total",
+    "Number of requests rejected due to open circuit for medecins service",
     ["name"],
 )
 
 # Cache metrics
 CACHE_HITS = Counter(
-    "ordonnances_service_cache_hits_total",
-    "Number of cache hits for ordonnances service",
+    "medecins_service_cache_hits_total",
+    "Number of cache hits for medecins service",
     ["cache"],
 )
 
 CACHE_MISSES = Counter(
-    "ordonnances_service_cache_misses_total",
-    "Number of cache misses for ordonnances service",
+    "medecins_service_cache_misses_total",
+    "Number of cache misses for medecins service",
     ["cache"],
+)
+
+CACHE_HIT = Counter(
+    "medecins_service_cache_hit_total",
+    "Total number of cache hits for medecins service",
+    ["cache_name"],
+)
+
+CACHE_MISS = Counter(
+    "medecins_service_cache_miss_total",
+    "Total number of cache misses for medecins service",
+    ["cache_name"],
 )
 
 # Service dependency metrics
 SERVICE_DEPENDENCY_UP = Gauge(
-    "ordonnances_service_dependency_up",
-    "Whether a service dependency is available (1=up, 0=down) for ordonnances service",
+    "medecins_service_dependency_up",
+    "Whether a service dependency is available (1=up, 0=down) for medecins service",
     ["service"],
 )
 
 SERVICE_DEPENDENCY_LATENCY = Histogram(
-    "ordonnances_service_dependency_latency_seconds",
-    "Service dependency request latency in seconds for ordonnances service",
+    "medecins_service_dependency_latency_seconds",
+    "Service dependency request latency in seconds for medecins service",
     ["service", "operation"],
 )
 
@@ -119,7 +129,7 @@ def track_rabbitmq_metrics(func):
             return result
         except Exception as e:
             # Log the error but don't prevent it from propagating
-            logger.exception(f"Error in RabbitMQ operation: {str(e)}")
+            logger_service.exception(f"Error in RabbitMQ operation: {str(e)}")
             raise
 
     return wrapper
@@ -138,7 +148,7 @@ def update_queue_metrics(channel, queue_name):
         RABBITMQ_CONSUMER_COUNT.labels(queue=queue_name).set(consumer_count)
     except Exception as e:
         # Log but don't fail if we can't get metrics
-        logger.warning(f"Error updating queue metrics: {str(e)}")
+        logger_service.warning(f"Error updating queue metrics: {str(e)}")
 
 
 def track_circuit_breaker_state(name: str, state: str):
@@ -146,9 +156,9 @@ def track_circuit_breaker_state(name: str, state: str):
     state_values = {"closed": 0, "open": 1, "half_open": 2}
     try:
         CIRCUIT_BREAKER_STATE.labels(name=name).set(state_values.get(state, 0))
-        logger.debug(f"Circuit breaker '{name}' state changed to {state}")
+        logger_service.debug(f"Circuit breaker '{name}' state changed to {state}")
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker state: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker state: {str(e)}")
 
 
 def track_circuit_breaker_failure(name: str):
@@ -156,7 +166,7 @@ def track_circuit_breaker_failure(name: str):
     try:
         CIRCUIT_BREAKER_FAILURES.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker failure: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker failure: {str(e)}")
 
 
 def track_circuit_breaker_success(name: str):
@@ -164,7 +174,7 @@ def track_circuit_breaker_success(name: str):
     try:
         CIRCUIT_BREAKER_SUCCESS.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker success: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker success: {str(e)}")
 
 
 def track_circuit_breaker_rejection(name: str):
@@ -172,7 +182,7 @@ def track_circuit_breaker_rejection(name: str):
     try:
         CIRCUIT_BREAKER_REJECTED.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker rejection: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker rejection: {str(e)}")
 
 
 def track_cache_metrics(hit: bool, cache_name: str):
@@ -180,10 +190,12 @@ def track_cache_metrics(hit: bool, cache_name: str):
     try:
         if hit:
             CACHE_HITS.labels(cache=cache_name).inc()
+            CACHE_HIT.labels(cache_name=cache_name).inc()
         else:
             CACHE_MISSES.labels(cache=cache_name).inc()
+            CACHE_MISS.labels(cache_name=cache_name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking cache metrics: {str(e)}")
+        logger_service.warning(f"Error tracking cache metrics: {str(e)}")
 
 
 def track_dependency_status(service: str, is_available: bool):
@@ -191,7 +203,9 @@ def track_dependency_status(service: str, is_available: bool):
     try:
         SERVICE_DEPENDENCY_UP.labels(service=service).set(1 if is_available else 0)
     except Exception as e:
-        logger.warning(f"Error tracking dependency status for {service}: {str(e)}")
+        logger_service.warning(
+            f"Error tracking dependency status for {service}: {str(e)}"
+        )
 
 
 def track_dependency_request(func):

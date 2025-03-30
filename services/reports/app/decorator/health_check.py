@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 
@@ -6,10 +5,9 @@ import psutil
 import redis
 from flask import jsonify
 from pymongo import MongoClient
+from services.logger_service import logger_service
 
 from config import Config
-
-logger = logging.getLogger(__name__)
 
 
 def health_check_middleware(config: Config):

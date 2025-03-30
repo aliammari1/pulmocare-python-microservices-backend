@@ -1,26 +1,12 @@
 import json
-import logging
 from datetime import datetime
 
 import pika
 from pymongo import MongoClient
+from services.logger_service import logger_service
+from services.mongodb_client import MongoDBClient
 
 from config import Config
-
-# Set up logging
-logging.config.dictConfig(Config.init_logging())
-logger = logging.getLogger(__name__)
-
-
-def init_mongodb():
-    """Initialize MongoDB connection"""
-    try:
-        client = MongoClient(Config.get_mongodb_uri())
-        db = client[Config.MONGODB_DATABASE]
-        return client, db
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {str(e)}")
-        return None, None
 
 
 def callback(ch, method, properties, body):
@@ -28,19 +14,21 @@ def callback(ch, method, properties, body):
     try:
         data = json.loads(body)
         report_id = data.get("report_id")
-        logger.info(f"Received analysis request for report {report_id}")
+        logger_service.info(f"Received analysis request for report {report_id}")
 
         # Get MongoDB connection
-        mongodb_client, db = init_mongodb()
+        mongodb_client_service = MongoDBClient(Config)
+        mongodb_client = mongodb_client_service.client
+        db = mongodb_client_service.db
         if not mongodb_client:
-            logger.error("Failed to connect to MongoDB")
+            logger_service.error("Failed to connect to MongoDB")
             ch.basic_nack(delivery_tag=method.delivery_tag)
             return
 
         # Get report from database
         report = db.reports.find_one({"_id": report_id})
         if not report:
-            logger.error(f"Report {report_id} not found")
+            logger_service.error(f"Report {report_id} not found")
             ch.basic_ack(delivery_tag=method.delivery_tag)
             return
 
@@ -53,11 +41,11 @@ def callback(ch, method, properties, body):
             {"$set": {"analysis": analysis_result, "analyzed_at": datetime.utcnow()}},
         )
 
-        logger.info(f"Successfully analyzed report {report_id}")
+        logger_service.info(f"Successfully analyzed report {report_id}")
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger_service.error(f"Error processing message: {str(e)}")
         ch.basic_nack(delivery_tag=method.delivery_tag)
     finally:
         if mongodb_client:
@@ -91,11 +79,11 @@ def main():
         # Start consuming
         channel.basic_consume(queue="report.analysis", on_message_callback=callback)
 
-        logger.info("Started consuming from report.analysis queue")
+        logger_service.info("Started consuming from report.analysis queue")
         channel.start_consuming()
 
     except Exception as e:
-        logger.error(f"Consumer error: {str(e)}")
+        logger_service.error(f"Consumer error: {str(e)}")
         if "connection" in locals() and connection.is_open:
             connection.close()
 

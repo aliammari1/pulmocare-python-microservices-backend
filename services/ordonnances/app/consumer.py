@@ -1,27 +1,11 @@
 import json
-import logging
 from datetime import datetime
 
-import pika
-from pymongo import MongoClient
+from services.logger_service import logger_service
+from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 
 from config import Config
-
-# Set up logging
-logging.config.dictConfig(Config.init_logging())
-logger = logging.getLogger(__name__)
-
-
-def init_mongodb():
-    """Initialize MongoDB connection"""
-    try:
-        client = MongoClient(Config.get_mongodb_uri())
-        db = client[Config.MONGODB_DATABASE]
-        return client, db
-    except Exception as e:
-        logger.error(f"Failed to connect to MongoDB: {str(e)}")
-        return None, None
 
 
 def handle_validation_request(ch, method, properties, body):
@@ -31,12 +15,16 @@ def handle_validation_request(ch, method, properties, body):
         prescription_id = data.get("prescription_id")
         doctor_id = data.get("doctor_id")
 
-        logger.info(f"Received validation request for prescription {prescription_id}")
+        logger_service.info(
+            f"Received validation request for prescription {prescription_id}"
+        )
 
         # Get MongoDB connection
-        mongodb_client, db = init_mongodb()
+        mongodb_client_service = MongoDBClient(Config)
+        mongodb_client = mongodb_client_service.client
+        db = mongodb_client_service.db
         if not mongodb_client:
-            logger.error("Failed to connect to MongoDB")
+            logger_service.error("Failed to connect to MongoDB")
             ch.basic_nack(delivery_tag=method.delivery_tag)
             return
 
@@ -44,13 +32,13 @@ def handle_validation_request(ch, method, properties, body):
             # Find the prescription
             prescription = db.prescriptions.find_one({"_id": prescription_id})
             if not prescription:
-                logger.error(f"Prescription {prescription_id} not found")
+                logger_service.error(f"Prescription {prescription_id} not found")
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
             # Check doctor authorization
             if prescription.get("doctor_id") != doctor_id:
-                logger.error(
+                logger_service.error(
                     f"Doctor {doctor_id} not authorized to validate prescription {prescription_id}"
                 )
                 ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -81,11 +69,13 @@ def handle_validation_request(ch, method, properties, body):
                 },
             )
 
-            logger.info(f"Successfully validated prescription {prescription_id}")
+            logger_service.info(
+                f"Successfully validated prescription {prescription_id}"
+            )
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
-            logger.error(f"Error processing validation request: {str(e)}")
+            logger_service.error(f"Error processing validation request: {str(e)}")
             ch.basic_nack(delivery_tag=method.delivery_tag)
 
         finally:
@@ -95,7 +85,7 @@ def handle_validation_request(ch, method, properties, body):
                 rabbitmq_client.close()
 
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger_service.error(f"Error processing message: {str(e)}")
         ch.basic_nack(delivery_tag=method.delivery_tag)
 
 
@@ -106,14 +96,16 @@ def handle_notification(ch, method, properties, body):
         prescription_id = data.get("prescription_id")
         event = data.get("event")
 
-        logger.info(
+        logger_service.info(
             f"Received prescription notification: {event} for prescription {prescription_id}"
         )
 
         # Get MongoDB connection
-        mongodb_client, db = init_mongodb()
+        mongodb_client_service = MongoDBClient(Config)
+        mongodb_client = mongodb_client_service.client
+        db = mongodb_client_service.db
         if not mongodb_client:
-            logger.error("Failed to connect to MongoDB")
+            logger_service.error("Failed to connect to MongoDB")
             ch.basic_nack(delivery_tag=method.delivery_tag)
             return
 
@@ -129,11 +121,13 @@ def handle_notification(ch, method, properties, body):
             }
 
             db.prescription_notifications.insert_one(notification)
-            logger.info(f"Stored notification for prescription {prescription_id}")
+            logger_service.info(
+                f"Stored notification for prescription {prescription_id}"
+            )
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
-            logger.error(f"Error processing notification: {str(e)}")
+            logger_service.error(f"Error processing notification: {str(e)}")
             ch.basic_nack(delivery_tag=method.delivery_tag)
 
         finally:
@@ -141,7 +135,7 @@ def handle_notification(ch, method, properties, body):
                 mongodb_client.close()
 
     except Exception as e:
-        logger.error(f"Error processing message: {str(e)}")
+        logger_service.error(f"Error processing message: {str(e)}")
         ch.basic_nack(delivery_tag=method.delivery_tag)
 
 
@@ -161,11 +155,11 @@ def main():
             queue="prescription.notifications", on_message_callback=handle_notification
         )
 
-        logger.info("Started consuming messages")
+        logger_service.info("Started consuming messages")
         rabbitmq_client.channel.start_consuming()
 
     except Exception as e:
-        logger.error(f"Consumer error: {str(e)}")
+        logger_service.error(f"Consumer error: {str(e)}")
         if rabbitmq_client:
             rabbitmq_client.close()
 

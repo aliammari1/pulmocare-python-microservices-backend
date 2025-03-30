@@ -1,78 +1,72 @@
-import logging.config
 import os
-import socket
 import urllib.parse
 from datetime import timedelta
 
 from dotenv import load_dotenv
 
-# Determine environment and load corresponding .env file
-env = os.getenv("ENV", "development")
-dotenv_file = f".env.{env}"
-if not os.path.exists(dotenv_file):
-    dotenv_file = ".env"
-load_dotenv(dotenv_path=dotenv_file)
-
 
 class Config:
+    env = os.getenv("ENV", "development")
+    dotenv_file = f".env.{env}"
+    if not os.path.exists(dotenv_file):
+        dotenv_file = ".env"
+    load_dotenv(dotenv_path=dotenv_file)
     """Configuration for the Medical App backend microservice"""
 
     # Service info
     SERVICE_NAME = "patients-service"  # Updated to correct service name
     VERSION = "1.0.0"
-    ENV = os.getenv("ENV", "development")
+    ENV = os.getenv("ENV")
     DEBUG = ENV == "development"
-    PORT = int(os.getenv("PORT", 8083))
+    PORT = int(os.getenv("PORT"))
 
     # Server settings
-    HOST = os.getenv("HOST", "0.0.0.0")
+    HOST = os.getenv("HOST")
 
     # Service Discovery settings
-    CONSUL_HOST = os.getenv("CONSUL_HOST", "localhost")
-    CONSUL_PORT = int(os.getenv("CONSUL_PORT", "8500"))
+    CONSUL_HOST = os.getenv("CONSUL_HOST")
+    CONSUL_PORT = int(os.getenv("CONSUL_PORT"))
     CONSUL_TOKEN = os.getenv("CONSUL_HTTP_TOKEN")
 
     # MongoDB settings
-    MONGODB_HOST = os.getenv("MONGODB_HOST", "localhost")
-    MONGODB_PORT = int(os.getenv("MONGODB_PORT", "27017"))
-    MONGODB_USERNAME = os.getenv("MONGODB_USERNAME", "admin")
-    MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "admin")
-    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "medapp")
-    MONGODB_POOL_SIZE = int(os.getenv("MONGODB_POOL_SIZE", "50"))
-    MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE", "10"))
-    MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS", "60000"))
-    MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", "5000"))
+    MONGODB_HOST = os.getenv("MONGODB_HOST")
+    MONGODB_PORT = int(os.getenv("MONGODB_PORT"))
+    MONGODB_USERNAME = os.getenv("MONGODB_USERNAME")
+    MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD")
+    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE")
+    MONGODB_POOL_SIZE = int(os.getenv("MONGODB_POOL_SIZE"))
+    MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE"))
+    MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS"))
+    MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS"))
     MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
-        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "5000")
+        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS")
     )
 
     # Redis settings
-    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-    REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
-    REDIS_DB = int(os.getenv("REDIS_DB", "0"))
-    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "redispass")
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT = int(os.getenv("REDIS_PORT"))
+    REDIS_DB = int(os.getenv("REDIS_DB"))
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
     REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
     # RabbitMQ settings
-    RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-    RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-    RABBITMQ_USER = os.getenv("RABBITMQ_USER", "guest")
-    RABBITMQ_PASS = os.getenv("RABBITMQ_PASS", "guest")
-    RABBITMQ_VHOST = os.getenv("RABBITMQ_VHOST", "/")
+    RABBITMQ_HOST = os.getenv("RABBITMQ_HOST")
+    RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT"))
+    RABBITMQ_USER = os.getenv("RABBITMQ_USER")
+    RABBITMQ_PASS = os.getenv("RABBITMQ_PASS")
+    RABBITMQ_VHOST = os.getenv("RABBITMQ_VHOST")
 
     # Logging settings
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL = os.getenv("LOG_LEVEL")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    LOG_DIR = os.getenv("LOG_DIR", "logs")
+    LOG_DIR = os.getenv("LOG_DIR")
     LOG_FILE = os.path.join(LOG_DIR, f"{SERVICE_NAME}.log")
-    LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE", "10485760"))  # 10MB
-    LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT", "5"))
+    LOG_MAX_SIZE = int(os.getenv("LOG_MAX_SIZE"))
+    LOG_BACKUP_COUNT = int(os.getenv("LOG_BACKUP_COUNT"))
 
     # Monitoring settings
-    METRICS_PORT = int(
-        os.getenv("METRICS_PORT", "9093")
-    )  # Updated to match prometheus.yml configuration
-    ENABLE_METRICS = os.getenv("ENABLE_METRICS", "True").lower() in (
+    METRICS_PORT = int(os.getenv("METRICS_PORT"))
+    ENABLE_METRICS = os.getenv("ENABLE_METRICS").lower() in (
         "true",
         "t",
         "1",
@@ -80,29 +74,25 @@ class Config:
     )
 
     # Tracing settings
-    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"
-    )
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     OTEL_SERVICE_NAME = SERVICE_NAME
 
     # Circuit Breaker settings
     CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(
-        os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD", "5")
+        os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD")
     )
     CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(
-        os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT", "60")
+        os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
     )
 
     # Health Check settings
-    HEALTH_CHECK_INTERVAL = os.getenv("HEALTH_CHECK_INTERVAL", "10s")
-    HEALTH_CHECK_TIMEOUT = os.getenv("HEALTH_CHECK_TIMEOUT", "5s")
-    HEALTH_CHECK_DEREGISTER_TIMEOUT = os.getenv(
-        "HEALTH_CHECK_DEREGISTER_TIMEOUT", "30s"
-    )
+    HEALTH_CHECK_INTERVAL = os.getenv("HEALTH_CHECK_INTERVAL")
+    HEALTH_CHECK_TIMEOUT = os.getenv("HEALTH_CHECK_TIMEOUT")
+    HEALTH_CHECK_DEREGISTER_TIMEOUT = os.getenv("HEALTH_CHECK_DEREGISTER_TIMEOUT")
 
     # Cache settings
-    CACHE_TTL = int(os.getenv("CACHE_TTL", "300"))  # 5 minutes
-    CACHE_MAX_SIZE = int(os.getenv("CACHE_MAX_SIZE", "1000"))
+    CACHE_TTL = int(os.getenv("CACHE_TTL"))
+    CACHE_MAX_SIZE = int(os.getenv("CACHE_MAX_SIZE"))
     CACHE_TYPE = "redis"
     CACHE_REDIS_URL = REDIS_URL
     CACHE_DEFAULT_TIMEOUT = CACHE_TTL
@@ -112,10 +102,10 @@ class Config:
         "RATE_LIMIT_STORAGE_URL",
         f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/0",
     )
-    RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT", "60 per minute")
+    RATE_LIMIT_DEFAULT = os.getenv("RATE_LIMIT_DEFAULT")
 
     # Application specific configuration
-    PDF_EXPORT_PATH = os.getenv("PDF_EXPORT_PATH", "/tmp/exports")
+    PDF_EXPORT_PATH = os.getenv("PDF_EXPORT_PATH")
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     REQUEST_TIMEOUT = 30  # seconds
 
@@ -126,10 +116,8 @@ class Config:
     PERMANENT_SESSION_LIFETIME = timedelta(days=1)
 
     # Security configuration
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-production")
-    JWT_SECRET_KEY = os.getenv(
-        "JWT_SECRET_KEY", "dev-jwt-secret-key-change-in-production"
-    )
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
@@ -218,47 +206,7 @@ class Config:
             }
         }
 
-    @classmethod
-    def get_rabbitmq_uri(cls):
-        """Get RabbitMQ connection URI"""
-        return (
-            f"amqp://{cls.RABBITMQ_USER}:{cls.RABBITMQ_PASS}@"
-            f"{cls.RABBITMQ_HOST}:{cls.RABBITMQ_PORT}/{cls.RABBITMQ_VHOST}"
-        )
 
-    @classmethod
-    def init_logging(cls):
-        """Initialize logging configuration"""
-        os.makedirs(cls.LOG_DIR, exist_ok=True)
-        return {
-            "version": 1,
-            "disable_existing_loggers": False,
-            "formatters": {
-                "standard": {"format": cls.LOG_FORMAT},
-            },
-            "handlers": {
-                "file": {
-                    "level": cls.LOG_LEVEL,
-                    "class": "logging.handlers.RotatingFileHandler",
-                    "filename": cls.LOG_FILE,
-                    "maxBytes": cls.LOG_MAX_SIZE,
-                    "backupCount": cls.LOG_BACKUP_COUNT,
-                    "formatter": "standard",
-                },
-                "console": {
-                    "level": cls.LOG_LEVEL,
-                    "class": "logging.StreamHandler",
-                    "formatter": "standard",
-                },
-            },
-            "loggers": {
-                "": {
-                    "handlers": ["console", "file"],
-                    "level": cls.LOG_LEVEL,
-                    "propagate": True,
-                }
-            },
-        }
 
     @classmethod
     def validate(cls):

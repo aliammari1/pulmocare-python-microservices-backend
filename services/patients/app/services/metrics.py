@@ -1,10 +1,7 @@
 import functools
-import logging
 import time
 
 from prometheus_client import Counter, Gauge, Histogram
-
-logger = logging.getLogger(__name__)
 
 # RabbitMQ metrics
 RABBITMQ_MESSAGES_PUBLISHED = Counter(
@@ -119,7 +116,7 @@ def track_rabbitmq_metrics(func):
             return result
         except Exception as e:
             # Log the error but don't prevent it from propagating
-            logger.exception(f"Error in RabbitMQ operation: {str(e)}")
+            logger_service.exception(f"Error in RabbitMQ operation: {str(e)}")
             raise
 
     return wrapper
@@ -138,7 +135,7 @@ def update_queue_metrics(channel, queue_name):
         RABBITMQ_CONSUMER_COUNT.labels(queue=queue_name).set(consumer_count)
     except Exception as e:
         # Log but don't fail if we can't get metrics
-        logger.warning(f"Error updating queue metrics: {str(e)}")
+        logger_service.warning(f"Error updating queue metrics: {str(e)}")
 
 
 def track_circuit_breaker_state(name: str, state: str):
@@ -146,9 +143,9 @@ def track_circuit_breaker_state(name: str, state: str):
     state_values = {"closed": 0, "open": 1, "half_open": 2}
     try:
         CIRCUIT_BREAKER_STATE.labels(name=name).set(state_values.get(state, 0))
-        logger.debug(f"Circuit breaker '{name}' state changed to {state}")
+        logger_service.debug(f"Circuit breaker '{name}' state changed to {state}")
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker state: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker state: {str(e)}")
 
 
 def track_circuit_breaker_failure(name: str):
@@ -156,7 +153,7 @@ def track_circuit_breaker_failure(name: str):
     try:
         CIRCUIT_BREAKER_FAILURES.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker failure: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker failure: {str(e)}")
 
 
 def track_circuit_breaker_success(name: str):
@@ -164,7 +161,7 @@ def track_circuit_breaker_success(name: str):
     try:
         CIRCUIT_BREAKER_SUCCESS.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker success: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker success: {str(e)}")
 
 
 def track_circuit_breaker_rejection(name: str):
@@ -172,7 +169,7 @@ def track_circuit_breaker_rejection(name: str):
     try:
         CIRCUIT_BREAKER_REJECTED.labels(name=name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking circuit breaker rejection: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker rejection: {str(e)}")
 
 
 def track_cache_metrics(hit: bool, cache_name: str):
@@ -183,7 +180,7 @@ def track_cache_metrics(hit: bool, cache_name: str):
         else:
             CACHE_MISSES.labels(cache=cache_name).inc()
     except Exception as e:
-        logger.warning(f"Error tracking cache metrics: {str(e)}")
+        logger_service.warning(f"Error tracking cache metrics: {str(e)}")
 
 
 def track_dependency_status(service: str, is_available: bool):
@@ -191,7 +188,9 @@ def track_dependency_status(service: str, is_available: bool):
     try:
         SERVICE_DEPENDENCY_UP.labels(service=service).set(1 if is_available else 0)
     except Exception as e:
-        logger.warning(f"Error tracking dependency status for {service}: {str(e)}")
+        logger_service.warning(
+            f"Error tracking dependency status for {service}: {str(e)}"
+        )
 
 
 def track_dependency_request(func):

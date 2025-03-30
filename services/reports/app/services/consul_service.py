@@ -1,4 +1,3 @@
-import logging
 import os
 import socket
 import sys
@@ -6,8 +5,7 @@ import uuid
 
 import consul
 from services.base_consul_service import BaseConsulService
-
-logger = logging.getLogger(__name__)
+from services.logger_service import logger_service
 
 
 class ConsulService(BaseConsulService):

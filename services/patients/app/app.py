@@ -1,5 +1,4 @@
 import inspect
-import logging
 import os
 import random
 import smtplib
@@ -28,6 +27,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pymongo import MongoClient
 from services.consul_service import ConsulService
+from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
@@ -77,12 +77,6 @@ print("MongoDB Connection Successful")
 
 JWT_SECRET = os.getenv("JWT_SECRET", "replace-with-strong-secret")
 
-logging.basicConfig(level=logging.WARNING)  # Change DEBUG to WARNING
-logger = logging.getLogger(__name__)
-
-# Optional: Specifically silence PyMongo's debug logs
-logging.getLogger("pymongo").setLevel(logging.WARNING)
-
 
 def token_required(f):
     @wraps(f)
@@ -108,12 +102,12 @@ def send_otp_email(to_email, otp):
         sender_email = os.getenv("EMAIL_ADDRESS")
         sender_password = os.getenv("EMAIL_PASSWORD")
 
-        logger.warning(
+        logger_service.warning(
             f"Email config - Address: {sender_email}, Password length: {len(sender_password) if sender_password else 0}"
         )
 
         if not sender_email or not sender_password:
-            logger.error("Email configuration missing in .env file")
+            logger_service.error("Email configuration missing in .env file")
             return False
 
         msg = MIMEText(
@@ -127,14 +121,14 @@ def send_otp_email(to_email, otp):
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
                 smtp.login(sender_email, sender_password)
                 smtp.send_message(msg)
-                logger.warning(f"OTP email sent successfully to {to_email}")
+                logger_service.warning(f"OTP email sent successfully to {to_email}")
                 return True
         except smtplib.SMTPAuthenticationError as e:
-            logger.error(f"Gmail authentication failed: {str(e)}")
+            logger_service.error(f"Gmail authentication failed: {str(e)}")
             return False
 
     except Exception as e:
-        logger.error(f"Error sending email: {str(e)}")
+        logger_service.error(f"Error sending email: {str(e)}")
         return False
 
 
@@ -183,7 +177,7 @@ def patient_signup():
         return jsonify(response_data), 201
 
     except Exception as e:
-        logger.error(f"Error in patient_signup: {str(e)}")
+        logger_service.error(f"Error in patient_signup: {str(e)}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 
@@ -228,18 +222,18 @@ def patient_forgot_password():
         data = request.get_json()
         email = data.get("email")
 
-        logger.debug(f"Forgot password request received for email: {email}")
+        logger_service.debug(f"Forgot password request received for email: {email}")
 
         if not email:
             return jsonify({"error": "Email is required"}), 400
 
         patient_data = patients_collection.find_one({"email": email})
         if not patient_data:
-            logger.debug(f"Email not found: {email}")
+            logger_service.debug(f"Email not found: {email}")
             return jsonify({"error": "Email not found"}), 404
 
         otp = str(random.randint(100000, 999999))
-        logger.debug(f"Generated OTP: {otp}")
+        logger_service.debug(f"Generated OTP: {otp}")
         if send_otp_email(email, otp):
             patients_collection.update_one(
                 {"email": email},
@@ -250,14 +244,14 @@ def patient_forgot_password():
                     }
                 },
             )
-            logger.debug("OTP sent and saved successfully")
+            logger_service.debug("OTP sent and saved successfully")
             return jsonify({"message": "OTP sent successfully"}), 200
         else:
-            logger.error("Failed to send OTP email")
+            logger_service.error("Failed to send OTP email")
             return jsonify({"error": "Failed to send OTP email"}), 500
 
     except Exception as e:
-        logger.error(f"Error in forgot_password: {str(e)}")
+        logger_service.error(f"Error in forgot_password: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -320,25 +314,6 @@ def test_email_config():
     return jsonify(config_info)
 
 
-@app.route("/health")
-def health():
-    """Health check endpoint"""
-    try:
-        # Test MongoDB connection
-        client.admin.command("ping")
-        return jsonify(
-            {
-                "status": "UP",
-                "timestamp": datetime.now().isoformat(),
-                "service": "patients",
-                "database": "connected",
-            }
-        )
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return jsonify({"status": "DOWN", "error": str(e), "service": "patients"}), 503
-
-
 @app.route("/api/patient/list", methods=["GET"])
 def get_all_patients():
     try:
@@ -355,7 +330,7 @@ def get_all_patients():
 
         return jsonify(patients_list), 200
     except Exception as e:
-        logger.error(f"Error getting patients list: {str(e)}")
+        logger_service.error(f"Error getting patients list: {str(e)}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -364,8 +339,8 @@ if __name__ == "__main__":
     try:
         consul_service = ConsulService(Config)
         consul_service.register_service()
-        logger.info(f"Registered {Config.SERVICE_NAME} with Consul")
+        logger_service.info(f"Registered {Config.SERVICE_NAME} with Consul")
     except Exception as e:
-        logger.error(f"Failed to register with Consul: {e}")
+        logger_service.error(f"Failed to register with Consul: {e}")
 
     app.run(host=Config.HOST, port=Config.PORT, debug=True)
