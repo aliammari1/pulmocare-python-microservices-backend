@@ -207,8 +207,6 @@ class Config:
             }
         }
 
-
-
     @classmethod
     def validate(cls):
         """Validate required configuration settings"""

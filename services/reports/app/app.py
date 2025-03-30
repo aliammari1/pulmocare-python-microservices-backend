@@ -10,10 +10,10 @@ from flask import Blueprint, Flask, jsonify, request, send_file
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+
 # Add OpenTelemetry imports at the top
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
@@ -23,7 +23,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from prometheus_client import Counter, Histogram, start_http_server
 from report_generator import ReportGenerator
-from services.consul_service import ConsulService
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
@@ -55,9 +54,6 @@ FlaskInstrumentor().instrument_app(app)
 PymongoInstrumentor().instrument()
 RequestsInstrumentor().instrument()
 RedisInstrumentor().instrument()
-
-# Start Prometheus metrics server
-start_http_server(Config.METRICS_PORT)
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -225,10 +221,4 @@ def export_report(report_id):
 app.register_blueprint(api, url_prefix="/api/reports")
 
 if __name__ == "__main__":
-    # Start Prometheus metrics server
-    prometheus_service.start_metrics_server()
-
-    # Register with Consul
-    ConsulService(Config).register_service()
-
     app.run(host=Config.HOST, port=Config.PORT, debug=True)

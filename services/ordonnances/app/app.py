@@ -4,10 +4,10 @@ from decorator.health_check import health_check_middleware
 from dotenv import load_dotenv
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
+
 # Add OpenTelemetry imports at the top
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
@@ -17,7 +17,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from pymongo import MongoClient
 from routes.ordonnance_routes import ordonnance_bp
-from services.consul_service import ConsulService
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.prometheus_service import PrometheusService
@@ -89,12 +88,4 @@ def after_request(response):
 app.register_blueprint(ordonnance_bp, url_prefix="/api/ordonnances")
 
 if __name__ == "__main__":
-    # Register with Consul
-    try:
-        consul_service = ConsulService(Config)
-        consul_service.register_service()
-        logger_service.info(f"Registered {Config.SERVICE_NAME} with Consul")
-    except Exception as e:
-        logger_service.error(f"Failed to register with Consul: {e}")
-
     app.run(host=Config.HOST, port=Config.PORT, debug=True)

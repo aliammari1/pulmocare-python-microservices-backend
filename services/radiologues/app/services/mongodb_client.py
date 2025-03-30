@@ -14,7 +14,7 @@ class MongoDBClient:
 
         self.client = None
         self.db = None
-        self.reports_collection = None
+        self.radiologues_collection = None
         self.init_connection()
 
     def init_connection(self):
@@ -30,16 +30,16 @@ class MongoDBClient:
                 self.db = self.client[self.config.MONGODB_DATABASE]
 
                 # Set up collection with schema validation
-                if "reports" not in self.db.list_collection_names():
-                    self.db.create_collection("reports")
+                if "radiologues" not in self.db.list_collection_names():
+                    self.db.create_collection("radiologues")
                     self.db.command(
                         {
-                            "collMod": "reports",
+                            "collMod": "radiologues",
                             "validator": self.config.get_mongodb_validation_schema(),
                         }
                     )
 
-                self.reports_collection = self.db["reports"]
+                self.radiologues_collection = self.db["radiologues"]
                 logger_service.info("Connected to MongoDB successfully")
                 break
             except Exception as e:
@@ -54,68 +54,68 @@ class MongoDBClient:
                         "Failed to connect to MongoDB after multiple attempts"
                     )
 
-    def find_reports(self, query=None):
-        """Find reports by query"""
+    def find_radiologues(self, query=None):
+        """Find radiologues by query"""
         try:
             query = query or {}
-            reports = list(self.reports_collection.find(query))
+            radiologues = list(self.radiologues_collection.find(query))
             # Convert ObjectId to string
-            for report in reports:
-                report["_id"] = str(report["_id"])
-            return reports
+            for radiologue in radiologues:
+                radiologue["_id"] = str(radiologue["_id"])
+            return radiologues
         except Exception as e:
-            logger_service.error(f"MongoDB find_reports error: {str(e)}")
+            logger_service.error(f"MongoDB find_radiologues error: {str(e)}")
             raise
 
-    def find_report_by_id(self, report_id):
-        """Find a report by ID"""
+    def find_radiologue_by_id(self, radiologue_id):
+        """Find a radiologue by ID"""
         try:
-            report = self.reports_collection.find_one({"_id": ObjectId(report_id)})
-            if report:
-                report["_id"] = str(report["_id"])
-            return report
+            radiologue = self.radiologues_collection.find_one({"_id": ObjectId(radiologue_id)})
+            if radiologue:
+                radiologue["_id"] = str(radiologue["_id"])
+            return radiologue
         except Exception as e:
-            logger_service.error(f"MongoDB find_report_by_id error: {str(e)}")
+            logger_service.error(f"MongoDB find_radiologue_by_id error: {str(e)}")
             return None
 
-    def insert_report(self, report_data):
-        """Insert a new report"""
+    def insert_radiologue(self, radiologue_data):
+        """Insert a new radiologue"""
         try:
-            report_data["created_at"] = datetime.utcnow()
-            report_data["updated_at"] = datetime.utcnow()
+            radiologue_data["created_at"] = datetime.utcnow()
+            radiologue_data["updated_at"] = datetime.utcnow()
 
-            result = self.reports_collection.insert_one(report_data)
-            report_data["_id"] = str(result.inserted_id)
-            return report_data
+            result = self.radiologues_collection.insert_one(radiologue_data)
+            radiologue_data["_id"] = str(result.inserted_id)
+            return radiologue_data
         except Exception as e:
-            logger_service.error(f"MongoDB insert_report error: {str(e)}")
+            logger_service.error(f"MongoDB insert_radiologue error: {str(e)}")
             raise
 
-    def update_report(self, report_id, report_data):
-        """Update an existing report"""
+    def update_radiologue(self, radiologue_id, radiologue_data):
+        """Update an existing radiologue"""
         try:
-            report_data["updated_at"] = datetime.utcnow()
+            radiologue_data["updated_at"] = datetime.utcnow()
 
-            result = self.reports_collection.update_one(
-                {"_id": ObjectId(report_id)}, {"$set": report_data}
+            result = self.radiologues_collection.update_one(
+                {"_id": ObjectId(radiologue_id)}, {"$set": radiologue_data}
             )
 
             if result.matched_count == 0:
                 return None
 
-            report_data["_id"] = report_id
-            return report_data
+            radiologue_data["_id"] = radiologue_id
+            return radiologue_data
         except Exception as e:
-            logger_service.error(f"MongoDB update_report error: {str(e)}")
+            logger_service.error(f"MongoDB update_radiologue error: {str(e)}")
             raise
 
-    def delete_report(self, report_id):
-        """Delete a report"""
+    def delete_radiologue(self, radiologue_id):
+        """Delete a radiologue"""
         try:
-            result = self.reports_collection.delete_one({"_id": ObjectId(report_id)})
+            result = self.radiologues_collection.delete_one({"_id": ObjectId(radiologue_id)})
             return result.deleted_count > 0
         except Exception as e:
-            logger_service.error(f"MongoDB delete_report error: {str(e)}")
+            logger_service.error(f"MongoDB delete_radiologue error: {str(e)}")
             raise
 
     def close(self):

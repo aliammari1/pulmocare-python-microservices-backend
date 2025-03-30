@@ -60,7 +60,6 @@ class TracingService:
                 # This will send spans to the collector
                 tracer_provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
 
-
             except Exception as export_error:
                 logger_service.warning(
                     f"Failed to configure OTLP exporter: {str(export_error)}"

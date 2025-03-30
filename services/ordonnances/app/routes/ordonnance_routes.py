@@ -4,17 +4,19 @@ import os
 import traceback  # Pour le stack trace détaillé
 
 from bson import ObjectId
-from dbconfig.db import get_database
 from flask import Blueprint, jsonify, make_response, request, send_file
 from models.ordonnance import Ordonnance
 from services.logger_service import logger_service
+from services.mongodb_client import MongoDBClient
 from services.pdf_service import generate_ordonnance_pdf
+
+from config import Config
 
 # Configure logger
 
 
 ordonnance_bp = Blueprint("ordonnances", __name__)
-db = get_database()
+db = MongoDBClient(Config).db
 
 
 @ordonnance_bp.before_request

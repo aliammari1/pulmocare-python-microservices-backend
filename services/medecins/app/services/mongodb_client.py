@@ -23,7 +23,9 @@ class MongoDBClient:
 
         for attempt in range(max_retries):
             try:
-                self.client = MongoClient(f"mongodb://admin:admin@{self.config.MONGODB_HOST}:27017/")
+                self.client = MongoClient(
+                    f"mongodb://admin:admin@{self.config.MONGODB_HOST}:27017/"
+                )
                 self.db = self.client[self.config.MONGODB_DATABASE]
 
                 # Set up collection with schema validation

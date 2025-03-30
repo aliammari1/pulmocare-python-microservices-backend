@@ -14,7 +14,7 @@ class MongoDBClient:
 
         self.client = None
         self.db = None
-        self.reports_collection = None
+        self.ordonnances_collection = None
         self.init_connection()
 
     def init_connection(self):
@@ -30,16 +30,16 @@ class MongoDBClient:
                 self.db = self.client[self.config.MONGODB_DATABASE]
 
                 # Set up collection with schema validation
-                if "reports" not in self.db.list_collection_names():
-                    self.db.create_collection("reports")
+                if "ordonnances" not in self.db.list_collection_names():
+                    self.db.create_collection("ordonnances")
                     self.db.command(
                         {
-                            "collMod": "reports",
+                            "collMod": "ordonnances",
                             "validator": self.config.get_mongodb_validation_schema(),
                         }
                     )
 
-                self.reports_collection = self.db["reports"]
+                self.ordonnances_collection = self.db["ordonnances"]
                 logger_service.info("Connected to MongoDB successfully")
                 break
             except Exception as e:
@@ -54,68 +54,68 @@ class MongoDBClient:
                         "Failed to connect to MongoDB after multiple attempts"
                     )
 
-    def find_reports(self, query=None):
-        """Find reports by query"""
+    def find_ordonnances(self, query=None):
+        """Find ordonnances by query"""
         try:
             query = query or {}
-            reports = list(self.reports_collection.find(query))
+            ordonnances = list(self.ordonnances_collection.find(query))
             # Convert ObjectId to string
-            for report in reports:
-                report["_id"] = str(report["_id"])
-            return reports
+            for ordonnance in ordonnances:
+                ordonnance["_id"] = str(ordonnance["_id"])
+            return ordonnances
         except Exception as e:
-            logger_service.error(f"MongoDB find_reports error: {str(e)}")
+            logger_service.error(f"MongoDB find_ordonnances error: {str(e)}")
             raise
 
-    def find_report_by_id(self, report_id):
-        """Find a report by ID"""
+    def find_ordonnance_by_id(self, ordonnance_id):
+        """Find a ordonnance by ID"""
         try:
-            report = self.reports_collection.find_one({"_id": ObjectId(report_id)})
-            if report:
-                report["_id"] = str(report["_id"])
-            return report
+            ordonnance = self.ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
+            if ordonnance:
+                ordonnance["_id"] = str(ordonnance["_id"])
+            return ordonnance
         except Exception as e:
-            logger_service.error(f"MongoDB find_report_by_id error: {str(e)}")
+            logger_service.error(f"MongoDB find_ordonnance_by_id error: {str(e)}")
             return None
 
-    def insert_report(self, report_data):
-        """Insert a new report"""
+    def insert_ordonnance(self, ordonnance_data):
+        """Insert a new ordonnance"""
         try:
-            report_data["created_at"] = datetime.utcnow()
-            report_data["updated_at"] = datetime.utcnow()
+            ordonnance_data["created_at"] = datetime.utcnow()
+            ordonnance_data["updated_at"] = datetime.utcnow()
 
-            result = self.reports_collection.insert_one(report_data)
-            report_data["_id"] = str(result.inserted_id)
-            return report_data
+            result = self.ordonnances_collection.insert_one(ordonnance_data)
+            ordonnance_data["_id"] = str(result.inserted_id)
+            return ordonnance_data
         except Exception as e:
-            logger_service.error(f"MongoDB insert_report error: {str(e)}")
+            logger_service.error(f"MongoDB insert_ordonnance error: {str(e)}")
             raise
 
-    def update_report(self, report_id, report_data):
-        """Update an existing report"""
+    def update_ordonnance(self, ordonnance_id, ordonnance_data):
+        """Update an existing ordonnance"""
         try:
-            report_data["updated_at"] = datetime.utcnow()
+            ordonnance_data["updated_at"] = datetime.utcnow()
 
-            result = self.reports_collection.update_one(
-                {"_id": ObjectId(report_id)}, {"$set": report_data}
+            result = self.ordonnances_collection.update_one(
+                {"_id": ObjectId(ordonnance_id)}, {"$set": ordonnance_data}
             )
 
             if result.matched_count == 0:
                 return None
 
-            report_data["_id"] = report_id
-            return report_data
+            ordonnance_data["_id"] = ordonnance_id
+            return ordonnance_data
         except Exception as e:
-            logger_service.error(f"MongoDB update_report error: {str(e)}")
+            logger_service.error(f"MongoDB update_ordonnance error: {str(e)}")
             raise
 
-    def delete_report(self, report_id):
-        """Delete a report"""
+    def delete_ordonnance(self, ordonnance_id):
+        """Delete a ordonnance"""
         try:
-            result = self.reports_collection.delete_one({"_id": ObjectId(report_id)})
+            result = self.ordonnances_collection.delete_one({"_id": ObjectId(ordonnance_id)})
             return result.deleted_count > 0
         except Exception as e:
-            logger_service.error(f"MongoDB delete_report error: {str(e)}")
+            logger_service.error(f"MongoDB delete_ordonnance error: {str(e)}")
             raise
 
     def close(self):
