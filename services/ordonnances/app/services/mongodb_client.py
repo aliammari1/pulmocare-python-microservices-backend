@@ -70,7 +70,9 @@ class MongoDBClient:
     def find_ordonnance_by_id(self, ordonnance_id):
         """Find a ordonnance by ID"""
         try:
-            ordonnance = self.ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
+            ordonnance = self.ordonnances_collection.find_one(
+                {"_id": ObjectId(ordonnance_id)}
+            )
             if ordonnance:
                 ordonnance["_id"] = str(ordonnance["_id"])
             return ordonnance
@@ -112,7 +114,9 @@ class MongoDBClient:
     def delete_ordonnance(self, ordonnance_id):
         """Delete a ordonnance"""
         try:
-            result = self.ordonnances_collection.delete_one({"_id": ObjectId(ordonnance_id)})
+            result = self.ordonnances_collection.delete_one(
+                {"_id": ObjectId(ordonnance_id)}
+            )
             return result.deleted_count > 0
         except Exception as e:
             logger_service.error(f"MongoDB delete_ordonnance error: {str(e)}")

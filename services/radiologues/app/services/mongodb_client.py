@@ -70,7 +70,9 @@ class MongoDBClient:
     def find_radiologue_by_id(self, radiologue_id):
         """Find a radiologue by ID"""
         try:
-            radiologue = self.radiologues_collection.find_one({"_id": ObjectId(radiologue_id)})
+            radiologue = self.radiologues_collection.find_one(
+                {"_id": ObjectId(radiologue_id)}
+            )
             if radiologue:
                 radiologue["_id"] = str(radiologue["_id"])
             return radiologue
@@ -112,7 +114,9 @@ class MongoDBClient:
     def delete_radiologue(self, radiologue_id):
         """Delete a radiologue"""
         try:
-            result = self.radiologues_collection.delete_one({"_id": ObjectId(radiologue_id)})
+            result = self.radiologues_collection.delete_one(
+                {"_id": ObjectId(radiologue_id)}
+            )
             return result.deleted_count > 0
         except Exception as e:
             logger_service.error(f"MongoDB delete_radiologue error: {str(e)}")

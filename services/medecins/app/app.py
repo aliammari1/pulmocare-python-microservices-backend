@@ -16,8 +16,6 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, make_response, request
 from flask_cors import CORS
 from models.doctor import Doctor
-
-# OpenTelemetry imports
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
@@ -49,11 +47,6 @@ load_dotenv(dotenv_path=dotenv_file)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize OpenTelemetry instrumentations
-FlaskInstrumentor().instrument_app(app)
-PymongoInstrumentor().instrument()
-RequestsInstrumentor().instrument()
-RedisInstrumentor().instrument()
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)

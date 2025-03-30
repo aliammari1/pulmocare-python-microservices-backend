@@ -38,11 +38,6 @@ load_dotenv(dotenv_path=dotenv_file)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize OpenTelemetry instrumentations
-FlaskInstrumentor().instrument_app(app)
-PymongoInstrumentor().instrument()
-RequestsInstrumentor().instrument()
-RedisInstrumentor().instrument()
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)

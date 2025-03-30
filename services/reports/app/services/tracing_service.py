@@ -13,7 +13,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
                                             ConsoleSpanExporter)
 from opentelemetry.trace import NoOpTracer
-from services.logger_service import LoggerService, logger_service
+from services.logger_service import logger_service
 
 from config import Config
 

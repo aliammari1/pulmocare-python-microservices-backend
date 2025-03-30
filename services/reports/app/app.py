@@ -22,6 +22,7 @@ from services.redis_client import RedisClient
 from services.report_service import ReportService
 from services.tracing_service import TracingService
 from werkzeug.middleware.proxy_fix import ProxyFix
+
 from config import Config
 
 # Initialize metrics
@@ -39,11 +40,6 @@ api = Blueprint("api", __name__)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize OpenTelemetry instrumentations
-FlaskInstrumentor().instrument_app(app)
-PymongoInstrumentor().instrument()
-RequestsInstrumentor().instrument()
-RedisInstrumentor().instrument()
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -65,7 +61,6 @@ limiter = Limiter(
     strategy="fixed-window",
 )
 limiter.init_app(app)
-
 
 
 # API Routes

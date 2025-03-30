@@ -109,20 +109,9 @@ services:
   kong-gateway:
     image: kong/kong-gateway:latest
     container_name: medapp-kong-gateway
+    user: root
     networks:
       - medapp-network
-    environment:
-      KONG_DATABASE: "postgres"
-      KONG_PG_HOST: "kong-database"
-      KONG_PG_PORT: "5432"
-      KONG_PG_DATABASE: "kong"
-      KONG_PG_USER: "kong"
-      KONG_PG_PASSWORD: "kongpass"
-      KONG_PROXY_ACCESS_LOG: /dev/stdout
-      KONG_ADMIN_ACCESS_LOG: /dev/stdout
-      KONG_PROXY_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_ERROR_LOG: /dev/stderr
-      KONG_ADMIN_LISTEN: "0.0.0.0:8001, 0.0.0.0:8444 ssl"
     volumes:
       - ./config/kong/kong.conf:/etc/kong/kong.conf
       - ./config/kong/kong.yaml:/kong.yaml
@@ -130,6 +119,13 @@ services:
       - "8000:8000"
       - "8001:8001"
       - "8002:8002"
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_HOST: kong-database
+      KONG_PG_PORT: 5432
+      KONG_PG_USER: kong
+      KONG_PG_PASSWORD: kongpass
+      KONG_PG_DATABASE: kong
     depends_on:
       kong-migrations-up:
         condition: service_completed_successfully
@@ -148,6 +144,8 @@ services:
       - POSTGRES_DB=kong
       - POSTGRES_USER=kong
       - POSTGRES_PASSWORD=kongpass
+    ports:
+      - "5432:5432"
     volumes:
       - kong_database:/var/lib/postgresql/data
     networks:
