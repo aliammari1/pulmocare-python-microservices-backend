@@ -66,8 +66,8 @@ mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
 prometheus_service = PrometheusService(app, Config)
 # MongoDB configuration
-client = MongoClient(os.getenv("MONGODB_URI", "mongodb://admin:admin@localhost:27017/"))
-db = client.medapp
+client = mongodb_client.client
+db = mongodb_client.db
 radiologues_collection = db.radiologues
 # Ajout pour les rapports
 rapports_collection = db.rapports

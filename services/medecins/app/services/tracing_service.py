@@ -2,16 +2,14 @@ import os
 import time
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
-                                            ConsoleSpanExporter)
+from opentelemetry.sdk.trace.export import (BatchSpanProcessor,ConsoleSpanExporter)
 from opentelemetry.trace import NoOpTracer
 from services.logger_service import logger_service
 
@@ -40,8 +38,6 @@ class TracingService:
 
             # Create an OTLP exporter using config
             otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT
-            if not otlp_endpoint.endswith("/v1/traces"):
-                otlp_endpoint = f"{otlp_endpoint}/v1/traces"
 
             logger_service.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"

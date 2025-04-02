@@ -2,7 +2,7 @@ import os
 import time
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import \
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import \
     OTLPSpanExporter
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
@@ -46,8 +46,6 @@ class TracingService:
 
             # Create an OTLP exporter using config
             otlp_endpoint = Config.OTEL_EXPORTER_OTLP_ENDPOINT
-            if not otlp_endpoint.endswith("/v1/traces"):
-                otlp_endpoint = f"{otlp_endpoint}/v1/traces"
 
             logger_service.info(
                 f"Configuring OpenTelemetry with endpoint: {otlp_endpoint}"

@@ -9,7 +9,7 @@
         "check": {
             "id": "postgres",
             "name": "PostgreSQL TCP on port 5432",
-            "tcp": "kong-database:5432",
+            "tcp": "172.20.0.200:5432",
             "interval": "10s",
             "timeout": "5s"
         }

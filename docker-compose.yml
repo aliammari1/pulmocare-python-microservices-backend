@@ -8,15 +8,108 @@ x-service-env: &service-env
   REDIS_PORT: "6379"
   RABBITMQ_HOST: "rabbitmq"
   RABBITMQ_PORT: "5672"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4318"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
   OTEL_PYTHON_LOG_CORRELATION: "true"
   OTEL_METRICS_EXPORTER: "otlp"
   OTEL_TRACES_EXPORTER: "otlp"
   OTEL_LOGS_EXPORTER: "otlp"
   LOG_FORMAT: "json"
-  LOG_LEVEL: "INFO"
+  LOG_LEVEL: "DEBUG"
+  KEYCLOAK_URL: "http://keycloak:8080"
 
 services:
+  # Keycloak Service
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: medapp-keycloak
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://keycloak-db:5432/keycloak
+      - KC_DB_USERNAME=keycloak
+      - KC_DB_PASSWORD=keycloak
+      - KC_HEALTH_ENABLED=true
+      - KC_METRICS_ENABLED=true
+    ports:
+      - "8090:8080"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    volumes:
+      - ./config/keycloak:/opt/keycloak/data/import
+    command: 
+      - start-dev
+      - --import-realm
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e \"GET /health/ready HTTP/1.1\r\nhost: localhost\r\nConnection: close\r\n\r\n\" >&3 && grep -q \"HTTP/1.1 200\" <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Keycloak PostgreSQL Database
+  keycloak-db:
+    image: postgres:13
+    container_name: medapp-keycloak-db
+    environment:
+      - POSTGRES_DB=keycloak
+      - POSTGRES_USER=keycloak
+      - POSTGRES_PASSWORD=keycloak
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Authentication Service
+  auth-service:
+    build:
+      context: ./services/auth
+      dockerfile: Dockerfile
+    container_name: medapp-auth-service
+    ports:
+      - "8086:8086"
+      - "9096:9096"  # Metrics port
+    environment:
+      <<: *service-env
+      ENV: production
+      PORT: "8086"
+      METRICS_PORT: "9096"
+      OTEL_SERVICE_NAME: auth-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=auth-service
+      KEYCLOAK_REALM: medapp
+      KEYCLOAK_CLIENT_ID: medapp-api
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-your-client-secret}
+    depends_on:
+      keycloak:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      consul:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    volumes:
+      - ./services/auth/app:/app
+      - ./services/auth/app/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # MongoDB Service
   mongodb:
     image: mongo:latest
@@ -119,13 +212,6 @@ services:
       - "8000:8000"
       - "8001:8001"
       - "8002:8002"
-    environment:
-      KONG_DATABASE: postgres
-      KONG_PG_HOST: kong-database
-      KONG_PG_PORT: 5432
-      KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kongpass
-      KONG_PG_DATABASE: kong
     depends_on:
       kong-migrations-up:
         condition: service_completed_successfully
@@ -149,7 +235,8 @@ services:
     volumes:
       - kong_database:/var/lib/postgresql/data
     networks:
-      - medapp-network
+      medapp-network:
+        ipv4_address: 172.20.0.200
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "kong"]
       interval: 10s
@@ -555,3 +642,4 @@ volumes:
   grafana_data:
   loki_data:
   tempo_data:
+  keycloak_db_data:

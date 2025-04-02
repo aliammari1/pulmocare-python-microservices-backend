@@ -100,6 +100,25 @@ upstreams:
         type: http
         http_path: /health
         timeout: 1
+  - name: auth-service-upstream
+    targets:
+      - target: auth-service:8086
+        weight: 100
+    healthchecks:
+      active:
+        concurrency: 10
+        healthy:
+          interval: 5
+          successes: 1
+          http_statuses: [200, 302]
+        unhealthy:
+          interval: 5
+          timeouts: 2
+          http_failures: 2
+          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
+        type: http
+        http_path: /health
+        timeout: 1
 
 services:
   - name: medecins-service
@@ -191,6 +210,19 @@ services:
           - /api/reports
         strip_path: false
 
+  - name: auth-service
+    url: http://auth-service:8086
+    retries: 5
+    connect_timeout: 1000
+    write_timeout: 60000
+    read_timeout: 60000
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/auth
+        strip_path: false
+        preserve_host: true
+
 plugins:
   - name: cors
     config:
@@ -235,16 +267,35 @@ plugins:
       upstream_health_metrics: true
       bandwidth_metrics: true
 
-  # - name: jwt
+  # - name: jwt-keycloak
+  #   service: auth-service
   #   config:
+  #     wellknown_uri: http://keycloak:8080/realms/medapp/.well-known/openid-configuration
   #     claims_to_verify:
   #       - exp
-  #     key_claim_name: kid
-  #     # Remove the problematic fields
   #     run_on_preflight: true
-  #     # We've removed:
-  #     # - anonymous: true
-  #     # - enabled_in_context: |
+  #     maximum_expiration: 86400 # 24 hours
+
+  # - name: openid-connect
+  #   service: auth-service
+  #   config:
+  #     issuer: http://keycloak:8080/realms/medapp
+  #     client_id: medapp-api
+  #     client_secret: your-client-secret
+  #     discovery: http://keycloak:8080/realms/medapp/.well-known/openid-configuration
+  #     introspection_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/token/introspect
+  #     token_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/token
+  #     authorization_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/auth
+  #     logout_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/logout
+  #     userinfo_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/userinfo
+  #     jwks_uri: http://keycloak:8080/realms/medapp/protocol/openid-connect/certs
+  #     ssl_verify: false
+  #     auth_methods:
+  #       - authorization_code
+  #       - password
+  #       - client_credentials
+  #       - refresh_token
+  #     scope: openid email profile
 
   - name: correlation-id
     config:

@@ -32,12 +32,12 @@ class MongoDBClient:
                 # Set up collection with schema validation
                 if "radiologues" not in self.db.list_collection_names():
                     self.db.create_collection("radiologues")
-                    self.db.command(
-                        {
-                            "collMod": "radiologues",
-                            "validator": self.config.get_mongodb_validation_schema(),
-                        }
-                    )
+                    # self.db.command(
+                    #     {
+                    #         "collMod": "radiologues",
+                    #         "validator": self.config.get_mongodb_validation_schema(),
+                    #     }
+                    # )
 
                 self.radiologues_collection = self.db["radiologues"]
                 logger_service.info("Connected to MongoDB successfully")

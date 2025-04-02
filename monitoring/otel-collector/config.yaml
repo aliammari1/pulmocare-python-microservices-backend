@@ -5,6 +5,9 @@ receivers:
         endpoint: "0.0.0.0:4317"
       http:
         endpoint: "0.0.0.0:4318"
+  filelog:
+    include: [ "/app/**/*.log" ]
+    start_at: beginning
 
 processors:
   batch:
@@ -35,6 +38,6 @@ service:
       processors: [batch]
       exporters: [prometheus]
     logs:
-      receivers: [otlp]
+      receivers: [otlp, filelog]
       processors: [batch]
       exporters: [otlphttp/logs]
