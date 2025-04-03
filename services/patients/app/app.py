@@ -1,34 +1,22 @@
-import inspect
 import os
-import random
-import smtplib
-import sys
 from datetime import datetime, timedelta
-from email.mime.text import MIMEText
-from functools import wraps
-
+from typing import Dict
+import uvicorn
 import jwt
+import random
+from auth.keycloak_auth import get_current_patient
 from bson import ObjectId
 from decorator.health_check import health_check_middleware
 from dotenv import load_dotenv
-from flask import Flask, jsonify, make_response, request
-from flask_cors import CORS
-from models.patient import Patient
-
-# Add OpenTelemetry imports at the top
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from pymongo import MongoClient
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from models.patient_model import (ErrorResponse, ForgotPasswordRequest,
+                                  LoginRequest, LoginResponse, MessageResponse,
+                                  PasswordChange, Patient, PatientCreate,
+                                  PatientInDB, PatientUpdate,
+                                  ResetPasswordRequest, VerifyOTPRequest)
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
-from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
 from services.redis_client import RedisClient
 from services.tracing_service import TracingService
@@ -42,11 +30,21 @@ if not os.path.exists(dotenv_file):
     dotenv_file = ".env"
 load_dotenv(dotenv_path=dotenv_file)
 
+# Initialize FastAPI app
+app = FastAPI(
+    title="MedApp Patients Service",
+    description="API for managing patient profiles and authentication",
+    version="1.0.0",
+)
 
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
-
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update with specific origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -56,277 +54,285 @@ tracing_service = TracingService(app)
 redis_client = RedisClient(Config)
 mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
-prometheus_service = PrometheusService(app, Config)
 
 
-print("Patient class: ", Patient)
-# MongoDB configuration
-client = MongoClient(
-    "mongodb://admin:admin@localhost:27017/"
-)  # Adjust if using a different host/port
-db = client["medapp"]  # Use your database name
-patients_collection = db["patients"]
 
-print("MongoDB Connection Successful")
+@app.post(
+    "/api/signup",
+    response_model=PatientInDB,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": ErrorResponse}},
+)
+async def signup(request: PatientCreate):
+    if mongodb_client.db.patients.find_one({"email": request.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
 
-JWT_SECRET = os.getenv("JWT_SECRET", "replace-with-strong-secret")
+    patient = Patient(
+        name=request.name,
+        email=request.email,
+        phone_number=request.phone_number,
+        address=request.address,
+        date_of_birth=request.date_of_birth,
+        password=request.password,
+    )
+
+    # Insert the patient document
+    result = mongodb_client.db.patients.insert_one(
+        {
+            "_id": patient._id,
+            "name": patient.name,
+            "email": patient.email,
+            "password_hash": patient.password_hash,
+            "phone_number": patient.phone_number,
+            "address": patient.address,
+            "date_of_birth": patient.date_of_birth,
+            "created_at": datetime.utcnow(),
+        }
+    )
+
+    # Convert to Pydantic model for response
+    return patient.to_pydantic()
 
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return jsonify({"error": "Token missing"}), 401
-        token = auth_header.split()[1]
-        try:
-            payload = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            user_id = payload["user_id"]
-        except jwt.ExpiredSignatureError:
-            return jsonify({"error": "Token expired"}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({"error": "Invalid token"}), 401
-        return f(user_id, *args, **kwargs)
-
-    return decorated
-
-
-def send_otp_email(to_email, otp):
+@app.post(
+    "/api/login",
+    response_model=LoginResponse,
+    responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def login(request: LoginRequest):
     try:
-        sender_email = os.getenv("EMAIL_ADDRESS")
-        sender_password = os.getenv("EMAIL_PASSWORD")
+        logger_service.debug(f"Login attempt for email: {request.email}")
 
-        logger_service.warning(
-            f"Email config - Address: {sender_email}, Password length: {len(sender_password) if sender_password else 0}"
-        )
+        patient_data = mongodb_client.db.patients.find_one({"email": request.email})
+        if not patient_data:
+            logger_service.debug("Email not found")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        if not sender_email or not sender_password:
-            logger_service.error("Email configuration missing in .env file")
-            return False
+        patient = Patient.from_dict(patient_data)
+        patient.password_hash = patient_data["password_hash"]
 
-        msg = MIMEText(
-            f"Your OTP code for password reset is: {otp}\nThis code will expire in 15 minutes."
-        )
-        msg["Subject"] = "Medicare - Password Reset OTP"
-        msg["From"] = sender_email
-        msg["To"] = to_email
-
-        try:
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-                smtp.login(sender_email, sender_password)
-                smtp.send_message(msg)
-                logger_service.warning(f"OTP email sent successfully to {to_email}")
-                return True
-        except smtplib.SMTPAuthenticationError as e:
-            logger_service.error(f"Gmail authentication failed: {str(e)}")
-            return False
-
-    except Exception as e:
-        logger_service.error(f"Error sending email: {str(e)}")
-        return False
-
-
-@app.route("/api/patient/signup", methods=["POST"])
-def patient_signup():
-    try:
-        data = request.get_json()
-        print(f"Received data: {data}")
-
-        if not data:
-            return jsonify({"error": "No data provided"}), 400
-
-        required_fields = ["name", "email", "password"]
-        missing_fields = [field for field in required_fields if field not in data]
-        if missing_fields:
-            return (
-                jsonify(
-                    {"error": f'Missing required fields: {", ".join(missing_fields)}'}
-                ),
-                400,
+        if patient.check_password(request.password):
+            token = jwt.encode(
+                {
+                    "user_id": str(patient_data["_id"]),
+                    "exp": datetime.utcnow() + timedelta(days=1),
+                },
+                Config.JWT_SECRET_KEY,
+                algorithm="HS256",
             )
 
-        if patients_collection.find_one({"email": data["email"]}):
-            return jsonify({"error": "Email already registered"}), 400
+            return LoginResponse(
+                token=token,
+                id=str(patient_data["_id"]),
+                name=patient_data["name"],
+                email=patient_data["email"],
+                phone_number=patient_data.get("phone_number", ""),
+                address=patient_data.get("address", ""),
+                date_of_birth=patient_data.get("date_of_birth"),
+                profile_image=patient_data.get("profile_image"),
+            )
+        else:
+            logger_service.debug("Invalid password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        patient_id = str(ObjectId())
-
-        # Create patient with correct parameters
-        patient = Patient(
-            id=patient_id,
-            name=data["name"],
-            email=data["email"],
-            phoneNumber=data.get("phoneNumber"),
-            password=data["password"],  # This will be hashed by the constructor
-        )
-
-        # Convert to dict and insert
-        patient_dict = patient.to_dict()
-        result = patients_collection.insert_one(patient_dict)
-
-        # Prepare response
-        response_data = patient_dict.copy()
-        del response_data["password_hash"]
-        response_data["_id"] = str(result.inserted_id)
-
-        return jsonify(response_data), 201
-
+    except HTTPException:
+        raise
     except Exception as e:
-        logger_service.error(f"Error in patient_signup: {str(e)}")
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+        logger_service.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
-@app.route("/api/patient/login", methods=["POST"])
-def patient_login():
-    from werkzeug.security import check_password_hash
-
-    data = request.get_json()
-    patient_data = patients_collection.find_one({"email": data["email"]})
-
-    if not patient_data:
-        return jsonify({"error": "Invalid credentials"}), 401
-
-    # Use check_password_hash directly since your Patient class doesn't have this method
-    if check_password_hash(patient_data["password_hash"], data["password"]):
-        token = jwt.encode(
-            {
-                "user_id": str(patient_data["_id"]),
-                "exp": datetime.utcnow() + timedelta(days=1),
-            },
-            JWT_SECRET,
-            algorithm="HS256",
-        )
-        return (
-            jsonify(
-                {
-                    "token": token,
-                    "id": str(patient_data["_id"]),
-                    "name": patient_data["name"],
-                    "email": patient_data["email"],
-                }
-            ),
-            200,
-        )
-
-    return jsonify({"error": "Invalid credentials"}), 401
-
-
-@app.route("/api/patient/forgot-password", methods=["POST"])
-def patient_forgot_password():
+@app.post(
+    "/api/forgot-password",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def forgot_password(request: ForgotPasswordRequest):
     try:
-        data = request.get_json()
-        email = data.get("email")
-
+        email = request.email
         logger_service.debug(f"Forgot password request received for email: {email}")
 
-        if not email:
-            return jsonify({"error": "Email is required"}), 400
-
-        patient_data = patients_collection.find_one({"email": email})
+        patient_data = mongodb_client.db.patients.find_one({"email": email})
         if not patient_data:
             logger_service.debug(f"Email not found: {email}")
-            return jsonify({"error": "Email not found"}), 404
+            raise HTTPException(status_code=404, detail="Email not found")
 
-        otp = str(random.randint(100000, 999999))
+        # Generate OTP
+        otp = "".join([str(random.randint(0, 9)) for _ in range(6)])
         logger_service.debug(f"Generated OTP: {otp}")
-        if send_otp_email(email, otp):
-            patients_collection.update_one(
-                {"email": email},
-                {
-                    "$set": {
-                        "reset_otp": otp,
-                        "otp_expiry": datetime.utcnow() + timedelta(minutes=15),
-                    }
-                },
-            )
-            logger_service.debug("OTP sent and saved successfully")
-            return jsonify({"message": "OTP sent successfully"}), 200
-        else:
-            logger_service.error("Failed to send OTP email")
-            return jsonify({"error": "Failed to send OTP email"}), 500
 
+        # Store OTP in database with expiry
+        mongodb_client.db.patients.update_one(
+            {"email": email},
+            {
+                "$set": {
+                    "reset_otp": otp,
+                    "otp_expiry": datetime.utcnow() + timedelta(minutes=15),
+                }
+            },
+        )
+
+        # In a real application, you would send the OTP via email or SMS
+        logger_service.debug("OTP stored successfully")
+        return {"message": "If your email is registered, you will receive a reset code"}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        logger_service.error(f"Error in forgot_password: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+        logger_service.error(f"Unexpected error in forgot_password: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
+        )
 
 
-@app.route("/api/patient/verify-otp", methods=["POST"])
-def verify_otp():
-    data = request.get_json()
-    email, otp = data.get("email"), data.get("otp")
-    result = patients_collection.find_one(
-        {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
+@app.post(
+    "/api/verify-otp",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}},
+)
+async def verify_otp(request: VerifyOTPRequest):
+    result = mongodb_client.db.patients.find_one(
+        {
+            "email": request.email,
+            "reset_otp": request.otp,
+            "otp_expiry": {"$gt": datetime.utcnow()},
+        }
     )
+
     if not result:
-        return jsonify({"error": "Invalid or expired OTP"}), 400
-    return jsonify({"message": "OTP verified successfully"}), 200
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    return {"message": "OTP verified successfully"}
 
 
-@app.route("/api/patient/reset-password", methods=["POST"])
-def reset_password():
-    data = request.get_json()
-    email, otp, new_password = (
-        data.get("email"),
-        data.get("otp"),
-        data.get("newPassword"),
+@app.post(
+    "/api/reset-password",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def reset_password(request: ResetPasswordRequest):
+    patient_data = mongodb_client.db.patients.find_one(
+        {
+            "email": request.email,
+            "reset_otp": request.otp,
+            "otp_expiry": {"$gt": datetime.utcnow()},
+        }
     )
-    patient_data = patients_collection.find_one(
-        {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
-    )
+
     if not patient_data:
-        return jsonify({"error": "Invalid or expired OTP"}), 400
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
+
+    # Create a Patient instance and set the new password
     patient = Patient.from_dict(patient_data)
-    patient.set_password(new_password)  # Ensure password is hashed here
-    patients_collection.update_one(
-        {"email": email},
+    patient.set_password(request.new_password)
+
+    # Update the password hash and remove the OTP data
+    result = mongodb_client.db.patients.update_one(
+        {"email": request.email},
         {
             "$set": {"password_hash": patient.password_hash},
             "$unset": {"reset_otp": "", "otp_expiry": ""},
         },
     )
-    return jsonify({"message": "Password reset successful"}), 200
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to update password")
+
+    return {"message": "Password reset successful"}
 
 
-@app.route("/api/test-email-config", methods=["GET"])
-def test_email_config():
-    sender_email = os.getenv("EMAIL_ADDRESS")
-    sender_password = os.getenv("EMAIL_PASSWORD")
+@app.get(
+    "/api/profile",
+    response_model=PatientInDB,
+    responses={404: {"model": ErrorResponse}},
+)
+async def get_profile(user_info: Dict = Depends(get_current_patient)):
+    user_id = user_info.get("user_id")
+    patient_data = mongodb_client.db.patients.find_one({"_id": ObjectId(user_id)})
+    if not patient_data:
+        raise HTTPException(status_code=404, detail="Patient not found")
 
-    config_info = {
-        "email_configured": bool(sender_email and sender_password),
-        "email_address": sender_email,
-        "password_length": len(sender_password) if sender_password else 0,
-    }
+    # Create a Patient instance
+    patient = Patient.from_dict(patient_data)
+    patient.password_hash = patient_data.get("password_hash")
 
-    try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(sender_email, sender_password)
-            config_info["smtp_login"] = "successful"
-    except Exception as e:
-        config_info["smtp_login"] = "failed"
-        config_info["error"] = str(e)
-
-    return jsonify(config_info)
+    return patient.to_pydantic()
 
 
-@app.route("/api/patient/list", methods=["GET"])
-def get_all_patients():
-    try:
-        # Get all patients from MongoDB
-        patients_list = list(
-            patients_collection.find(
-                {}, {"password_hash": 0, "reset_otp": 0, "otp_expiry": 0}
-            )
-        )
+@app.put(
+    "/api/update-profile",
+    response_model=PatientInDB,
+    responses={404: {"model": ErrorResponse}},
+)
+async def update_profile(
+    update_data: PatientUpdate, user_info: Dict = Depends(get_current_patient)
+):
+    user_id = user_info.get("user_id")
 
-        # Convert ObjectId to string for JSON serialization
-        for patient in patients_list:
-            patient["_id"] = str(patient["_id"])
+    # Get current patient data
+    current_patient = mongodb_client.db.patients.find_one({"_id": ObjectId(user_id)})
+    if not current_patient:
+        raise HTTPException(status_code=404, detail="Patient not found")
 
-        return jsonify(patients_list), 200
-    except Exception as e:
-        logger_service.error(f"Error getting patients list: {str(e)}")
-        return jsonify({"error": "Internal server error"}), 500
+    # Prepare update fields, only include non-None values
+    update_fields = {}
+    for field, value in update_data.dict(exclude_unset=True).items():
+        if value is not None:
+            update_fields[field] = value
 
+    # Update database
+    mongodb_client.db.patients.update_one(
+        {"_id": ObjectId(user_id)}, {"$set": update_fields}
+    )
+
+    # Get updated patient data
+    updated_patient = mongodb_client.db.patients.find_one({"_id": ObjectId(user_id)})
+    patient = Patient.from_dict(updated_patient)
+
+    return patient.to_pydantic()
+
+
+@app.post(
+    "/api/change-password",
+    response_model=MessageResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def change_password(
+    password_data: PasswordChange, user_info: Dict = Depends(get_current_patient)
+):
+    user_id = user_info.get("user_id")
+    patient_data = mongodb_client.db.patients.find_one({"_id": ObjectId(user_id)})
+    if not patient_data:
+        raise HTTPException(status_code=404, detail="Patient not found")
+
+    patient = Patient.from_dict(patient_data)
+    patient.password_hash = patient_data["password_hash"]
+
+    if not patient.check_password(password_data.current_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+
+    # Set and hash the new password
+    patient.set_password(password_data.new_password)
+
+    # Update the password hash in the database
+    result = mongodb_client.db.patients.update_one(
+        {"_id": ObjectId(user_id)}, {"$set": {"password_hash": patient.password_hash}}
+    )
+
+    if result.modified_count == 0:
+        raise HTTPException(status_code=500, detail="Failed to update password")
+
+    return {"message": "Password updated successfully"}
+
+
+@app.post("/api/logout", response_model=MessageResponse)
+async def logout(user_info: Dict = Depends(get_current_patient)):
+    # Optionally blacklist or track tokens here if desired
+    return {"message": "Logged out successfully"}
 
 if __name__ == "__main__":
-    app.run(host=Config.HOST, port=Config.PORT, debug=True)
+    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)

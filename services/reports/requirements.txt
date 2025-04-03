@@ -30,7 +30,7 @@ durationpy==0.9 ; python_version >= "3.10" and python_version < "4"
 emoji==2.14.1 ; python_version >= "3.10" and python_version < "4.0"
 eval-type-backport==0.2.2 ; python_version >= "3.10" and python_version < "4.0"
 exceptiongroup==1.2.2 ; python_version >= "3.10" and python_version < "3.11"
-fastapi==0.115.8 ; python_version >= "3.10" and python_version < "4"
+fastapi==0.115.12 ; python_version >= "3.10" and python_version < "4"
 filelock==3.17.0 ; python_version >= "3.10" and python_version < "4"
 filetype==1.2.0 ; python_version >= "3.10" and python_version < "4.0"
 firecrawl-py==1.11.1 ; python_version >= "3.10" and python_version < "4.0"
@@ -175,26 +175,18 @@ yarl==1.18.3 ; python_version >= "3.10" and python_version < "4.0"
 zipp==3.21.0 ; python_version >= "3.10" and python_version < "4"
 zstandard==0.23.0 ; python_version >= "3.10" and python_version < "4.0"
 
-# Core Flask dependencies
-Flask>=3.1.0
-flask-cors==3.0.10
-flask-jwt-extended==4.7.1
-flask-limiter==3.10.1
-flask-restful==0.3.10
+# Core FastAPI dependencies
+fastapi[standard]==0.115.12
 
 # Database
 pymongo==4.5.0
 redis==5.2.1
-
-# Service Discovery
-python-consul==1.1.0
 
 # Messaging
 pika==1.3.1
 
 # Monitoring & Telemetry
 prometheus-client==0.17.1
-prometheus-flask-exporter==0.22.4
 python-json-logger==2.0.7
 
 # OpenTelemetry - aligned versions
@@ -203,7 +195,7 @@ opentelemetry-instrumentation==0.52b0
 opentelemetry-semantic-conventions==0.52b0
 opentelemetry-util-http==0.52b0
 opentelemetry-exporter-otlp==1.31.0
-opentelemetry-instrumentation-flask==0.52b0
+opentelemetry-instrumentation-fastapi==0.52b0
 opentelemetry-instrumentation-pymongo==0.52b0
 opentelemetry-instrumentation-redis==0.52b0
 opentelemetry-instrumentation-requests==0.52b0

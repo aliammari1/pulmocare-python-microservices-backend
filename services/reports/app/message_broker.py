@@ -1,7 +1,7 @@
 import json
 import socket
 import time
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 import pika
 from circuit_breaker import CircuitBreaker

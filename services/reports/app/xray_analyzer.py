@@ -1,9 +1,6 @@
-import os
 import random
 from datetime import datetime
 
-import cv2
-import numpy as np
 from services.logger_service import logger_service
 from xray_processor import ChestImageProcessor
 

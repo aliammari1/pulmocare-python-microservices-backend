@@ -1,8 +1,6 @@
 import json
 from datetime import datetime
 
-import pika
-from pymongo import MongoClient
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient

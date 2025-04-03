@@ -1,18 +1,23 @@
-import functools
+import json
 import logging
 import os
-import requests
-from flask import request, jsonify
+from typing import Any, Dict, List
+
 import jwt
+import requests
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.algorithms import RSAAlgorithm
-import json
 
 logger = logging.getLogger("auth_middleware")
+
+# Security scheme for Swagger UI
+security = HTTPBearer()
 
 
 class KeycloakMiddleware:
     """
-    Middleware to handle Keycloak authentication for Flask applications.
+    Middleware to handle Keycloak authentication for FastAPI applications.
     This provides token validation and role-based access control.
     """
 
@@ -171,119 +176,100 @@ class KeycloakMiddleware:
             logger.error(f"Error introspecting token: {str(e)}")
             raise
 
-    def token_required(self, f=None, required_roles=None):
+    async def get_current_user(
+        self,
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        required_roles: List[str] = None,
+    ) -> Dict[str, Any]:
         """
-        Decorator to require a valid token for accessing a route.
+        FastAPI dependency to get the current authenticated user.
 
         Args:
-            f: Function to decorate
-            required_roles: List of roles required to access the route
+            credentials: HTTP Bearer token credentials
+            required_roles: List of roles required to access the endpoint
 
         Returns:
-            Decorated function
+            User information from the token
+
+        Raises:
+            HTTPException: If authentication or authorization fails
         """
+        if not credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authorization header missing",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        def decorator(f):
-            @functools.wraps(f)
-            def wrapper(*args, **kwargs):
-                auth_header = request.headers.get("Authorization")
+        try:
+            token = credentials.credentials
+            payload = self.verify_token(token)
 
-                if not auth_header:
-                    return jsonify({"error": "Authorization header missing"}), 401
+            # Check for required roles if specified
+            if required_roles:
+                user_roles = payload.get("realm_access", {}).get("roles", [])
+                if not any(role in user_roles for role in required_roles):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Insufficient permissions",
+                    )
 
-                try:
-                    # Extract token from header
-                    token_parts = auth_header.split()
-                    if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                        return jsonify({"error": "Invalid token format"}), 401
+            # Add user ID to the payload (for convenience)
+            payload["user_id"] = payload.get("sub")
+            return payload
 
-                    token = token_parts[1]
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except jwt.InvalidTokenError as e:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid token: {str(e)}",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication failed",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-                    # Verify token
-                    payload = self.verify_token(token)
-
-                    # Check for required roles if specified
-                    if required_roles:
-                        user_roles = payload.get("realm_access", {}).get("roles", [])
-                        if not any(role in user_roles for role in required_roles):
-                            return jsonify({"error": "Insufficient permissions"}), 403
-
-                    # Add user info to kwargs
-                    kwargs["user_id"] = payload.get("sub")
-                    kwargs["user_info"] = payload
-
-                    return f(*args, **kwargs)
-
-                except jwt.ExpiredSignatureError:
-                    return jsonify({"error": "Token expired"}), 401
-                except jwt.InvalidTokenError as e:
-                    return jsonify({"error": f"Invalid token: {str(e)}"}), 401
-                except Exception as e:
-                    logger.error(f"Authentication error: {str(e)}")
-                    return jsonify({"error": "Authentication failed"}), 401
-
-            return wrapper
-
-        # Handle both @token_required and @token_required(required_roles=[...]) syntax
-        if f is None:
-            return decorator
-        return decorator(f)
-
-    def admin_required(self, f):
+    # Role-based dependencies
+    async def get_admin_user(self, user=Depends(get_current_user)):
         """
-        Decorator to require admin role for accessing a route.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
+        Dependency to require admin role.
         """
-        return self.token_required(f, required_roles=["admin"])
+        return await self.get_current_user(required_roles=["admin"])
 
-    def doctor_required(self, f):
+    async def get_doctor_user(self, user=Depends(get_current_user)):
         """
-        Decorator to require doctor role for accessing a route.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
+        Dependency to require doctor role.
         """
-        return self.token_required(f, required_roles=["doctor-role"])
+        return await self.get_current_user(required_roles=["doctor-role"])
 
-    def patient_required(self, f):
+    async def get_patient_user(self, user=Depends(get_current_user)):
         """
-        Decorator to require patient role for accessing a route.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
+        Dependency to require patient role.
         """
-        return self.token_required(f, required_roles=["patient-role"])
+        return await self.get_current_user(required_roles=["patient-role"])
 
-    def radiologist_required(self, f):
+    async def get_radiologist_user(self, user=Depends(get_current_user)):
         """
-        Decorator to require radiologist role for accessing a route.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
+        Dependency to require radiologist role.
         """
-        return self.token_required(f, required_roles=["radiologist-role"])
+        return await self.get_current_user(required_roles=["radiologist-role"])
 
 
 # Create a global instance that can be imported directly
 keycloak_middleware = KeycloakMiddleware()
 
-# Export decorators for convenience
-token_required = keycloak_middleware.token_required
-admin_required = keycloak_middleware.admin_required
-doctor_required = keycloak_middleware.doctor_required
-patient_required = keycloak_middleware.patient_required
-radiologist_required = keycloak_middleware.radiologist_required
+# Export dependencies for convenience
+get_current_user = keycloak_middleware.get_current_user
+get_admin_user = keycloak_middleware.get_admin_user
+get_doctor_user = keycloak_middleware.get_doctor_user
+get_patient_user = keycloak_middleware.get_patient_user
+get_radiologist_user = keycloak_middleware.get_radiologist_user

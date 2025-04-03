@@ -1,10 +1,10 @@
 import os
-import time
 
+from fastapi import FastAPI
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import \
     OTLPSpanExporter
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
@@ -21,7 +21,7 @@ from config import Config
 class TracingService:
     """Service for OpenTelemetry tracing"""
 
-    def __init__(self, app):
+    def __init__(self, app: FastAPI):
         self.app = app
 
         self.enabled = True
@@ -85,10 +85,10 @@ class TracingService:
                         "Tracing disabled due to connection error (OTEL_DISABLE_ON_ERROR=True)"
                     )
 
-            # Instrument Flask and libraries only if tracing is enabled
+            # Instrument FastAPI and libraries only if tracing is enabled
             if self.enabled:
-                # Instrument Flask
-                FlaskInstrumentor().instrument_app(self.app)
+                # Instrument FastAPI
+                FastAPIInstrumentor().instrument_app(self.app)
 
                 # Instrument libraries
                 PymongoInstrumentor().instrument()

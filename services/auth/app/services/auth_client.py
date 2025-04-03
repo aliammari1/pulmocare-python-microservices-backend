@@ -1,7 +1,7 @@
-import os
 import logging
+import os
+
 import requests
-from functools import wraps
 
 logger = logging.getLogger("auth_client")
 

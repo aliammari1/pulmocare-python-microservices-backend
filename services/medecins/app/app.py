@@ -6,30 +6,26 @@ import re
 import smtplib
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
-from functools import wraps
-
+from typing import Dict
+import uvicorn
 import jwt
 import pytesseract
+from auth.keycloak_auth import get_current_user
 from bson import ObjectId
 from decorator.health_check import health_check_middleware
 from dotenv import load_dotenv
-from flask import Flask, jsonify, make_response, request
-from flask_cors import CORS
-from models.doctor import Doctor
-from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
-from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from models.api_models import (ErrorResponse, ForgotPasswordRequest,
+                               LoginRequest, LoginResponse, MessageResponse,
+                               ResetPasswordRequest, ScanVisitCardRequest,
+                               ScanVisitCardResponse, SignupRequest,
+                               UpdateSignatureRequest, VerifyDoctorRequest,
+                               VerifyDoctorResponse, VerifyOTPRequest)
+from models.doctor import Doctor, DoctorInDB, DoctorUpdate, PasswordChange
 from PIL import Image
-from pymongo import MongoClient
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
-from services.prometheus_service import PrometheusService
 from services.rabbitmq_client import RabbitMQClient
 from services.redis_client import RedisClient
 from services.tracing_service import TracingService
@@ -43,10 +39,21 @@ if not os.path.exists(dotenv_file):
     dotenv_file = ".env"
 load_dotenv(dotenv_path=dotenv_file)
 
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
+# Initialize FastAPI app
+app = FastAPI(
+    title="MedApp Doctors Service",
+    description="API for managing doctor profiles and authentication",
+    version="1.0.0",
+)
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update with specific origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Apply health check middleware
 app = health_check_middleware(Config)(app)
@@ -56,24 +63,7 @@ tracing_service = TracingService(app)
 redis_client = RedisClient(Config)
 mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
-prometheus_service = PrometheusService(app, Config)
 
-
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            return jsonify({"error": "Token missing"}), 401
-        token = auth_header.split()[1]
-        try:
-            payload = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
-            user_id = payload["user_id"]
-        except:
-            return jsonify({"error": "Invalid token"}), 401
-        return f(user_id, *args, **kwargs)
-
-    return decorated
 
 
 def send_otp_email(to_email, otp):
@@ -144,20 +134,23 @@ def send_otp_email(to_email, otp):
         return False
 
 
-@app.route("/api/signup", methods=["POST"])
-def signup():
-    data = request.get_json()
-
-    if mongodb_client.db.doctors.find_one({"email": data["email"]}):
-        return jsonify({"error": "Email already registered"}), 400
+@app.post(
+    "/api/signup",
+    response_model=DoctorInDB,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": ErrorResponse}},
+)
+async def signup(request: SignupRequest):
+    if mongodb_client.db.doctors.find_one({"email": request.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
 
     doctor = Doctor(
-        name=data["name"],
-        email=data["email"],
-        specialty=data["specialty"],
-        phone_number=data["phoneNumber"],
-        address=data["address"],
-        password=data["password"],
+        name=request.name,
+        email=request.email,
+        specialty=request.specialty,
+        phone_number=request.phoneNumber,
+        address=request.address,
+        password=request.password,
     )
 
     # Insert the doctor document with is_verified field
@@ -174,29 +167,28 @@ def signup():
         }
     )
 
-    return jsonify(doctor.to_dict()), 201
+    # Convert to Pydantic model for response
+    return doctor.to_pydantic()
 
 
-@app.route("/api/login", methods=["POST"])
-def login():
+@app.post(
+    "/api/login",
+    response_model=LoginResponse,
+    responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def login(request: LoginRequest):
     try:
-        data = request.get_json()
-        logger_service.debug(
-            f"Login attempt for email: {data.get('email')}"
-        )  # Add debug log
+        logger_service.debug(f"Login attempt for email: {request.email}")
 
-        if not data or "email" not in data or "password" not in data:
-            return jsonify({"error": "Email and password are required"}), 400
-
-        doctor_data = mongodb_client.db.doctors.find_one({"email": data["email"]})
+        doctor_data = mongodb_client.db.doctors.find_one({"email": request.email})
         if not doctor_data:
-            logger_service.debug("Email not found")  # Add debug log
-            return jsonify({"error": "Invalid credentials"}), 401
+            logger_service.debug("Email not found")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
         doctor = Doctor.from_dict(doctor_data)
         doctor.password_hash = doctor_data["password_hash"]
 
-        if doctor.check_password(data["password"]):
+        if doctor.check_password(request.password):
             token = jwt.encode(
                 {
                     "user_id": str(doctor_data["_id"]),
@@ -207,46 +199,44 @@ def login():
             )
 
             # Include verification status and details in response
-            response_data = {
-                "token": token,
-                "id": str(doctor_data["_id"]),
-                "name": doctor_data["name"],
-                "email": doctor_data["email"],
-                "specialty": doctor_data["specialty"],
-                "phone_number": doctor_data.get("phone_number", ""),
-                "address": doctor_data.get("address", ""),
-                "profile_image": doctor_data.get("profile_image"),
-                "is_verified": doctor_data.get("is_verified", False),
-                "verification_details": doctor_data.get("verification_details", None),
-                "signature": doctor_data.get("signature"),  # Add this line
-            }
-
-            logger_service.debug("Login successful")  # Add debug log
-            return jsonify(response_data), 200
+            return LoginResponse(
+                token=token,
+                id=str(doctor_data["_id"]),
+                name=doctor_data["name"],
+                email=doctor_data["email"],
+                specialty=doctor_data["specialty"],
+                phone_number=doctor_data.get("phone_number", ""),
+                address=doctor_data.get("address", ""),
+                profile_image=doctor_data.get("profile_image"),
+                is_verified=doctor_data.get("is_verified", False),
+                verification_details=doctor_data.get("verification_details", None),
+                signature=doctor_data.get("signature"),
+            )
         else:
-            logger_service.debug("Invalid password")  # Add debug log
-            return jsonify({"error": "Invalid credentials"}), 401
+            logger_service.debug("Invalid password")
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger_service.error(f"Login error: {str(e)}")  # Add debug log
-        return jsonify({"error": "Server error: " + str(e)}), 500
+        logger_service.error(f"Login error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Server error: {str(e)}")
 
 
-@app.route("/api/forgot-password", methods=["POST"])
-def forgot_password():
+@app.post(
+    "/api/forgot-password",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def forgot_password(request: ForgotPasswordRequest):
     try:
-        data = request.get_json()
-        email = data.get("email")
-
+        email = request.email
         logger_service.debug(f"Forgot password request received for email: {email}")
-
-        if not email:
-            return jsonify({"error": "Email is required"}), 400
 
         doctor_data = mongodb_client.db.doctors.find_one({"email": email})
         if not doctor_data:
             logger_service.debug(f"Email not found: {email}")
-            return jsonify({"error": "Email not found"}), 404
+            raise HTTPException(status_code=404, detail="Email not found")
 
         otp = str(random.randint(100000, 999999))
         logger_service.debug(f"Generated OTP: {otp}")
@@ -262,62 +252,66 @@ def forgot_password():
                 },
             )
             logger_service.debug("OTP sent and saved successfully")
-            return jsonify({"message": "OTP sent successfully"}), 200
+            return {"message": "OTP sent successfully"}
         else:
             logger_service.error("Failed to send OTP email")
-            return (
-                jsonify({"error": "Failed to send OTP. Please try again later."}),
-                500,
+            raise HTTPException(
+                status_code=500, detail="Failed to send OTP. Please try again later."
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger_service.error(f"Unexpected error in forgot_password: {str(e)}")
-        return jsonify({"error": f"An unexpected error occurred: {str(e)}"}), 500
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {str(e)}"
+        )
 
 
-@app.route("/api/verify-otp", methods=["POST"])
-def verify_otp():
-    data = request.get_json()
-    email = data.get("email")
-    otp = data.get("otp")
-
-    if not email or not otp:
-        return jsonify({"error": "Email and OTP are required"}), 400
-
+@app.post(
+    "/api/verify-otp",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}},
+)
+async def verify_otp(request: VerifyOTPRequest):
     result = mongodb_client.db.doctors.find_one(
-        {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
+        {
+            "email": request.email,
+            "reset_otp": request.otp,
+            "otp_expiry": {"$gt": datetime.utcnow()},
+        }
     )
 
     if not result:
-        return jsonify({"error": "Invalid or expired OTP"}), 400
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
-    return jsonify({"message": "OTP verified successfully"}), 200
+    return {"message": "OTP verified successfully"}
 
 
-@app.route("/api/reset-password", methods=["POST"])
-def reset_password():
-    data = request.get_json()
-    email = data.get("email")
-    otp = data.get("otp")
-    new_password = data.get("newPassword")
-
-    if not all([email, otp, new_password]):
-        return jsonify({"error": "Missing required fields"}), 400
-
+@app.post(
+    "/api/reset-password",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def reset_password(request: ResetPasswordRequest):
     doctor_data = mongodb_client.db.doctors.find_one(
-        {"email": email, "reset_otp": otp, "otp_expiry": {"$gt": datetime.utcnow()}}
+        {
+            "email": request.email,
+            "reset_otp": request.otp,
+            "otp_expiry": {"$gt": datetime.utcnow()},
+        }
     )
 
     if not doctor_data:
-        return jsonify({"error": "Invalid or expired OTP"}), 400
+        raise HTTPException(status_code=400, detail="Invalid or expired OTP")
 
     # Create a Doctor instance and set the new password
     doctor = Doctor.from_dict(doctor_data)
-    doctor.set_password(new_password)
+    doctor.set_password(request.newPassword)
 
     # Update the password hash and remove the OTP data
     result = mongodb_client.db.doctors.update_one(
-        {"email": email},
+        {"email": request.email},
         {
             "$set": {"password_hash": doctor.password_hash},
             "$unset": {"reset_otp": "", "otp_expiry": ""},
@@ -325,51 +319,57 @@ def reset_password():
     )
 
     if result.modified_count == 0:
-        return jsonify({"error": "Failed to update password"}), 500
+        raise HTTPException(status_code=500, detail="Failed to update password")
 
-    return jsonify({"message": "Password reset successful"}), 200
+    return {"message": "Password reset successful"}
 
 
-@app.route("/api/profile", methods=["GET"])
-@token_required
-def get_profile(user_id):
+@app.get(
+    "/api/profile", response_model=DoctorInDB, responses={404: {"model": ErrorResponse}}
+)
+async def get_profile(user_info: Dict = Depends(get_current_user)):
+    user_id = user_info.get("user_id")
     doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not doctor_data:
-        return jsonify({"error": "Doctor not found"}), 404
+        raise HTTPException(status_code=404, detail="Doctor not found")
 
-    # Make sure to include verification status and signature in response
-    response_data = Doctor.from_dict(doctor_data).to_dict()
-    response_data.update(
-        {
-            "is_verified": doctor_data.get("is_verified", False),
-            "signature": doctor_data.get("signature"),  # Add this line
-        }
-    )
-    return jsonify(response_data), 200
+    # Create a Doctor instance
+    doctor = Doctor.from_dict(doctor_data)
+    doctor.password_hash = doctor_data.get("password_hash")
+
+    # Add additional fields from the database
+    doctor.is_verified = doctor_data.get("is_verified", False)
+    doctor.verification_details = doctor_data.get("verification_details")
+    doctor.signature = doctor_data.get("signature")
+
+    return doctor.to_pydantic()
 
 
-@app.route("/api/change-password", methods=["POST"])
-@token_required
-def change_password(user_id):
-    data = request.get_json()
-    current_password = data.get("current_password")
-    new_password = data.get("new_password")
-
-    if not all([current_password, new_password]):
-        return jsonify({"error": "Both current and new password are required"}), 400
-
+@app.post(
+    "/api/change-password",
+    response_model=MessageResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def change_password(
+    password_data: PasswordChange, user_info: Dict = Depends(get_current_user)
+):
+    user_id = user_info.get("user_id")
     doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not doctor_data:
-        return jsonify({"error": "Doctor not found"}), 404
+        raise HTTPException(status_code=404, detail="Doctor not found")
 
     doctor = Doctor.from_dict(doctor_data)
     doctor.password_hash = doctor_data["password_hash"]
 
-    if not doctor.check_password(current_password):
-        return jsonify({"error": "Current password is incorrect"}), 400
+    if not doctor.check_password(password_data.current_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
 
     # Set and hash the new password
-    doctor.set_password(new_password)
+    doctor.set_password(password_data.new_password)
 
     # Update the password hash in the database
     result = mongodb_client.db.doctors.update_one(
@@ -377,109 +377,111 @@ def change_password(user_id):
     )
 
     if result.modified_count == 0:
-        return jsonify({"error": "Failed to update password"}), 500
+        raise HTTPException(status_code=500, detail="Failed to update password")
 
-    return jsonify({"message": "Password updated successfully"}), 200
+    return {"message": "Password updated successfully"}
 
 
-@app.route("/api/update-profile", methods=["PUT"])
-@token_required
-def update_profile(user_id):
-    data = request.get_json()
+@app.put(
+    "/api/update-profile",
+    response_model=DoctorInDB,
+    responses={404: {"model": ErrorResponse}},
+)
+async def update_profile(
+    update_data: DoctorUpdate, user_info: Dict = Depends(get_current_user)
+):
+    user_id = user_info.get("user_id")
 
     # Get current doctor data to preserve verification status
     current_doctor = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
     if not current_doctor:
-        return jsonify({"error": "Doctor not found"}), 404
+        raise HTTPException(status_code=404, detail="Doctor not found")
 
-    update_fields = {
-        "name": data.get("name"),
-        "specialty": data.get("specialty"),
-        "phone_number": data.get("phone_number"),
-        "address": data.get("address"),
-    }
+    # Prepare update fields, only include non-None values
+    update_fields = {}
+    for field, value in update_data.dict(exclude_unset=True).items():
+        if value is not None:
+            update_fields[field] = value
 
-    if data.get("profile_image"):
-        update_fields["profile_image"] = data.get("profile_image")
-
-    # Update while preserving verification status
+    # Update database
     mongodb_client.db.doctors.update_one(
         {"_id": ObjectId(user_id)}, {"$set": update_fields}
     )
 
     # Get updated doctor data
     updated_doctor = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
-    response_data = Doctor.from_dict(updated_doctor).to_dict()
+    doctor = Doctor.from_dict(updated_doctor)
 
-    # Include verification status and details in response
-    response_data.update(
-        {
-            "is_verified": current_doctor.get("is_verified", False),
-            "verification_details": current_doctor.get("verification_details"),
-            "profile_image": updated_doctor.get("profile_image"),
-        }
-    )
+    # Add additional fields
+    doctor.is_verified = updated_doctor.get("is_verified", False)
+    doctor.verification_details = updated_doctor.get("verification_details")
+    doctor.profile_image = updated_doctor.get("profile_image")
+    doctor.signature = updated_doctor.get("signature")
 
-    return jsonify(response_data), 200
+    return doctor.to_pydantic()
 
 
-@app.route("/api/logout", methods=["POST"])
-@token_required
-def logout(user_id):
+@app.post("/api/logout", response_model=MessageResponse)
+async def logout(user_info: Dict = Depends(get_current_user)):
     # Optionally blacklist or track tokens here if desired
-    return jsonify({"message": "Logged out successfully"}), 200
+    return {"message": "Logged out successfully"}
 
 
-@app.route("/api/scan-visit-card", methods=["POST"])
-def scan_visit_card():
-    data = request.get_json()
-    image_data = data.get("image")
-
-    if not image_data:
-        return jsonify({"error": "No image provided"}), 400
+@app.post(
+    "/api/scan-visit-card",
+    response_model=ScanVisitCardResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def scan_visit_card(request: ScanVisitCardRequest):
+    if not request.image:
+        raise HTTPException(status_code=400, detail="No image provided")
 
     try:
         # Decode base64 image
-        image = Image.open(io.BytesIO(base64.b64decode(image_data)))
+        image = Image.open(io.BytesIO(base64.b64decode(request.image)))
 
         # Perform OCR using pytesseract
         text = pytesseract.image_to_string(image)
 
-        # Extract relevant information (this will need to be refined based on visit card format)
+        # Extract relevant information
         name = extract_name(text)
         email = extract_email(text)
         specialty = extract_specialty(text)
-        phone = extract_phone_number(text)  # New helper function
+        phone = extract_phone_number(text)
 
-        return (
-            jsonify(
-                {
-                    "name": name,
-                    "email": email,
-                    "specialty": specialty,
-                    "phone_number": phone,  # Return extracted phone
-                }
-            ),
-            200,
+        return ScanVisitCardResponse(
+            name=name,
+            email=email,
+            specialty=specialty,
+            phone_number=phone,
         )
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.route("/api/verify-doctor", methods=["POST"])
-@token_required
-def verify_doctor(user_id):
+@app.post(
+    "/api/verify-doctor",
+    response_model=VerifyDoctorResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def verify_doctor(
+    request: VerifyDoctorRequest, user_info: Dict = Depends(get_current_user)
+):
     try:
-        data = request.get_json()
-        image_data = data.get("image")
+        user_id = user_info.get("user_id")
+        image_data = request.image
 
         if not image_data:
-            return jsonify({"error": "No image provided"}), 400
+            raise HTTPException(status_code=400, detail="No image provided")
 
         # Get doctor's data from database
         doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
         if not doctor_data:
-            return jsonify({"error": "Doctor not found"}), 404
+            raise HTTPException(status_code=404, detail="Doctor not found")
 
         # Get doctor's name from database
         doctor_name = doctor_data["name"].lower().strip()
@@ -525,35 +527,31 @@ def verify_doctor(user_id):
             )
 
             if result.modified_count > 0:
-                return (
-                    jsonify(
-                        {"verified": True, "message": "Name verification successful"}
-                    ),
-                    200,
+                return VerifyDoctorResponse(
+                    verified=True, message="Name verification successful"
                 )
             else:
-                return jsonify({"error": "Failed to update verification status"}), 500
+                raise HTTPException(
+                    status_code=500, detail="Failed to update verification status"
+                )
         else:
-            return (
-                jsonify(
-                    {
-                        "verified": False,
-                        "error": "Verification failed: name not found in document",
-                        "debug_info": {
-                            "name_found": name_found,
-                            "doctor_name": doctor_name,
-                        },
-                    }
-                ),
-                400,
+            return VerifyDoctorResponse(
+                verified=False,
+                error="Verification failed: name not found in document",
+                debug_info={
+                    "name_found": name_found,
+                    "doctor_name": doctor_name,
+                },
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger_service.error(f"Verification error: {str(e)}")
-        return jsonify({"error": f"Verification failed: {str(e)}"}), 500
+        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
 
-# Improve the extraction functions
+# Extraction functions
 def extract_name(text):
     # Look for patterns that might indicate a name
     # Usually names appear at the beginning or after "Dr." or similar titles
@@ -575,7 +573,6 @@ def extract_name(text):
 
 def extract_email(text):
     # Implement logic to extract email from text
-    # This is a placeholder and needs to be implemented based on the visit card format
     email_match = re.search(r"[\w\.-]+@[\w\.-]+", text)
     if email_match:
         return email_match.group(0)
@@ -622,15 +619,20 @@ def extract_phone_number(text):
     return "Extracted Phone"
 
 
-@app.route("/api/update-signature", methods=["POST"])
-@token_required
-def update_signature(user_id):
+@app.post(
+    "/api/update-signature",
+    response_model=dict,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def update_signature(
+    request: UpdateSignatureRequest, user_info: Dict = Depends(get_current_user)
+):
     try:
-        data = request.get_json()
-        signature = data.get("signature")
+        user_id = user_info.get("user_id")
+        signature = request.signature
 
         if not signature:
-            return jsonify({"error": "No signature provided"}), 400
+            raise HTTPException(status_code=400, detail="No signature provided")
 
         result = mongodb_client.db.doctors.update_one(
             {"_id": ObjectId(user_id)}, {"$set": {"signature": signature}}
@@ -639,22 +641,21 @@ def update_signature(user_id):
         if result.modified_count > 0:
             # Get updated doctor data
             doctor_data = mongodb_client.db.doctors.find_one({"_id": ObjectId(user_id)})
-            return (
-                jsonify(
-                    {
-                        "message": "Signature updated successfully",
-                        "signature": doctor_data.get("signature"),
-                    }
-                ),
-                200,
-            )
+            return {
+                "message": "Signature updated successfully",
+                "signature": doctor_data.get("signature"),
+            }
         else:
-            return jsonify({"error": "Failed to update signature"}), 500
+            raise HTTPException(status_code=500, detail="Failed to update signature")
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger_service.error(f"Signature update error: {str(e)}")
-        return jsonify({"error": f"Signature update failed: {str(e)}"}), 500
+        raise HTTPException(
+            status_code=500, detail=f"Signature update failed: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
-    app.run(host=Config.HOST, port=Config.PORT, debug=True)
+    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)

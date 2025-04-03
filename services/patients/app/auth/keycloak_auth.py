@@ -1,11 +1,14 @@
-import os
 import logging
+import os
+from typing import Dict
+
 import requests
-import json
-from flask import request, jsonify
-from functools import wraps
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 logger = logging.getLogger("keycloak_auth")
+
+security = HTTPBearer()
 
 
 class KeycloakAuth:
@@ -16,16 +19,11 @@ class KeycloakAuth:
     def __init__(self):
         """Initialize the Keycloak authentication client."""
         self.auth_service_url = os.getenv(
-            "AUTH_SERVICE_URL", "http://auth-service:8086"
+            "AUTH_SERVICE_URL", "http://auth-service:8000"
         )
-        self.keycloak_url = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-        self.realm = os.getenv("KEYCLOAK_REALM", "medapp")
-        self.client_id = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-api")
-        self.client_secret = os.getenv("KEYCLOAK_CLIENT_SECRET", "your-client-secret")
+        logger.info(f"Using auth service at: {self.auth_service_url}")
 
-        logger.info(f"Keycloak Auth initialized for patients service")
-
-    def login(self, email, password):
+    async def login(self, email: str, password: str):
         """
         Authenticate a patient with Keycloak.
 
@@ -48,7 +46,7 @@ class KeycloakAuth:
             logger.error(f"Keycloak login error: {str(e)}")
             raise
 
-    def register(self, patient_data):
+    async def register(self, patient_data: Dict):
         """
         Register a new patient in Keycloak.
 
@@ -91,7 +89,7 @@ class KeycloakAuth:
             logger.error(f"Keycloak registration error: {str(e)}")
             raise
 
-    def verify_token(self, token):
+    async def verify_token(self, token: str):
         """
         Verify a JWT token with Keycloak.
 
@@ -111,98 +109,63 @@ class KeycloakAuth:
             logger.error(f"Token verification error: {str(e)}")
             raise
 
-    def token_required(self, f):
+    async def get_current_user(
+        self, credentials: HTTPAuthorizationCredentials = Depends(security)
+    ):
         """
-        Decorator to require a valid token for route access.
+        FastAPI dependency for extracting and validating the token from the request.
 
         Args:
-            f: Function to decorate
+            credentials: The HTTP Authorization header credentials
 
         Returns:
-            Decorated function
+            The validated user information
+
+        Raises:
+            HTTPException: If the token is invalid or missing
         """
+        try:
+            token = credentials.credentials
+            verification = await self.verify_token(token)
 
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
+            if not verification.get("valid", False):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
 
-            if not auth_header:
-                return jsonify({"error": "Authorization header missing"}), 401
+            return verification
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-            try:
-                token_parts = auth_header.split()
-                if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                    return jsonify({"error": "Invalid token format"}), 401
-
-                token = token_parts[1]
-
-                # Verify token with auth service
-                verification = self.verify_token(token)
-
-                if not verification.get("valid", False):
-                    return jsonify({"error": "Invalid token"}), 401
-
-                # Add user info to kwargs
-                kwargs["user_id"] = verification.get("user_id")
-                kwargs["user_info"] = verification
-
-                return f(*args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Authentication error: {str(e)}")
-                return jsonify({"error": "Authentication failed"}), 401
-
-        return decorated
-
-    def patient_required(self, f):
+    async def get_current_patient(self, user_info: Dict = Depends(get_current_user)):
         """
-        Decorator to require patient role for route access.
+        FastAPI dependency for checking if the user has the patient role.
 
         Args:
-            f: Function to decorate
+            user_info: The user information from get_current_user
 
         Returns:
-            Decorated function
+            The validated patient information
+
+        Raises:
+            HTTPException: If the user doesn't have the patient role
         """
+        roles = user_info.get("roles", [])
+        if "patient-role" not in roles and "admin" not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Patient role required",
+            )
+        return user_info
 
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-
-            if not auth_header:
-                return jsonify({"error": "Authorization header missing"}), 401
-
-            try:
-                token_parts = auth_header.split()
-                if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                    return jsonify({"error": "Invalid token format"}), 401
-
-                token = token_parts[1]
-
-                # Verify token with auth service
-                verification = self.verify_token(token)
-
-                if not verification.get("valid", False):
-                    return jsonify({"error": "Invalid token"}), 401
-
-                # Check if user has patient role
-                roles = verification.get("roles", [])
-                if "patient-role" not in roles and "admin" not in roles:
-                    return jsonify({"error": "Patient role required"}), 403
-
-                # Add user info to kwargs
-                kwargs["user_id"] = verification.get("user_id")
-                kwargs["user_info"] = verification
-
-                return f(*args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Authentication error: {str(e)}")
-                return jsonify({"error": "Authentication failed"}), 401
-
-        return decorated
-
-    def request_password_reset(self, email):
+    async def request_password_reset(self, email: str):
         """
         Request a password reset for a patient.
 
@@ -227,6 +190,6 @@ class KeycloakAuth:
 # Create a global instance that can be imported directly
 keycloak_auth = KeycloakAuth()
 
-# Export decorators for convenience
-token_required = keycloak_auth.token_required
-patient_required = keycloak_auth.patient_required
+# Export dependencies for convenience
+get_current_user = keycloak_auth.get_current_user
+get_current_patient = keycloak_auth.get_current_patient

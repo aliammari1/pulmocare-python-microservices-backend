@@ -3,7 +3,6 @@ from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field, validator
-from services.logger_service import logger_service
 
 
 class Severity(str, Enum):

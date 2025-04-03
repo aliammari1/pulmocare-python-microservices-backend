@@ -1,53 +1,181 @@
-class Ordonnance:
-    def __init__(
-        self,
-        patient_id,
-        medecin_id,
-        medicaments,
-        date=None,
-        clinique=None,
-        specialite=None,
-    ):
-        self.patient_id = str(patient_id)
-        self.medecin_id = str(medecin_id)
-        self.medicaments = medicaments
-        self.date = date
-        self.clinique = str(clinique or "")
-        self.specialite = str(specialite or "")
+from datetime import datetime
+from typing import Dict, List, Optional
 
-    def to_dict(self):
-        return {
-            "patient_id": self.patient_id,
-            "medecin_id": self.medecin_id,
-            "medicaments": [
-                {
-                    "name": med.get("name", ""),
-                    "dosage": med.get("dosage", ""),
-                    "posologie": med.get("posologie", ""),
-                    "laboratoire": med.get("laboratoire", ""),
-                }
-                for med in self.medicaments
-            ],
-            "date": self.date,
-            "clinique": self.clinique,
-            "specialite": self.specialite,
+from bson import ObjectId
+from pydantic import BaseModel, Field
+
+
+class PyObjectId(str):
+    """Custom type for handling MongoDB ObjectId fields with Pydantic"""
+
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def validate(cls, v):
+        if not ObjectId.is_valid(v):
+            raise ValueError("Invalid ObjectId")
+        return str(v)
+
+
+class Medication(BaseModel):
+    """Individual medication data"""
+
+    name: str
+    dosage: str
+    frequency: str
+    duration: Optional[str] = None
+
+
+class OrdonnanceBase(BaseModel):
+    """Base model with common fields"""
+
+    patient_id: str
+    patient_name: str
+    doctor_name: str
+    medications: List[Medication]
+    instructions: str
+    diagnosis: str
+    signature: Optional[str] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class OrdonnanceCreate(OrdonnanceBase):
+    """Data needed to create a new prescription"""
+
+
+class OrdonnanceUpdate(BaseModel):
+    """Data that can be updated in a prescription"""
+
+    patient_id: Optional[str] = None
+    patient_name: Optional[str] = None
+    doctor_name: Optional[str] = None
+    medications: Optional[List[Medication]] = None
+    instructions: Optional[str] = None
+    diagnosis: Optional[str] = None
+    signature: Optional[str] = None
+
+    class Config:
+        arbitrary_types_allowed = True
+
+
+class OrdonnanceInDB(OrdonnanceBase):
+    """Model representing a prescription from the database"""
+
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    doctor_id: str
+    date: datetime
+
+    class Config:
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+        json_schema_extra = {
+            "example": {
+                "_id": "60d21b4967d0d8992e610c85",
+                "doctor_id": "60d21b4967d0d8992e610c80",
+                "patient_id": "60d21b4967d0d8992e610c81",
+                "patient_name": "John Doe",
+                "doctor_name": "Dr. Jane Smith",
+                "medications": [
+                    {
+                        "name": "Amoxicillin",
+                        "dosage": "500mg",
+                        "frequency": "3 times a day",
+                        "duration": "7 days",
+                    }
+                ],
+                "instructions": "Take with food. Complete the full course.",
+                "diagnosis": "Bacterial infection",
+                "date": "2023-04-20T14:30:00.000Z",
+                "signature": "base64encoded_signature_data",
+            }
         }
 
-    @staticmethod
-    def from_dict(data):
-        if not isinstance(data, dict):
-            raise ValueError("Data must be a dictionary")
 
-        required_fields = ["patient_id", "medecin_id", "medicaments"]
-        for field in required_fields:
-            if field not in data:
-                raise ValueError(f"Missing required field: {field}")
+class OrdonnanceList(BaseModel):
+    """List of prescriptions with pagination information"""
 
-        return Ordonnance(
-            patient_id=data["patient_id"],
-            medecin_id=data["medecin_id"],
-            medicaments=data["medicaments"],
+    items: List[OrdonnanceInDB]
+    total: int
+    page: int
+    pages: int
+
+
+class Ordonnance:
+    """Class for handling ordonnance (prescription) documents"""
+
+    def __init__(
+        self,
+        doctor_id: str,
+        patient_id: str,
+        patient_name: str,
+        doctor_name: str,
+        medications: List[Dict],
+        instructions: str,
+        diagnosis: str,
+        date: datetime = None,
+        signature: str = None,
+        _id: ObjectId = None,
+    ):
+        self._id = _id or ObjectId()
+        self.doctor_id = doctor_id
+        self.patient_id = patient_id
+        self.patient_name = patient_name
+        self.doctor_name = doctor_name
+        self.medications = medications
+        self.instructions = instructions
+        self.diagnosis = diagnosis
+        self.date = date or datetime.now()
+        self.signature = signature
+
+    @classmethod
+    def from_dict(cls, data: Dict):
+        """Create an Ordonnance instance from a dictionary"""
+        if not data:
+            return None
+
+        return cls(
+            _id=data.get("_id"),
+            doctor_id=data.get("doctor_id"),
+            patient_id=data.get("patient_id"),
+            patient_name=data.get("patient_name"),
+            doctor_name=data.get("doctor_name"),
+            medications=data.get("medications", []),
+            instructions=data.get("instructions", ""),
+            diagnosis=data.get("diagnosis", ""),
             date=data.get("date"),
-            clinique=data.get("clinique", ""),
-            specialite=data.get("specialite", ""),
+            signature=data.get("signature"),
+        )
+
+    def to_dict(self) -> Dict:
+        """Convert Ordonnance to a dictionary for database storage"""
+        return {
+            "_id": self._id,
+            "doctor_id": self.doctor_id,
+            "patient_id": self.patient_id,
+            "patient_name": self.patient_name,
+            "doctor_name": self.doctor_name,
+            "medications": self.medications,
+            "instructions": self.instructions,
+            "diagnosis": self.diagnosis,
+            "date": self.date,
+            "signature": self.signature,
+        }
+
+    def to_pydantic(self) -> OrdonnanceInDB:
+        """Convert to Pydantic model for API responses"""
+        return OrdonnanceInDB(
+            _id=str(self._id),
+            doctor_id=self.doctor_id,
+            patient_id=self.patient_id,
+            patient_name=self.patient_name,
+            doctor_name=self.doctor_name,
+            medications=self.medications,
+            instructions=self.instructions,
+            diagnosis=self.diagnosis,
+            date=self.date,
+            signature=self.signature,
         )

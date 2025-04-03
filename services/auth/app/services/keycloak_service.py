@@ -1,5 +1,7 @@
 import logging
-from keycloak import KeycloakOpenID, KeycloakAdmin
+
+from keycloak import KeycloakAdmin, KeycloakOpenID
+
 from config import Config
 
 

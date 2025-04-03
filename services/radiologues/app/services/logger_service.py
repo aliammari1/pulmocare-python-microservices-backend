@@ -2,6 +2,7 @@ import logging
 import os
 import socket
 from logging.handlers import RotatingFileHandler
+
 from opentelemetry._logs import set_logger_provider
 from opentelemetry.exporter.otlp.proto.grpc._log_exporter import \
     OTLPLogExporter
@@ -70,7 +71,10 @@ class LoggerService:
             set_logger_provider(logger_provider)
 
             # Create the exporter and processor
-            exporter = OTLPLogExporter(endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317", insecure=True)
+            exporter = OTLPLogExporter(
+                endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
+                insecure=True,
+            )
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 
             # Create and add the OpenTelemetry handler

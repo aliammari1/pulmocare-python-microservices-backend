@@ -1,7 +1,7 @@
 import functools
 import time
 from enum import Enum, auto
-from typing import Any, Callable, Optional, Type
+from typing import Any, Callable, Type
 
 from services.metrics import (track_circuit_breaker_failure,
                               track_circuit_breaker_rejection,
@@ -146,5 +146,3 @@ class CircuitBreaker:
 
 class CircuitBreakerError(Exception):
     """Exception raised when circuit is open"""
-
-    pass

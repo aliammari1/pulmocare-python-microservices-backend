@@ -71,7 +71,10 @@ class LoggerService:
             set_logger_provider(logger_provider)
 
             # Create the exporter and processor
-            exporter = OTLPLogExporter(endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317", insecure=True)
+            exporter = OTLPLogExporter(
+                endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
+                insecure=True,
+            )
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 
             # Create and add the OpenTelemetry handler

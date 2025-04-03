@@ -1,11 +1,14 @@
 import socket
+
 from opentelemetry import metrics
-from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import \
+    OTLPMetricExporter
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 
 from config import Config
+
 
 class MetricsService:
     _instance = None
@@ -20,15 +23,17 @@ class MetricsService:
         """Set up OpenTelemetry metrics"""
         try:
             # Create a Resource to identify the service
-            resource = Resource.create({
-                "service.name": Config.SERVICE_NAME,
-                "service.instance.id": socket.gethostname(),
-            })
+            resource = Resource.create(
+                {
+                    "service.name": Config.SERVICE_NAME,
+                    "service.instance.id": socket.gethostname(),
+                }
+            )
 
             # Create the metric exporter
             exporter = OTLPMetricExporter(
                 endpoint=f"http://{'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
-                insecure=True
+                insecure=True,
             )
 
             # Create the metric reader
@@ -45,16 +50,13 @@ class MetricsService:
 
             # Create some basic counters and gauges
             self.request_counter = self.meter.create_counter(
-                name="request_counter",
-                description="Counts the number of requests"
+                name="request_counter", description="Counts the number of requests"
             )
             self.error_counter = self.meter.create_counter(
-                name="error_counter",
-                description="Counts the number of errors"
+                name="error_counter", description="Counts the number of errors"
             )
             self.response_time = self.meter.create_histogram(
-                name="response_time",
-                description="Tracks response time distribution"
+                name="response_time", description="Tracks response time distribution"
             )
 
         except Exception as e:
@@ -74,6 +76,7 @@ class MetricsService:
 
     def record_response_time(self, duration, attributes=None):
         self.response_time.record(duration, attributes=attributes)
+
 
 # Singleton instance
 metrics_service = MetricsService.get_instance()

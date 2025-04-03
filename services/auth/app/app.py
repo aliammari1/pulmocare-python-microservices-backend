@@ -1,10 +1,12 @@
-import os
 import logging
-import json
+import os
+from typing import List, Optional
+
 import requests
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from middleware.keycloak_auth import keycloak_middleware
+from fastapi import Depends, FastAPI, HTTPException, Path, status
+from fastapi.middleware.cors import CORSMiddleware
+from middleware.keycloak_auth import get_user_from_token, keycloak_middleware
+from pydantic import BaseModel, EmailStr
 
 from config import Config
 
@@ -14,9 +16,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger("auth_service")
 
-# Initialize Flask app
-app = Flask(__name__)
-CORS(app)
+# Initialize FastAPI app
+app = FastAPI(title="MedApp Auth Service", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update with specific origins in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Keycloak configuration
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
@@ -33,21 +43,110 @@ USERS_URL = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
 REGISTER_URL = f"{KEYCLOAK_URL}/admin/realms/{KEYCLOAK_REALM}/users"
 
 
+# Pydantic models for request and response validation
+class HealthCheckResponse(BaseModel):
+    status: str
+    service: str
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int
+    user_id: str
+    email: str
+    name: Optional[str] = None
+    given_name: Optional[str] = None
+    family_name: Optional[str] = None
+    preferred_username: Optional[str] = None
+    roles: List[str] = []
+
+
+class TokenRequest(BaseModel):
+    token: str
+
+
+class TokenVerifyResponse(BaseModel):
+    valid: bool
+    user_id: Optional[str] = None
+    email: Optional[str] = None
+    name: Optional[str] = None
+    roles: Optional[List[str]] = None
+    expires_at: Optional[int] = None
+    issued_at: Optional[int] = None
+    error: Optional[str] = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
+
+class RefreshTokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    expires_in: int
+
+
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str
+    firstName: str
+    lastName: str
+    username: Optional[str] = None
+    phone_number: Optional[str] = None
+    specialty: Optional[str] = None
+    address: Optional[str] = None
+    user_type: Optional[str] = None
+
+
+class RegisterResponse(BaseModel):
+    message: str
+    user_id: str
+    access_token: Optional[str] = None
+    refresh_token: Optional[str] = None
+    expires_in: Optional[int] = None
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class ErrorResponse(BaseModel):
+    error: str
+    details: Optional[str] = None
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
 # Health check endpoint
-@app.route("/health", methods=["GET"])
+@app.get("/health", response_model=HealthCheckResponse)
 def health_check():
-    return jsonify({"status": "healthy", "service": "auth-service"}), 200
+    return {"status": "healthy", "service": "auth-service"}
 
 
 # Login endpoint
-@app.route("/api/auth/login", methods=["POST"])
-def login():
+@app.post(
+    "/api/auth/login",
+    response_model=LoginResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def login(request: LoginRequest):
     try:
-        data = request.get_json()
-
-        if not data or "email" not in data or "password" not in data:
-            return jsonify({"error": "Missing email or password"}), 400
-
         # Authenticate with Keycloak
         response = requests.post(
             TOKEN_URL,
@@ -55,15 +154,15 @@ def login():
                 "client_id": KEYCLOAK_CLIENT_ID,
                 "client_secret": KEYCLOAK_CLIENT_SECRET,
                 "grant_type": "password",
-                "username": data["email"],
-                "password": data["password"],
+                "username": request.email,
+                "password": request.password,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
         if response.status_code != 200:
             logger.error(f"Keycloak login failed: {response.text}")
-            return jsonify({"error": "Invalid credentials"}), 401
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
         token_data = response.json()
 
@@ -75,44 +174,36 @@ def login():
 
         if userinfo_response.status_code != 200:
             logger.error(f"Failed to get user info: {userinfo_response.text}")
-            return jsonify({"error": "Failed to get user info"}), 500
+            raise HTTPException(status_code=500, detail="Failed to get user info")
 
         user_info = userinfo_response.json()
 
         # Return combined response
-        return (
-            jsonify(
-                {
-                    "access_token": token_data["access_token"],
-                    "refresh_token": token_data["refresh_token"],
-                    "expires_in": token_data["expires_in"],
-                    "user_id": user_info.get("sub"),
-                    "email": user_info.get("email"),
-                    "name": user_info.get("name"),
-                    "given_name": user_info.get("given_name"),
-                    "family_name": user_info.get("family_name"),
-                    "preferred_username": user_info.get("preferred_username"),
-                    "roles": user_info.get("realm_access", {}).get("roles", []),
-                }
-            ),
-            200,
-        )
+        return {
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data["refresh_token"],
+            "expires_in": token_data["expires_in"],
+            "user_id": user_info.get("sub"),
+            "email": user_info.get("email"),
+            "name": user_info.get("name"),
+            "given_name": user_info.get("given_name"),
+            "family_name": user_info.get("family_name"),
+            "preferred_username": user_info.get("preferred_username"),
+            "roles": user_info.get("realm_access", {}).get("roles", []),
+        }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Login error: {str(e)}")
-        return jsonify({"error": "Authentication failed", "details": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 
 # Token verification endpoint
-@app.route("/api/auth/token/verify", methods=["POST"])
-def verify_token():
+@app.post("/api/auth/token/verify", response_model=TokenVerifyResponse)
+async def verify_token(request: TokenRequest):
     try:
-        data = request.get_json()
-
-        if not data or "token" not in data:
-            return jsonify({"error": "Missing token"}), 400
-
-        token = data["token"]
+        token = request.token
 
         try:
             # Verify token with Keycloak middleware
@@ -127,54 +218,47 @@ def verify_token():
                 logger.warning(f"Failed to get user info: {userinfo_response.text}")
 
                 # Still return basic verification if token is valid
-                return (
-                    jsonify(
-                        {
-                            "valid": True,
-                            "user_id": payload.get("sub"),
-                            "expires_at": payload.get("exp"),
-                            "issued_at": payload.get("iat"),
-                        }
-                    ),
-                    200,
-                )
+                return {
+                    "valid": True,
+                    "user_id": payload.get("sub"),
+                    "expires_at": payload.get("exp"),
+                    "issued_at": payload.get("iat"),
+                }
 
             user_info = userinfo_response.json()
 
             # Return combined verification
-            return (
-                jsonify(
-                    {
-                        "valid": True,
-                        "user_id": payload.get("sub"),
-                        "email": user_info.get("email"),
-                        "name": user_info.get("name"),
-                        "roles": user_info.get("realm_access", {}).get("roles", []),
-                        "expires_at": payload.get("exp"),
-                        "issued_at": payload.get("iat"),
-                    }
-                ),
-                200,
-            )
+            return {
+                "valid": True,
+                "user_id": payload.get("sub"),
+                "email": user_info.get("email"),
+                "name": user_info.get("name"),
+                "roles": user_info.get("realm_access", {}).get("roles", []),
+                "expires_at": payload.get("exp"),
+                "issued_at": payload.get("iat"),
+            }
 
         except Exception as e:
             logger.warning(f"Token verification failed: {str(e)}")
-            return jsonify({"valid": False, "error": str(e)}), 200
+            return {"valid": False, "error": str(e)}
 
     except Exception as e:
         logger.error(f"Token verification error: {str(e)}")
-        return jsonify({"error": "Verification failed", "details": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
 
 
 # Token refresh endpoint
-@app.route("/api/auth/token/refresh", methods=["POST"])
-def refresh_token():
+@app.post(
+    "/api/auth/token/refresh",
+    response_model=RefreshTokenResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def refresh_token(request: RefreshTokenRequest):
     try:
-        data = request.get_json()
-
-        if not data or "refresh_token" not in data:
-            return jsonify({"error": "Missing refresh token"}), 400
-
         # Refresh token with Keycloak
         response = requests.post(
             TOKEN_URL,
@@ -182,51 +266,44 @@ def refresh_token():
                 "client_id": KEYCLOAK_CLIENT_ID,
                 "client_secret": KEYCLOAK_CLIENT_SECRET,
                 "grant_type": "refresh_token",
-                "refresh_token": data["refresh_token"],
+                "refresh_token": request.refresh_token,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
         if response.status_code != 200:
             logger.error(f"Token refresh failed: {response.text}")
-            return jsonify({"error": "Invalid refresh token"}), 401
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
 
         token_data = response.json()
 
         # Return refreshed tokens
-        return (
-            jsonify(
-                {
-                    "access_token": token_data["access_token"],
-                    "refresh_token": token_data["refresh_token"],
-                    "expires_in": token_data["expires_in"],
-                }
-            ),
-            200,
-        )
+        return {
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data["refresh_token"],
+            "expires_in": token_data["expires_in"],
+        }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Token refresh error: {str(e)}")
-        return jsonify({"error": "Token refresh failed", "details": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Token refresh failed: {str(e)}")
 
 
 # Registration endpoint
-@app.route("/api/auth/register", methods=["POST"])
-def register():
+@app.post(
+    "/api/auth/register",
+    response_model=RegisterResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        400: {"model": ErrorResponse},
+        409: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def register(request: RegisterRequest):
     try:
-        data = request.get_json()
-
-        required_fields = ["email", "password", "firstName", "lastName"]
-        missing_fields = [field for field in required_fields if field not in data]
-
-        if missing_fields:
-            return (
-                jsonify(
-                    {"error": f'Missing required fields: {", ".join(missing_fields)}'}
-                ),
-                400,
-            )
-
         # Get admin token to create user
         admin_token_response = requests.post(
             TOKEN_URL,
@@ -240,21 +317,21 @@ def register():
 
         if admin_token_response.status_code != 200:
             logger.error(f"Failed to get admin token: {admin_token_response.text}")
-            return jsonify({"error": "Authentication server error"}), 500
+            raise HTTPException(status_code=500, detail="Authentication server error")
 
         admin_token = admin_token_response.json()["access_token"]
 
         # Prepare user data
-        username = data.get("username", data["email"])
+        username = request.username or request.email
         user_data = {
             "username": username,
-            "email": data["email"],
-            "firstName": data["firstName"],
-            "lastName": data["lastName"],
+            "email": request.email,
+            "firstName": request.firstName,
+            "lastName": request.lastName,
             "enabled": True,
             "emailVerified": True,
             "credentials": [
-                {"type": "password", "value": data["password"], "temporary": False}
+                {"type": "password", "value": request.password, "temporary": False}
             ],
             "attributes": {},
         }
@@ -262,8 +339,8 @@ def register():
         # Add optional attributes
         optional_attributes = ["phone_number", "specialty", "address", "user_type"]
         for attr in optional_attributes:
-            if attr in data and data[attr]:
-                user_data["attributes"][attr] = [data[attr]]
+            if hasattr(request, attr) and getattr(request, attr):
+                user_data["attributes"][attr] = [getattr(request, attr)]
 
         # Create user in Keycloak
         create_user_response = requests.post(
@@ -282,9 +359,9 @@ def register():
             logger.error(f"User creation failed: {create_user_response.text}")
 
             if create_user_response.status_code == 409:
-                return jsonify({"error": "Email already registered"}), 409
+                raise HTTPException(status_code=409, detail="Email already registered")
 
-            return jsonify({"error": "User registration failed"}), 500
+            raise HTTPException(status_code=500, detail="User registration failed")
 
         # Get user ID from location header or search for the user
         user_id = None
@@ -304,10 +381,12 @@ def register():
 
         if not user_id:
             logger.error("User created but ID not found")
-            return jsonify({"error": "User created but failed to retrieve ID"}), 500
+            raise HTTPException(
+                status_code=500, detail="User created but failed to retrieve ID"
+            )
 
         # Add role based on user_type
-        user_type = data.get("user_type", "").lower()
+        user_type = request.user_type.lower() if request.user_type else ""
         role_name = None
 
         if user_type == "doctor":
@@ -357,8 +436,8 @@ def register():
                 "client_id": KEYCLOAK_CLIENT_ID,
                 "client_secret": KEYCLOAK_CLIENT_SECRET,
                 "grant_type": "password",
-                "username": data["email"],
-                "password": data["password"],
+                "username": request.email,
+                "password": request.password,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
@@ -369,71 +448,61 @@ def register():
             )
 
             # Still return success without tokens
-            return (
-                jsonify(
-                    {"message": "User registered successfully", "user_id": user_id}
-                ),
-                201,
-            )
+            return {"message": "User registered successfully", "user_id": user_id}
 
         token_data = login_response.json()
 
         # Return success with tokens
-        return (
-            jsonify(
-                {
-                    "message": "User registered successfully",
-                    "user_id": user_id,
-                    "access_token": token_data["access_token"],
-                    "refresh_token": token_data["refresh_token"],
-                    "expires_in": token_data["expires_in"],
-                }
-            ),
-            201,
-        )
+        return {
+            "message": "User registered successfully",
+            "user_id": user_id,
+            "access_token": token_data["access_token"],
+            "refresh_token": token_data["refresh_token"],
+            "expires_in": token_data["expires_in"],
+        }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Registration error: {str(e)}")
-        return jsonify({"error": "Registration failed", "details": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
 
 
 # Logout endpoint
-@app.route("/api/auth/logout", methods=["POST"])
-def logout():
+@app.post(
+    "/api/auth/logout",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def logout(request: LogoutRequest):
     try:
-        data = request.get_json()
-
-        if not data or "refresh_token" not in data:
-            return jsonify({"error": "Missing refresh token"}), 400
-
         # Logout from Keycloak
         response = requests.post(
             f"{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/logout",
             data={
                 "client_id": KEYCLOAK_CLIENT_ID,
                 "client_secret": KEYCLOAK_CLIENT_SECRET,
-                "refresh_token": data["refresh_token"],
+                "refresh_token": request.refresh_token,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
         # Return success even if Keycloak says the token was invalid
-        return jsonify({"message": "Logged out successfully"}), 200
+        return {"message": "Logged out successfully"}
 
     except Exception as e:
         logger.error(f"Logout error: {str(e)}")
-        return jsonify({"error": "Logout failed", "details": str(e)}), 500
+        raise HTTPException(status_code=500, detail=f"Logout failed: {str(e)}")
 
 
 # Password reset request endpoint
-@app.route("/api/auth/forgot-password", methods=["POST"])
-def forgot_password():
+@app.post(
+    "/api/auth/forgot-password",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def forgot_password(request: ForgotPasswordRequest):
     try:
-        data = request.get_json()
-
-        if not data or "email" not in data:
-            return jsonify({"error": "Missing email"}), 400
-
         # Get admin token
         admin_token_response = requests.post(
             TOKEN_URL,
@@ -447,26 +516,21 @@ def forgot_password():
 
         if admin_token_response.status_code != 200:
             logger.error(f"Failed to get admin token: {admin_token_response.text}")
-            return jsonify({"error": "Authentication server error"}), 500
+            raise HTTPException(status_code=500, detail="Authentication server error")
 
         admin_token = admin_token_response.json()["access_token"]
 
         # Find user by email
         search_response = requests.get(
-            f"{USERS_URL}?email={data['email']}",
+            f"{USERS_URL}?email={request.email}",
             headers={"Authorization": f"Bearer {admin_token}"},
         )
 
         if search_response.status_code != 200 or not search_response.json():
-            logger.warning(f"User not found for password reset: {data['email']}")
-            return (
-                jsonify(
-                    {
-                        "message": "If your email is registered, you will receive a password reset link"
-                    }
-                ),
-                200,
-            )
+            logger.warning(f"User not found for password reset: {request.email}")
+            return {
+                "message": "If your email is registered, you will receive a password reset link"
+            }
 
         user_id = search_response.json()[0]["id"]
 
@@ -486,28 +550,39 @@ def forgot_password():
 
         if reset_response.status_code != 204:
             logger.error(f"Password reset email failed: {reset_response.text}")
-            return jsonify({"error": "Failed to send password reset email"}), 500
+            raise HTTPException(
+                status_code=500, detail="Failed to send password reset email"
+            )
 
-        return jsonify({"message": "Password reset email sent successfully"}), 200
+        return {"message": "Password reset email sent successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Password reset error: {str(e)}")
-        return (
-            jsonify({"error": "Password reset request failed", "details": str(e)}),
-            500,
+        raise HTTPException(
+            status_code=500, detail=f"Password reset request failed: {str(e)}"
         )
 
 
 # User info endpoint
-@app.route("/api/auth/user/<user_id>", methods=["GET"])
-@keycloak_middleware.token_required
-def get_user(user_id, user_info):
+@app.get(
+    "/api/auth/user/{user_id}",
+    responses={
+        403: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def get_user(
+    user_id: str = Path(...), user_info: dict = Depends(get_user_from_token)
+):
     try:
         # Check if requesting own info or has admin role
         if user_id != user_info.get("sub") and "admin" not in user_info.get(
             "realm_access", {}
         ).get("roles", []):
-            return jsonify({"error": "Unauthorized"}), 403
+            raise HTTPException(status_code=403, detail="Unauthorized")
 
         # Get admin token
         admin_token_response = requests.post(
@@ -522,7 +597,7 @@ def get_user(user_id, user_info):
 
         if admin_token_response.status_code != 200:
             logger.error(f"Failed to get admin token: {admin_token_response.text}")
-            return jsonify({"error": "Authentication server error"}), 500
+            raise HTTPException(status_code=500, detail="Authentication server error")
 
         admin_token = admin_token_response.json()["access_token"]
 
@@ -533,7 +608,7 @@ def get_user(user_id, user_info):
 
         if user_response.status_code != 200:
             logger.error(f"Failed to get user: {user_response.text}")
-            return jsonify({"error": "User not found"}), 404
+            raise HTTPException(status_code=404, detail="User not found")
 
         user_data = user_response.json()
 
@@ -557,12 +632,18 @@ def get_user(user_id, user_info):
         # Add roles to user data
         user_data["roles"] = roles
 
-        return jsonify(user_data), 200
+        return user_data
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Get user error: {str(e)}")
-        return jsonify({"error": "Failed to get user info", "details": str(e)}), 500
+        raise HTTPException(
+            status_code=500, detail=f"Failed to get user info: {str(e)}"
+        )
 
 
 if __name__ == "__main__":
-    app.run(host=Config.HOST, port=Config.PORT, debug=True)
+    import uvicorn
+
+    uvicorn.run(app, host=Config.HOST, port=Config.PORT)

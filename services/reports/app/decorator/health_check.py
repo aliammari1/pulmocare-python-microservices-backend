@@ -3,18 +3,18 @@ import time
 
 import psutil
 import redis
-from flask import jsonify
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from pymongo import MongoClient
-from services.logger_service import logger_service
 
 from config import Config
 
 
 def health_check_middleware(config: Config):
-    """Middleware to add health check endpoint to Flask apps"""
+    """Middleware to add health check endpoint to FastAPI apps"""
 
-    def decorator(app):
-        @app.route("/health", methods=["GET"])
+    def decorator(app: FastAPI):
+        @app.get("/health")
         def health_check():
             health = {
                 "status": "healthy",
@@ -82,8 +82,9 @@ def health_check_middleware(config: Config):
 
             # Determine response code based on overall health
             status_code = 200 if health["status"] == "healthy" else 503
-            return jsonify(health), status_code
+            return JSONResponse(content=health, status_code=status_code)
 
+        # Store the health check function on the app for reference
         app.health_check = health_check
         return app
 

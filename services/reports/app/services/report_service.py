@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from services.logger_service import logger_service
 
 

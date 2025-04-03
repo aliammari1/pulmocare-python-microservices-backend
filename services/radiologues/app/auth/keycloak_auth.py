@@ -1,287 +1,138 @@
 import os
-import logging
+from typing import Dict
+
+import jwt
 import requests
-import json
-from flask import request, jsonify
-from functools import wraps
+from dotenv import load_dotenv
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-logger = logging.getLogger("keycloak_auth")
+# Load environment variables
+env = os.getenv("ENV", "development")
+dotenv_file = f".env.{env}"
+if not os.path.exists(dotenv_file):
+    dotenv_file = ".env"
+load_dotenv(dotenv_path=dotenv_file)
+
+# Keycloak configuration
+KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://localhost:8080")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "medapp")
+KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-client")
+KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
+
+# Load JWT secret from environment or use default
+JWT_SECRET_KEY = os.getenv("JWT_SECRET", "replace-with-strong-secret")
+
+# Create HTTP bearer token scheme
+security = HTTPBearer()
 
 
-class KeycloakAuth:
+def keycloak_auth(token: str) -> Dict:
     """
-    Keycloak authentication integration for the radiologues service.
+    Validate token with Keycloak and return user info
     """
+    introspect_url = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
 
-    def __init__(self):
-        """Initialize the Keycloak authentication client."""
-        self.auth_service_url = os.getenv(
-            "AUTH_SERVICE_URL", "http://auth-service:8086"
+    payload = {
+        "token": token,
+        "client_id": KEYCLOAK_CLIENT_ID,
+        "client_secret": KEYCLOAK_CLIENT_SECRET,
+    }
+
+    try:
+        response = requests.post(introspect_url, data=payload)
+        response.raise_for_status()
+        token_data = response.json()
+
+        if not token_data.get("active", False):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token is invalid or expired",
+            )
+
+        # Get user details
+        user_info_url = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/userinfo"
+        user_info_response = requests.get(
+            user_info_url, headers={"Authorization": f"Bearer {token}"}
         )
-        self.keycloak_url = os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
-        self.realm = os.getenv("KEYCLOAK_REALM", "medapp")
-        self.client_id = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-api")
-        self.client_secret = os.getenv("KEYCLOAK_CLIENT_SECRET", "your-client-secret")
+        user_info_response.raise_for_status()
+        user_info = user_info_response.json()
 
-        logger.info(f"Keycloak Auth initialized for radiologues service")
+        return {
+            "user_id": user_info.get("sub"),
+            "email": user_info.get("email"),
+            "name": user_info.get("name"),
+            "roles": token_data.get("realm_access", {}).get("roles", []),
+        }
 
-    def login(self, email, password):
-        """
-        Authenticate a radiologist with Keycloak.
-
-        Args:
-            email: Radiologist's email
-            password: Radiologist's password
-
-        Returns:
-            Authentication response with tokens
-        """
-        try:
-            # Call auth service to authenticate
-            response = requests.post(
-                f"{self.auth_service_url}/api/auth/login",
-                json={"email": email, "password": password},
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Keycloak login error: {str(e)}")
-            raise
-
-    def register(self, radiologist_data):
-        """
-        Register a new radiologist in Keycloak.
-
-        Args:
-            radiologist_data: Radiologist information (name, email, password, etc.)
-
-        Returns:
-            Registration response
-        """
-        try:
-            # Convert radiologist data to expected format for auth service
-            user_data = {
-                "email": radiologist_data["email"],
-                "username": radiologist_data.get("username", radiologist_data["email"]),
-                "password": radiologist_data["password"],
-                "firstName": radiologist_data.get(
-                    "firstName",
-                    (
-                        radiologist_data.get("name", "").split()[0]
-                        if radiologist_data.get("name")
-                        else ""
-                    ),
-                ),
-                "lastName": radiologist_data.get(
-                    "lastName",
-                    (
-                        " ".join(radiologist_data.get("name", "").split()[1:])
-                        if radiologist_data.get("name")
-                        and len(radiologist_data.get("name", "").split()) > 1
-                        else ""
-                    ),
-                ),
-                "phone_number": radiologist_data.get("phoneNumber", ""),
-                "specialty": radiologist_data.get("specialty", "Radiology"),
-                "address": radiologist_data.get("address", ""),
-                "user_type": "radiologist",
-            }
-
-            # Call auth service to register
-            response = requests.post(
-                f"{self.auth_service_url}/api/auth/register", json=user_data
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Keycloak registration error: {str(e)}")
-            raise
-
-    def verify_token(self, token):
-        """
-        Verify a JWT token with Keycloak.
-
-        Args:
-            token: JWT token to verify
-
-        Returns:
-            Token verification result
-        """
-        try:
-            response = requests.post(
-                f"{self.auth_service_url}/api/auth/token/verify", json={"token": token}
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Token verification error: {str(e)}")
-            raise
-
-    def token_required(self, f):
-        """
-        Decorator to require a valid token for route access.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
-        """
-
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-
-            if not auth_header:
-                return jsonify({"error": "Authorization header missing"}), 401
-
-            try:
-                token_parts = auth_header.split()
-                if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                    return jsonify({"error": "Invalid token format"}), 401
-
-                token = token_parts[1]
-
-                # Verify token with auth service
-                verification = self.verify_token(token)
-
-                if not verification.get("valid", False):
-                    return jsonify({"error": "Invalid token"}), 401
-
-                # Add user info to kwargs
-                kwargs["user_id"] = verification.get("user_id")
-                kwargs["user_info"] = verification
-
-                return f(*args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Authentication error: {str(e)}")
-                return jsonify({"error": "Authentication failed"}), 401
-
-        return decorated
-
-    def radiologist_required(self, f):
-        """
-        Decorator to require radiologist role for route access.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
-        """
-
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-
-            if not auth_header:
-                return jsonify({"error": "Authorization header missing"}), 401
-
-            try:
-                token_parts = auth_header.split()
-                if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                    return jsonify({"error": "Invalid token format"}), 401
-
-                token = token_parts[1]
-
-                # Verify token with auth service
-                verification = self.verify_token(token)
-
-                if not verification.get("valid", False):
-                    return jsonify({"error": "Invalid token"}), 401
-
-                # Check if user has radiologist role
-                roles = verification.get("roles", [])
-                if "radiologist-role" not in roles and "admin" not in roles:
-                    return jsonify({"error": "Radiologist role required"}), 403
-
-                # Add user info to kwargs
-                kwargs["user_id"] = verification.get("user_id")
-                kwargs["user_info"] = verification
-
-                return f(*args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Authentication error: {str(e)}")
-                return jsonify({"error": "Authentication failed"}), 401
-
-        return decorated
-
-    def admin_required(self, f):
-        """
-        Decorator to require admin role for route access.
-
-        Args:
-            f: Function to decorate
-
-        Returns:
-            Decorated function
-        """
-
-        @wraps(f)
-        def decorated(*args, **kwargs):
-            auth_header = request.headers.get("Authorization")
-
-            if not auth_header:
-                return jsonify({"error": "Authorization header missing"}), 401
-
-            try:
-                token_parts = auth_header.split()
-                if token_parts[0].lower() != "bearer" or len(token_parts) < 2:
-                    return jsonify({"error": "Invalid token format"}), 401
-
-                token = token_parts[1]
-
-                # Verify token with auth service
-                verification = self.verify_token(token)
-
-                if not verification.get("valid", False):
-                    return jsonify({"error": "Invalid token"}), 401
-
-                # Check if user has admin role
-                roles = verification.get("roles", [])
-                if "admin" not in roles:
-                    return jsonify({"error": "Admin role required"}), 403
-
-                # Add user info to kwargs
-                kwargs["user_id"] = verification.get("user_id")
-                kwargs["user_info"] = verification
-
-                return f(*args, **kwargs)
-
-            except Exception as e:
-                logger.error(f"Authentication error: {str(e)}")
-                return jsonify({"error": "Authentication failed"}), 401
-
-        return decorated
-
-    def request_password_reset(self, email):
-        """
-        Request a password reset for a radiologist.
-
-        Args:
-            email: Radiologist's email
-
-        Returns:
-            Password reset request result
-        """
-        try:
-            response = requests.post(
-                f"{self.auth_service_url}/api/auth/forgot-password",
-                json={"email": email},
-            )
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            logger.error(f"Password reset request error: {str(e)}")
-            raise
+    except requests.RequestException as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Failed to validate token: {str(e)}",
+        )
 
 
-# Create a global instance that can be imported directly
-keycloak_auth = KeycloakAuth()
+def verify_jwt(token: str) -> Dict:
+    """
+    Verify JWT token when Keycloak is not available
+    """
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
+        return {"user_id": payload.get("user_id")}
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token or expired token",
+        )
 
-# Export decorators for convenience
-token_required = keycloak_auth.token_required
-radiologist_required = keycloak_auth.radiologist_required
-admin_required = keycloak_auth.admin_required
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict:
+    """
+    Get the current user from the token in the request
+    """
+    token = credentials.credentials
+
+    # Try Keycloak first, fallback to JWT
+    try:
+        return keycloak_auth(token)
+    except HTTPException:
+        # Fallback to local JWT verification
+        return verify_jwt(token)
+
+
+async def get_current_radiologist(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict:
+    """
+    Get the current radiologist from the token, checking for radiologist role
+    """
+    user_info = await get_current_user(credentials)
+
+    # Check if roles are available (Keycloak was used)
+    if "roles" in user_info and "radiologist" not in user_info["roles"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have radiologist role",
+        )
+
+    return user_info
+
+
+async def get_current_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict:
+    """
+    Get the current admin from the token, checking for admin role
+    """
+    user_info = await get_current_user(credentials)
+
+    # Check if roles are available (Keycloak was used)
+    if "roles" in user_info and "admin" not in user_info["roles"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User does not have admin role",
+        )
+
+    return user_info
