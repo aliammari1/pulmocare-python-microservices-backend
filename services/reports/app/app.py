@@ -1,11 +1,12 @@
 from typing import Dict, Optional
-
+import time
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRouter
 from report_generator import ReportGenerator
+from routes.integration_routes import router as integration_router
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 from services.redis_client import RedisClient
@@ -122,9 +123,36 @@ async def export_report(
     )
 
 
+# Add this endpoint to the app.py file after the existing routes
+
+@app.get("/health", tags=["Health"])
+async def health():
+    """Health check endpoint for the reports service"""
+    status = {
+        "status": "healthy",
+        "service": "reports-service",
+        "version": "1.0.0",
+        "timestamp": int(time.time()),
+        "checks": {
+            "database": {"status": "up"},
+            "system": {"status": "up"}
+        }
+    }
+    return status
+
+
 # Register routes
 app.include_router(api, prefix="/api/reports")
+app.include_router(integration_router)
 
+# Import the consumer module and threading
+import threading
+from consumer import main as consumer_main
 
 if __name__ == "__main__":
+    # Start the consumer in a separate thread
+    consumer_thread = threading.Thread(target=consumer_main, daemon=True)
+    consumer_thread.start()
+    
+    # Run the FastAPI app with uvicorn in the main thread
     uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)

@@ -19,7 +19,7 @@ class KeycloakAuth:
     def __init__(self):
         """Initialize the Keycloak authentication client."""
         self.auth_service_url = os.getenv(
-            "AUTH_SERVICE_URL", "http://auth-service:8000"
+            "AUTH_SERVICE_URL", "http://auth-service:8086"
         )
         logger.info(f"Using auth service at: {self.auth_service_url}")
 

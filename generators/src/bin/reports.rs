@@ -3,7 +3,7 @@ use fake::Fake;
 use fake::faker::lorem::en::Paragraph;
 use log::{info, debug, error};
 use medapp_generators::{connect_to_mongodb, setup_logger};
-use mongodb::bson::{Document, doc, oid::ObjectId};
+use mongodb::bson::{self, doc, oid::ObjectId, Document};
 use rand::{thread_rng, Rng, seq::SliceRandom};
 use serde::{Deserialize, Serialize};
 use std::error::Error;
@@ -13,17 +13,49 @@ use futures::StreamExt;
 use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct Report {
-    patient_id: ObjectId,
-    radiologue_id: ObjectId,
-    medecin_id: ObjectId,
-    typeExamen: String,
-    partieCorps: String,
-    dateExamen: String,
-    conclusions: String,
+struct Finding {
+    condition: String,
+    severity: String,
     description: String,
-    recommendations: Option<String>,
-    imagePath: String,
+    confidence_score: f64,
+    probability: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ImageQualityMetrics {
+    contrast: String,
+    sharpness: String,
+    exposure: String,
+    positioning: String,
+    noise_level: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TechnicalDetails {
+    quality_metrics: ImageQualityMetrics,
+    image_stats: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Analysis {
+    findings: Vec<Finding>,
+    technical_details: TechnicalDetails,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct Report {
+    title: String,
+    content: String,
+    patient_id: ObjectId,
+    doctor_id: ObjectId,
+    radiologist_id: ObjectId,
+    exam_type: String,
+    body_part: String,
+    exam_date: String,
+    conclusion: String,
+    analysis: Option<Analysis>,
+    tags: Vec<String>,
+    image_path: String,
 }
 
 #[derive(Parser, Debug)]
@@ -96,7 +128,7 @@ fn generate_report(
     let date_examen = (six_months_ago + Duration::days(random_days)).to_rfc3339();
     
     let recommendations = if rng.gen_bool(0.7) {
-        Some(Paragraph(1..2).fake())
+        Some(Paragraph(1..2))
     } else {
         None
     };
@@ -104,16 +136,18 @@ fn generate_report(
     let image_uuid = Uuid::new_v4();
     
     Report {
+        title: "Random Report Title".to_string(),
+        content: "Random Report Content".to_string(),
         patient_id: patient_ids.choose(&mut rng).unwrap().clone(),
-        radiologue_id: radiologue_ids.choose(&mut rng).unwrap().clone(),
-        medecin_id: medecin_ids.choose(&mut rng).unwrap().clone(),
-        typeExamen: report_types.choose(&mut rng).unwrap().to_string(),
-        partieCorps: body_parts.choose(&mut rng).unwrap().to_string(),
-        dateExamen: date_examen,
-        conclusions: findings.choose(&mut rng).unwrap().to_string(),
-        description: Paragraph(2..4).fake(),
-        recommendations,
-        imagePath: format!("/images/reports/{}.jpg", image_uuid),
+        radiologist_id: radiologue_ids.choose(&mut rng).unwrap().clone(),
+        doctor_id: medecin_ids.choose(&mut rng).unwrap().clone(),
+        exam_type: report_types.choose(&mut rng).unwrap().to_string(),
+        body_part: body_parts.choose(&mut rng).unwrap().to_string(),
+        exam_date: date_examen,
+        conclusion: findings.choose(&mut rng).unwrap().to_string(),
+        analysis: None,
+        tags: vec!["tag1".to_string(), "tag2".to_string()],
+        image_path: format!("/images/reports/{}.jpg", image_uuid),
     }
 }
 
@@ -144,19 +178,21 @@ async fn generate_reports(count: usize) -> Result<(), Box<dyn Error>> {
             let report = generate_report(&patient_ids, &radiologue_ids, &medecin_ids);
             
             let mut doc = doc! {
+                "title": report.title,
+                "content": report.content,
                 "patient_id": report.patient_id,
-                "radiologue_id": report.radiologue_id,
-                "medecin_id": report.medecin_id,
-                "typeExamen": report.typeExamen,
-                "partieCorps": report.partieCorps,
-                "dateExamen": report.dateExamen,
-                "conclusions": report.conclusions,
-                "description": report.description,
-                "imagePath": report.imagePath,
+                "radiologist_id": report.radiologist_id,
+                "doctor_id": report.doctor_id,
+                "exam_type": report.exam_type,
+                "body_part": report.body_part,
+                "exam_date": report.exam_date,
+                "conclusion": report.conclusion,
+                "image_path": report.image_path,
+                "tags": report.tags,
             };
             
-            if let Some(recommendations) = report.recommendations {
-                doc.insert("recommendations", recommendations);
+            if let Some(analysis) = report.analysis {
+                doc.insert("analysis", bson::to_bson(&analysis)?);
             }
             
             batch.push(doc);

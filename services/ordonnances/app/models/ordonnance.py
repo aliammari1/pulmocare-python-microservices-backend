@@ -2,21 +2,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from bson import ObjectId
-from pydantic import BaseModel, Field
-
-
-class PyObjectId(str):
-    """Custom type for handling MongoDB ObjectId fields with Pydantic"""
-
-    @classmethod
-    def __get_validators__(cls):
-        yield cls.validate
-
-    @classmethod
-    def validate(cls, v):
-        if not ObjectId.is_valid(v):
-            raise ValueError("Invalid ObjectId")
-        return str(v)
+from pydantic import BaseModel
 
 
 class Medication(BaseModel):
@@ -65,7 +51,7 @@ class OrdonnanceUpdate(BaseModel):
 class OrdonnanceInDB(OrdonnanceBase):
     """Model representing a prescription from the database"""
 
-    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    id: str
     doctor_id: str
     date: datetime
 

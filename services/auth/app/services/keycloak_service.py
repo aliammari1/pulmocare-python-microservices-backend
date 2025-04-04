@@ -1,4 +1,7 @@
 import logging
+import os
+import requests
+from typing import Dict, Any, Optional
 
 from keycloak import KeycloakAdmin, KeycloakOpenID
 
@@ -12,24 +15,43 @@ class KeycloakService:
             f"Initializing Keycloak service with URL: {self.config.KEYCLOAK_URL}"
         )
 
-        # Initialize the client for regular operations
-        self.keycloak_openid = KeycloakOpenID(
-            server_url=self.config.KEYCLOAK_URL,
-            client_id=self.config.KEYCLOAK_CLIENT_ID,
-            realm_name=self.config.KEYCLOAK_REALM,
-            client_secret_key=self.config.KEYCLOAK_CLIENT_SECRET,
-        )
+        self.keycloak_url = self.config.KEYCLOAK_URL
+        self.realm = self.config.KEYCLOAK_REALM
+        self.client_id = self.config.KEYCLOAK_CLIENT_ID
+        self.client_secret = self.config.KEYCLOAK_CLIENT_SECRET
+        
+        # Endpoints
+        self.token_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token"
+        self.userinfo_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/userinfo"
+        self.users_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users"
 
-        # Initialize admin client for administrative operations
-        self.keycloak_admin = KeycloakAdmin(
-            server_url=self.config.KEYCLOAK_URL,
-            username=self.config.KEYCLOAK_ADMIN_USERNAME,
-            password=self.config.KEYCLOAK_ADMIN_PASSWORD,
-            realm_name=self.config.KEYCLOAK_REALM,
-            verify=True,
-        )
+        if KeycloakOpenID and KeycloakAdmin:
+            try:
+                # Initialize the client for regular operations
+                self.keycloak_openid = KeycloakOpenID(
+                    server_url=self.keycloak_url,
+                    client_id=self.client_id,
+                    realm_name=self.realm,
+                    client_secret_key=self.client_secret,
+                )
 
-        logging.info("Keycloak service initialized successfully")
+                # Initialize admin client for administrative operations
+                self.keycloak_admin = KeycloakAdmin(
+                    server_url=self.keycloak_url,
+                    username=self.config.KEYCLOAK_ADMIN_USERNAME,
+                    password=self.config.KEYCLOAK_ADMIN_PASSWORD,
+                    realm_name=self.realm,
+                    verify=True,
+                )
+                logging.info("Keycloak service initialized with native client")
+            except Exception as e:
+                logging.error(f"Error initializing Keycloak clients: {str(e)}")
+                self.keycloak_openid = None
+                self.keycloak_admin = None
+        else:
+            logging.warning("Using direct API calls as fallback for Keycloak operations")
+            self.keycloak_openid = None
+            self.keycloak_admin = None
 
     def login(self, username, password):
         """
@@ -43,11 +65,41 @@ class KeycloakService:
             dict: Authentication tokens and user info
         """
         try:
-            # Get token from Keycloak
-            token = self.keycloak_openid.token(username, password)
-
-            # Parse the token to get user info
-            user_info = self.keycloak_openid.userinfo(token["access_token"])
+            if self.keycloak_openid:
+                # Use the Keycloak client if available
+                token = self.keycloak_openid.token(username, password)
+                user_info = self.keycloak_openid.userinfo(token["access_token"])
+            else:
+                # Fallback to direct API calls
+                token_response = requests.post(
+                    self.token_url,
+                    data={
+                        "client_id": self.client_id,
+                        "client_secret": self.client_secret,
+                        "grant_type": "password",
+                        "username": username,
+                        "password": password,
+                    },
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+                
+                if token_response.status_code != 200:
+                    logging.error(f"Login failed: {token_response.text}")
+                    raise Exception(f"Authentication failed: {token_response.text}")
+                    
+                token = token_response.json()
+                
+                # Get user info
+                userinfo_response = requests.get(
+                    self.userinfo_url,
+                    headers={"Authorization": f"Bearer {token['access_token']}"},
+                )
+                
+                if userinfo_response.status_code != 200:
+                    logging.error(f"Failed to get user info: {userinfo_response.text}")
+                    raise Exception("Failed to get user info")
+                    
+                user_info = userinfo_response.json()
 
             return {
                 "access_token": token["access_token"],
@@ -276,3 +328,95 @@ class KeycloakService:
         except Exception as e:
             logging.error(f"Password reset request error: {str(e)}")
             raise
+
+    def get_admin_token(self) -> Optional[str]:
+        """Get an admin token from Keycloak"""
+        try:
+            response = requests.post(
+                self.token_url,
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "grant_type": "client_credentials"
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code != 200:
+                logging.error(f"Failed to get admin token: {response.text}")
+                return None
+                
+            return response.json().get("access_token")
+        except Exception as e:
+            logging.error(f"Error getting admin token: {str(e)}")
+            return None
+            
+    def test_connection(self) -> Dict[str, Any]:
+        """Test the connection to Keycloak and validate configuration"""
+        results = {
+            "keycloak_url": {
+                "value": self.keycloak_url,
+                "status": "unknown"
+            },
+            "realm": {
+                "value": self.realm,
+                "status": "unknown"
+            },
+            "client_id": {
+                "value": self.client_id,
+                "status": "unknown"
+            },
+            "client_credentials": {
+                "status": "unknown"
+            }
+        }
+        
+        # Test basic connectivity
+        try:
+            response = requests.get(f"{self.keycloak_url}")
+            if response.status_code < 400:
+                results["keycloak_url"]["status"] = "ok"
+            else:
+                results["keycloak_url"]["status"] = "error"
+                results["keycloak_url"]["message"] = f"HTTP {response.status_code}"
+        except Exception as e:
+            results["keycloak_url"]["status"] = "error"
+            results["keycloak_url"]["message"] = str(e)
+            
+        # Test realm existence
+        try:
+            response = requests.get(f"{self.keycloak_url}/realms/{self.realm}")
+            if response.status_code < 400:
+                results["realm"]["status"] = "ok"
+            else:
+                results["realm"]["status"] = "error"
+                results["realm"]["message"] = f"HTTP {response.status_code}"
+        except Exception as e:
+            results["realm"]["status"] = "error"
+            results["realm"]["message"] = str(e)
+            
+        # Test client credentials
+        try:
+            response = requests.post(
+                self.token_url,
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "grant_type": "client_credentials"
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code == 200:
+                results["client_credentials"]["status"] = "ok"
+                results["client_id"]["status"] = "ok"
+            else:
+                error_data = response.json() if response.text else {"error": "Unknown error"}
+                results["client_credentials"]["status"] = "error"
+                results["client_credentials"]["message"] = error_data.get("error_description", "Unknown error")
+                results["client_id"]["status"] = "unknown"
+        except Exception as e:
+            results["client_credentials"]["status"] = "error"
+            results["client_credentials"]["message"] = str(e)
+            
+        return results

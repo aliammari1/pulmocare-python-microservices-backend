@@ -18,16 +18,17 @@ use chrono::{Utc, Duration};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Radiologue {
-    nom: String,
-    prenom: String,
+    name: String,
     email: String,
-    telephone: String,
-    adresse: String,
-    specialiteRadiologie: String,
-    equipements: Vec<String>,
-    dateInscription: String,
-    numeroOrdre: String,
-    password: String,
+    specialty: String,
+    phone_number: String,
+    address: String,
+    profile_image: Option<String>, 
+    is_verified: bool,
+    equipment: Vec<String>,
+    registration_date: String,
+    license_number: String,
+    password_hash: String,
 }
 
 #[derive(Parser, Debug)]
@@ -93,29 +94,31 @@ async fn generate_radiologues(count: usize) -> Result<(), Box<dyn Error>> {
             let password = hash_password("password");
             
             let radiologue = Radiologue {
-                nom,
-                prenom,
+                name: format!("{} {}", prenom, nom),
                 email,
-                telephone: PhoneNumber().fake(),
-                adresse: StreetName().fake(),
-                specialiteRadiologie: radiology_types.choose(&mut rng).unwrap().to_string(),
-                equipements: selected_equipments,
-                dateInscription: date_inscription,
-                numeroOrdre: numero_ordre.clone(),
-                password,
+                specialty: radiology_types.choose(&mut rng).unwrap().to_string(),
+                phone_number: PhoneNumber().fake(),
+                address: StreetName().fake(),
+                profile_image: None,
+                is_verified: rng.gen_bool(0.5),
+                equipment: selected_equipments,
+                registration_date: date_inscription,
+                license_number: numero_ordre.clone(),
+                password_hash: password,
             };
             
             batch.push(doc! {
-                "nom": radiologue.nom,
-                "prenom": radiologue.prenom,
+                "name": radiologue.name,
                 "email": radiologue.email,
-                "telephone": radiologue.telephone,
-                "adresse": radiologue.adresse,
-                "specialiteRadiologie": radiologue.specialiteRadiologie,
-                "equipements": radiologue.equipements,
-                "dateInscription": radiologue.dateInscription,
-                "numeroOrdre": radiologue.numeroOrdre,
-                "password": radiologue.password,
+                "specialty": radiologue.specialty,
+                "phone_number": radiologue.phone_number,
+                "address": radiologue.address,
+                "profile_image": radiologue.profile_image,
+                "is_verified": radiologue.is_verified,
+                "equipment": radiologue.equipment,
+                "registration_date": radiologue.registration_date,
+                "license_number": radiologue.license_number,
+                "password_hash": radiologue.password_hash,
             });
         }
         

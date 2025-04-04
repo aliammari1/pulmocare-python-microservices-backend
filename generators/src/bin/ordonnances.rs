@@ -13,20 +13,23 @@ use std::error::Error;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Medication {
-    nom: String,
+    name: String,
     dosage: String,
-    frequence: String,
-    duree: String,
+    frequency: String,
+    duration: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Ordonnance {
-    medecin_id: ObjectId,
+    doctor_id: ObjectId,
     patient_id: ObjectId,
-    dateCreation: String,
-    medicaments: Vec<Medication>,
+    patient_name: String,
+    doctor_name: String,
+    medications: Vec<Medication>,
     instructions: String,
-    renouvellements: i32,
+    diagnosis: String,
+    date: String,
+    signature: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -83,28 +86,17 @@ fn generate_medication() -> Medication {
     let mut rng = thread_rng();
 
     let medications = vec![
-        "Doliprane",
-        "Advil",
-        "Smecta",
-        "Amoxicilline",
-        "Spasfon",
-        "Levothyrox",
-        "Dafalgan",
-        "Imodium",
-        "Ventoline",
-        "Augmentin",
-        "Voltarene",
-        "Plavix",
-        "Kardegic",
-        "Tahor",
-        "Xanax",
+        "Amoxicillin", "Ibuprofen", "Paracetamol", "Aspirin", 
+        "Loratadine", "Omeprazole", "Metformin", "Lisinopril",
+        "Atorvastatin", "Albuterol", "Levothyroxine", "Metoprolol",
+        "Prednisone", "Gabapentin", "Amlodipine"
     ];
 
     Medication {
-        nom: medications.choose(&mut rng).unwrap().to_string(),
+        name: medications.choose(&mut rng).unwrap().to_string(),
         dosage: format!("{} mg", rng.gen_range(100..1001)),
-        frequence: format!("{} fois par jour", rng.gen_range(1..4)),
-        duree: format!("{} jours", rng.gen_range(3..15)),
+        frequency: format!("{} times per day", rng.gen_range(1..4)),
+        duration: Some(format!("{} days", rng.gen_range(3..15))),
     }
 }
 
@@ -117,18 +109,51 @@ fn generate_ordonnance(medecin_ids: &[ObjectId], patient_ids: &[ObjectId]) -> Or
     let random_days = rng.gen_range(0..(now - one_year_ago).num_days());
     let date_creation = (one_year_ago + Duration::days(random_days)).to_rfc3339();
 
-    let num_medicaments = rng.gen_range(1..6);
-    let medicaments = (0..num_medicaments)
+    let common_diagnoses = vec![
+        "Upper respiratory infection", 
+        "Hypertension", 
+        "Type 2 diabetes", 
+        "Acute bronchitis", 
+        "Allergic rhinitis",
+        "Urinary tract infection",
+        "Viral gastroenteritis",
+        "Migraine headache",
+        "Anxiety disorder",
+        "Lower back pain"
+    ];
+
+    let first_names = vec!["John", "Jane", "Michael", "Sarah", "David", "Lisa", "Robert", "Emily", "William", "Olivia"];
+    let last_names = vec!["Smith", "Johnson", "Williams", "Brown", "Jones", "Miller", "Davis", "Garcia", "Rodriguez", "Wilson"];
+    let doctor_titles = vec!["Dr.", "Dr.", "Prof.", "Dr.", "Dr."];
+    
+    let patient_first_name = first_names.choose(&mut rng).unwrap();
+    let patient_last_name = last_names.choose(&mut rng).unwrap();
+    let patient_name = format!("{} {}", patient_first_name, patient_last_name);
+    
+    let doctor_first_name = first_names.choose(&mut rng).unwrap();
+    let doctor_last_name = last_names.choose(&mut rng).unwrap();
+    let doctor_title = doctor_titles.choose(&mut rng).unwrap();
+    let doctor_name = format!("{} {} {}", doctor_title, doctor_first_name, doctor_last_name);
+
+    let num_medications = rng.gen_range(1..4);
+    let medications = (0..num_medications)
         .map(|_| generate_medication())
         .collect();
 
     Ordonnance {
-        medecin_id: medecin_ids.choose(&mut rng).unwrap().clone(),
+        doctor_id: medecin_ids.choose(&mut rng).unwrap().clone(),
         patient_id: patient_ids.choose(&mut rng).unwrap().clone(),
-        dateCreation: date_creation,
-        medicaments,
-        instructions: Paragraph(1..3).fake(),
-        renouvellements: rng.gen_range(0..4),
+        patient_name,
+        doctor_name,
+        medications,
+        instructions: Paragraph(1..2).fake(),
+        diagnosis: common_diagnoses.choose(&mut rng).unwrap().to_string(),
+        date: date_creation,
+        signature: if rng.gen_bool(0.7) {
+            Some("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABg".to_string())
+        } else {
+            None
+        },
     }
 }
 
@@ -159,20 +184,23 @@ async fn generate_ordonnances(count: usize) -> Result<(), Box<dyn Error>> {
             let ordonnance = generate_ordonnance(&medecin_ids, &patient_ids);
 
             batch.push(doc! {
-                "medecin_id": ordonnance.medecin_id,
+                "doctor_id": ordonnance.doctor_id,
                 "patient_id": ordonnance.patient_id,
-                "dateCreation": ordonnance.dateCreation,
-                "medicaments": ordonnance.medicaments
+                "patient_name": ordonnance.patient_name,
+                "doctor_name": ordonnance.doctor_name,
+                "date": ordonnance.date,
+                "medications": ordonnance.medications
                     .iter()
                     .map(|med| doc! {
-                        "nom": &med.nom,
+                        "name": &med.name,
                         "dosage": &med.dosage,
-                        "frequence": &med.frequence,
-                        "duree": &med.duree,
+                        "frequency": &med.frequency,
+                        "duration": &med.duration,
                     })
                     .collect::<Vec<Document>>(),
                 "instructions": ordonnance.instructions,
-                "renouvellements": ordonnance.renouvellements,
+                "diagnosis": ordonnance.diagnosis,
+                "signature": ordonnance.signature,
             });
         }
 

@@ -125,6 +125,72 @@ flutter run -d chrome --web-port 8888
 - `POST /analyze`: Analyze X-ray image
 - `GET /history/<patient_id>`: Get patient's analysis history
 
+## Service Integration
+
+The MedApp platform incorporates comprehensive service integration to enable seamless communication between microservices. This section describes the integration capabilities.
+
+### Integration Routes
+
+Each service exposes dedicated integration routes under the `/api/integration` path that facilitate service-to-service communication. These routes are:
+
+- **Médecins Service**:
+  - `/api/integration/request-radiology`: Request radiology examinations for patients
+  - `/api/integration/patient-history/{patient_id}`: Retrieve a patient's medical history
+  - `/api/integration/notify-patient/{patient_id}`: Send notifications to patients
+
+- **Patients Service**:
+  - `/api/integration/request-appointment`: Request appointments with doctors
+  - `/api/integration/medical-history`: Retrieve patient's complete medical history
+  - `/api/integration/prescriptions`: Retrieve patient's prescriptions
+
+- **Radiologues Service**:
+  - `/api/integration/accept-examination`: Accept radiology examination requests
+  - `/api/integration/submit-report`: Submit radiology reports
+  - `/api/integration/examination-requests`: Get examination requests
+
+- **Ordonnances Service**:
+  - `/api/integration/create-prescription`: Create new prescriptions
+  - `/api/integration/update-prescription-status/{prescription_id}`: Update prescription status
+  - `/api/integration/doctor-prescriptions`: Get doctor's prescriptions
+
+- **Reports Service**:
+  - `/api/integration/analyze-report`: Queue a report for analysis
+  - `/api/integration/report-analysis/{report_id}`: Retrieve analysis results
+  - `/api/integration/create-analysis-summary`: Generate summary from multiple reports
+
+- **Auth Service**:
+  - `/api/integration/verify-service`: Verify service identity for service-to-service auth
+  - `/api/integration/user-roles/{user_id}`: Get user roles (admin only)
+
+### Message-Based Integration
+
+Services communicate asynchronously using RabbitMQ message queues. Each service has:
+
+1. **Producer**: Publishes events/messages to appropriate exchanges
+2. **Consumer**: Subscribes to relevant queues and processes incoming messages
+
+Key message exchanges:
+
+- `medical.events`: General medical events across the platform
+- `medical.appointments`: Appointment-related messages
+- `medical.prescriptions`: Prescription-related messages
+- `medical.reports`: Radiology and medical report messages
+- `medical.commands`: Direct command messages between services
+
+### Testing Integration
+
+To test the integration between services, use the included test script:
+
+```bash
+python test_integration.py --username admin@example.com --password adminpassword
+```
+
+You can also test specific services:
+
+```bash
+python test_integration.py --username admin@example.com --password adminpassword --services medecins radiologues
+```
+
 ## Monitoring and Observability
 
 ### Metrics Collection

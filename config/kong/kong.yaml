@@ -156,6 +156,16 @@ services:
           - /api/medecins
         strip_path: false
         preserve_host: true
+      - name: medecins-integration
+        paths:
+          - /api/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        preserve_host: true
 
   - name: ordonnances-service
     url: http://ordonnances-service:8082
@@ -173,6 +183,16 @@ services:
         paths:
           - /api/ordonnances/verify
         strip_path: false
+      - name: ordonnances-integration
+        paths:
+          - /api/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        preserve_host: true
 
   - name: patients-service
     url: http://patients-service:8083
@@ -192,6 +212,16 @@ services:
           - /api/patients
           - /api/patient/list
         strip_path: false
+      - name: patients-integration
+        paths:
+          - /api/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        preserve_host: true
 
   - name: radiologues-service
     url: http://radiologues-service:8084
@@ -201,6 +231,16 @@ services:
           - /api/v1/radiologues
         strip_path: false
         preserve_host: true
+      - name: radiologues-integration
+        paths:
+          - /api/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        preserve_host: true
 
   - name: reports-service
     url: http://reports-service:8085
@@ -209,6 +249,16 @@ services:
         paths:
           - /api/reports
         strip_path: false
+      - name: reports-integration
+        paths:
+          - /api/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        preserve_host: true
 
   - name: auth-service
     url: http://auth-service:8086
@@ -221,6 +271,16 @@ services:
         paths:
           - /api/auth
         strip_path: false
+        preserve_host: true
+      - name: auth-integration
+        paths:
+          - /api/auth/integration
+        strip_path: false
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
         preserve_host: true
 
 plugins:
@@ -267,35 +327,13 @@ plugins:
       upstream_health_metrics: true
       bandwidth_metrics: true
 
-  # - name: jwt-keycloak
-  #   service: auth-service
-  #   config:
-  #     wellknown_uri: http://keycloak:8080/realms/medapp/.well-known/openid-configuration
-  #     claims_to_verify:
-  #       - exp
-  #     run_on_preflight: true
-  #     maximum_expiration: 86400 # 24 hours
-
-  # - name: openid-connect
-  #   service: auth-service
-  #   config:
-  #     issuer: http://keycloak:8080/realms/medapp
-  #     client_id: medapp-api
-  #     client_secret: your-client-secret
-  #     discovery: http://keycloak:8080/realms/medapp/.well-known/openid-configuration
-  #     introspection_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/token/introspect
-  #     token_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/token
-  #     authorization_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/auth
-  #     logout_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/logout
-  #     userinfo_endpoint: http://keycloak:8080/realms/medapp/protocol/openid-connect/userinfo
-  #     jwks_uri: http://keycloak:8080/realms/medapp/protocol/openid-connect/certs
-  #     ssl_verify: false
-  #     auth_methods:
-  #       - authorization_code
-  #       - password
-  #       - client_credentials
-  #       - refresh_token
-  #     scope: openid email profile
+  - name: jwt
+    service: auth-service
+    config:
+      claims_to_verify:
+        - exp
+      run_on_preflight: true
+      maximum_expiration: 86400 # 24 hours
 
   - name: correlation-id
     config:

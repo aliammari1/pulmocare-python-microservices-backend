@@ -1,7 +1,7 @@
 import json
 import socket
 import time
-from typing import Optional
+from typing import Any, Dict
 
 import pika
 from circuit_breaker import CircuitBreaker
@@ -9,274 +9,147 @@ from services.logger_service import logger_service
 from services.metrics import (track_dependency_status, track_rabbitmq_metrics,
                               update_queue_metrics)
 
-from config import Config
-
 
 class MessageBroker:
     """Message broker with circuit breaker for RabbitMQ operations"""
 
-    def __init__(self):
-        self._connection: Optional[pika.BlockingConnection] = None
-        self._channel: Optional[pika.channel.Channel] = None
-        self.circuit = CircuitBreaker(
+    def __init__(self, config):
+        """Initialize the message broker with circuit breaker"""
+        self.config = config
+        self.connection = None
+        self.channel = None
+        # Initialize circuit breaker for RabbitMQ operations
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=config.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+            recovery_timeout=config.CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
             name="rabbitmq",
-            failure_threshold=Config.CIRCUIT_BREAKER_FAILURE_THRESHOLD,
-            recovery_timeout=Config.CIRCUIT_BREAKER_RECOVERY_TIMEOUT,
-            expected_exception=pika.exceptions.AMQPError,
         )
-        self._exchange_name = "medical.reports"
-        self._queues = {
-            "report.analysis": ["report.created"],
-            "report.notifications": ["report.#"],
-        }
-        # Flag to indicate if we're in a development environment with connection errors ignored
-        self._ignore_connection_errors = Config.RABBITMQ_IGNORE_CONNECTION_ERRORS
+        self._setup_connection()
 
-        # Set initial dependency status
-        track_dependency_status("rabbitmq", False)
-
-        logger_service.info(
-            f"MessageBroker initialized with circuit breaker (ignore_errors={self._ignore_connection_errors})"
-        )
-
-    @property
-    def connection(self) -> pika.BlockingConnection:
-        """Get or create RabbitMQ connection"""
-        if not self._connection or self._connection.is_closed:
-            try:
-                self._connection = self._create_connection()
-                # Update dependency status to available
-                track_dependency_status("rabbitmq", True)
-            except Exception as e:
-                # Update dependency status to unavailable
-                track_dependency_status("rabbitmq", False)
-                if self._ignore_connection_errors:
-                    logger_service.warning(
-                        f"Failed to connect to RabbitMQ but errors are ignored: {str(e)}"
-                    )
-                    return None
-                raise
-        return self._connection
-
-    @property
-    def channel(self) -> pika.channel.Channel:
-        """Get or create RabbitMQ channel"""
-        if not self._channel or self._channel.is_closed:
-            conn = self.connection
-            if conn:
-                self._channel = conn.channel()
-                self._declare_infrastructure()
-        return self._channel
-
-    @CircuitBreaker(name="rabbitmq_connection")
-    def _create_connection(self) -> pika.BlockingConnection:
-        """Create new RabbitMQ connection with retry logic"""
-        max_retries = 5
-        retry_delay = 1
-
-        for attempt in range(max_retries):
-            try:
-                logger_service.info(
-                    f"Attempting to connect to RabbitMQ at {Config.RABBITMQ_HOST}:{Config.RABBITMQ_PORT} (attempt {attempt+1}/{max_retries})"
-                )
-                credentials = pika.PlainCredentials(
-                    Config.RABBITMQ_USER, Config.RABBITMQ_PASS
-                )
-
-                connection_params = pika.ConnectionParameters(
-                    host=Config.RABBITMQ_HOST,
-                    port=Config.RABBITMQ_PORT,
-                    virtual_host=Config.RABBITMQ_VHOST,
-                    credentials=credentials,
-                    heartbeat=600,
-                    connection_attempts=3,
-                    socket_timeout=5,
-                    retry_delay=1,
-                    blocked_connection_timeout=300,
-                )
-
-                # Try to resolve hostname if it's not an IP
-                if not self._is_ip_address(Config.RABBITMQ_HOST):
-                    try:
-                        resolved_ip = socket.gethostbyname(Config.RABBITMQ_HOST)
-                        logger_service.info(
-                            f"Resolved {Config.RABBITMQ_HOST} to {resolved_ip}"
-                        )
-                    except socket.gaierror:
-                        logger_service.warning(
-                            f"Could not resolve hostname {Config.RABBITMQ_HOST}"
-                        )
-                        # In development mode, don't fail
-                        if self._ignore_connection_errors:
-                            raise pika.exceptions.AMQPConnectionError(
-                                f"Could not resolve hostname {Config.RABBITMQ_HOST} (ignored in development)"
-                            )
-                        raise
-
-                connection = pika.BlockingConnection(connection_params)
-                logger_service.info("Successfully connected to RabbitMQ")
-                return connection
-
-            except pika.exceptions.AMQPError as e:
-                if attempt == max_retries - 1:
-                    logger_service.error(
-                        f"Failed to connect to RabbitMQ after {max_retries} attempts"
-                    )
-                    raise
-
-                logger_service.warning(
-                    f"RabbitMQ connection attempt {attempt + 1} failed: {str(e)}"
-                )
-                time.sleep(retry_delay)
-                retry_delay *= 2
-            except Exception as e:
-                logger_service.error(
-                    f"Unexpected error connecting to RabbitMQ: {str(e)}"
-                )
-                if attempt == max_retries - 1:
-                    raise
-                time.sleep(retry_delay)
-                retry_delay *= 2
-
-    def _is_ip_address(self, host: str) -> bool:
-        """Check if the host is an IP address"""
+    def _setup_connection(self):
+        """Set up connection to RabbitMQ"""
         try:
-            socket.inet_aton(host)
-            return True
-        except socket.error:
-            return False
-
-    def _declare_infrastructure(self):
-        """Declare exchanges, queues and bindings"""
-        if not self._channel:
-            logger_service.warning(
-                "Cannot declare RabbitMQ infrastructure: no channel available"
+            credentials = pika.PlainCredentials(
+                self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS
             )
-            return
-
-        try:
-            # Declare exchanges
-            logger_service.info(f"Declaring exchange: {self._exchange_name}")
-            self._channel.exchange_declare(
-                exchange=self._exchange_name, exchange_type="topic", durable=True
+            parameters = pika.ConnectionParameters(
+                host=self.config.RABBITMQ_HOST,
+                port=self.config.RABBITMQ_PORT,
+                virtual_host=self.config.RABBITMQ_VHOST,
+                credentials=credentials,
+                heartbeat=600,
+                blocked_connection_timeout=300,
             )
 
-            # Declare queues and bindings
-            for queue, routing_keys in self._queues.items():
-                logger_service.info(f"Declaring queue: {queue}")
-                self._channel.queue_declare(queue=queue, durable=True)
+            self.connection = pika.BlockingConnection(parameters)
+            self.channel = self.connection.channel()
 
-                for routing_key in routing_keys:
-                    logger_service.info(
-                        f"Binding queue {queue} to exchange {self._exchange_name} with routing key {routing_key}"
-                    )
-                    self._channel.queue_bind(
-                        exchange=self._exchange_name,
-                        queue=queue,
-                        routing_key=routing_key,
-                    )
+            # Declare exchanges for inter-service communication
+            self.channel.exchange_declare(
+                exchange="medical.events", exchange_type="topic", durable=True
+            )
 
-            # Initialize queue metrics
-            for queue in self._queues:
-                update_queue_metrics(self._channel, queue)
+            self.channel.exchange_declare(
+                exchange="medical.commands", exchange_type="direct", durable=True
+            )
 
-            logger_service.info("Successfully declared RabbitMQ infrastructure")
+            self.channel.exchange_declare(
+                exchange="medical.reports", exchange_type="topic", durable=True
+            )
+
+            # Declare queues for reports service
+            self.channel.queue_declare(queue="reports.processing", durable=True)
+            self.channel.queue_declare(queue="reports.notifications", durable=True)
+            self.channel.queue_declare(queue="reports.analysis", durable=True)
+
+            # Bind queues to exchanges with appropriate routing keys
+            self.channel.queue_bind(
+                exchange="medical.events",
+                queue="reports.processing",
+                routing_key="report.created",
+            )
+
+            self.channel.queue_bind(
+                exchange="medical.reports",
+                queue="reports.analysis",
+                routing_key="report.analysis.requested",
+            )
+
+            self.channel.queue_bind(
+                exchange="medical.reports",
+                queue="reports.notifications",
+                routing_key="report.#",
+            )
+
+            logger_service.info("Successfully connected to RabbitMQ")
+
         except Exception as e:
-            logger_service.error(f"Error declaring RabbitMQ infrastructure: {str(e)}")
-            if not self._ignore_connection_errors:
+            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            if not self.config.RABBITMQ_IGNORE_CONNECTION_ERRORS:
                 raise
 
     @track_rabbitmq_metrics
-    def publish(self, routing_key: str, message: dict, **properties):
-        """Publish message with circuit breaker and metrics"""
-        if not self._channel and self._ignore_connection_errors:
-            logger_service.warning(
-                f"Skipping message publish (routing_key={routing_key}): RabbitMQ connection not available"
-            )
-            return
-
+    def publish_message(self, exchange: str, routing_key: str, message: Dict[str, Any]):
+        """Publish a message to RabbitMQ with circuit breaker protection"""
         try:
-            logger_service.info(
-                f"Publishing message to {self._exchange_name} with routing key: {routing_key}"
-            )
-            logger_service.debug(f"Message content: {message}")
 
-            self._channel.basic_publish(
-                exchange=self._exchange_name,
-                routing_key=routing_key,
-                body=json.dumps(message),
-                properties=pika.BasicProperties(
-                    delivery_mode=2,  # make message persistent
-                    content_type="application/json",
-                    **properties,
-                ),
-            )
-            logger_service.info(
-                f"Successfully published message with routing key: {routing_key}"
-            )
+            def _publish():
+                if not self.connection or self.connection.is_closed:
+                    self._setup_connection()
 
-            # Update queue metrics after publish
-            for queue, routes in self._queues.items():
-                for route in routes:
-                    if self._routing_key_matches(route, routing_key):
-                        update_queue_metrics(self._channel, queue)
+                # Update metrics before publishing
+                if self.channel:
+                    try:
+                        update_queue_metrics(self.channel, f"{exchange}.{routing_key}")
+                    except Exception as metrics_error:
+                        logger_service.warning(
+                            f"Error updating metrics: {str(metrics_error)}"
+                        )
 
-        except pika.exceptions.AMQPError as e:
-            logger_service.error(f"Failed to publish message: {str(e)}")
-            if self._ignore_connection_errors:
-                logger_service.warning(
-                    "Message publishing error ignored in development mode"
+                # Convert message to JSON and publish
+                message_body = json.dumps(message)
+                self.channel.basic_publish(
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    body=message_body,
+                    properties=pika.BasicProperties(
+                        delivery_mode=2,  # persistent
+                        content_type="application/json",
+                        timestamp=int(time.time()),
+                        message_id=f"{socket.gethostname()}-{time.time()}",
+                    ),
                 )
-            else:
-                raise
-        except Exception as e:
-            logger_service.error(f"Unexpected error publishing message: {str(e)}")
-            if not self._ignore_connection_errors:
-                raise
 
-    def _routing_key_matches(self, pattern: str, routing_key: str) -> bool:
-        """Check if routing key matches pattern with wildcards"""
-        if pattern == routing_key:
-            return True
-        if pattern.endswith("#"):
-            prefix = pattern[:-1]
-            return routing_key.startswith(prefix)
-        if "#" not in pattern and "*" not in pattern:
-            return False
-
-        # For more complex patterns we'd need a more sophisticated matching algorithm
-        # This is a simple implementation that handles the most common cases
-        pattern_parts = pattern.split(".")
-        key_parts = routing_key.split(".")
-
-        if len(pattern_parts) > len(key_parts) and "#" not in pattern_parts:
-            return False
-
-        for i, part in enumerate(pattern_parts):
-            if part == "#":
+                logger_service.info(f"Published message to {exchange}:{routing_key}")
+                track_dependency_status("rabbitmq", True)
                 return True
-            if part == "*":
-                if i >= len(key_parts):
-                    return False
-                continue
-            if i >= len(key_parts) or part != key_parts[i]:
-                return False
 
-        return len(key_parts) == len(pattern_parts)
+            # Use circuit breaker to protect against RabbitMQ failures
+            return self.circuit_breaker.call(_publish)
+
+        except Exception as e:
+            logger_service.error(f"Failed to publish message: {str(e)}")
+            track_dependency_status("rabbitmq", False)
+            raise
+
+    def consume_messages(self, queue_name: str, callback):
+        """Set up a consumer for the specified queue"""
+        try:
+            if not self.connection or self.connection.is_closed:
+                self._setup_connection()
+
+            self.channel.basic_qos(prefetch_count=1)
+            self.channel.basic_consume(queue=queue_name, on_message_callback=callback)
+
+            logger_service.info(f"Started consuming messages from {queue_name}")
+            self.channel.start_consuming()
+
+        except Exception as e:
+            logger_service.error(f"Error setting up consumer: {str(e)}")
+            raise
 
     def close(self):
-        """Close RabbitMQ connection"""
-        try:
-            if self._connection and not self._connection.is_closed:
-                self._connection.close()
-                logger_service.info("Closed RabbitMQ connection")
-        except Exception as e:
-            logger_service.error(f"Error closing RabbitMQ connection: {str(e)}")
-
-    def __enter__(self):
-        """Context manager entry"""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit"""
-        self.close()
+        """Close the RabbitMQ connection"""
+        if self.connection and not self.connection.is_closed:
+            self.connection.close()
+            logger_service.info("RabbitMQ connection closed")

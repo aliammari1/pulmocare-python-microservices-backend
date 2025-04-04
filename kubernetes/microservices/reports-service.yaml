@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports-service
+  namespace: medapp-services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reports-service
+  template:
+    metadata:
+      labels:
+        app: reports-service
+    spec:
+      containers:
+        - name: reports-service
+          image: ${REGISTRY_URL:-localhost}/medapp-reports-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+              name: http
+            - containerPort: 9095
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: medapp-common-config
+          env:
+            - name: ENV
+              value: "production"
+            - name: PORT
+              value: "8085"
+            - name: METRICS_PORT
+              value: "9095"
+            - name: OTEL_SERVICE_NAME
+              value: "reports-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=reports-service"
+          volumeMounts:
+            - name: reports-logs
+              mountPath: /app/logs
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: reports-logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reports-service
+  namespace: medapp-services
+spec:
+  selector:
+    app: reports-service
+  ports:
+    - port: 8085
+      targetPort: 8085
+      name: http
+    - port: 9095
+      targetPort: 9095
+      name: metrics

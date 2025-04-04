@@ -2,6 +2,7 @@ import base64
 import os
 from datetime import datetime
 from typing import Dict, Optional
+
 import uvicorn
 from auth.keycloak_auth import get_current_doctor
 from bson import ObjectId
@@ -14,6 +15,7 @@ from models.api_models import ErrorResponse, MessageResponse
 from models.ordonnance import (Ordonnance, OrdonnanceCreate, OrdonnanceInDB,
                                OrdonnanceList, OrdonnanceUpdate)
 from pymongo import DESCENDING
+from routes.integration_routes import router as integration_router
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
@@ -412,5 +414,20 @@ async def generate_pdf(ordonnance_id: str):
         logger_service.error(f"Error generating PDF: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
 
+
+# Include the integration router
+app.include_router(integration_router)
+
+# Import the consumer module and threading
+import threading
+from consumer import main as consumer_main
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)
+    # Start the consumer in a separate thread
+    consumer_thread = threading.Thread(target=consumer_main, daemon=True)
+    consumer_thread.start()
+    
+    # Run the FastAPI app with uvicorn in the main thread
+    uvicorn.run(
+        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
+    )

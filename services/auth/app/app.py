@@ -5,8 +5,9 @@ from typing import List, Optional
 import requests
 from fastapi import Depends, FastAPI, HTTPException, Path, status
 from fastapi.middleware.cors import CORSMiddleware
-from middleware.keycloak_auth import get_user_from_token, keycloak_middleware
+from middleware.keycloak_auth import get_current_user, keycloak_middleware
 from pydantic import BaseModel, EmailStr
+from routes.integration_routes import router as integration_router
 
 from config import Config
 
@@ -147,24 +148,50 @@ def health_check():
 )
 async def login(request: LoginRequest):
     try:
+        # Log the login attempt (without password)
+        logger.info(f"Login attempt for user: {request.email}")
+        
+        # Prepare the request data
+        login_data = {
+            "client_id": KEYCLOAK_CLIENT_ID,
+            "client_secret": KEYCLOAK_CLIENT_SECRET,
+            "grant_type": "password",
+            "username": request.email,
+            "password": request.password,
+        }
+        
+        logger.debug(f"Sending auth request to Keycloak with client_id: {KEYCLOAK_CLIENT_ID}")
+        
         # Authenticate with Keycloak
         response = requests.post(
             TOKEN_URL,
-            data={
-                "client_id": KEYCLOAK_CLIENT_ID,
-                "client_secret": KEYCLOAK_CLIENT_SECRET,
-                "grant_type": "password",
-                "username": request.email,
-                "password": request.password,
-            },
+            data=login_data,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
+        # Log response details (without sensitive data)
+        logger.debug(f"Keycloak response status: {response.status_code}")
+        
         if response.status_code != 200:
-            logger.error(f"Keycloak login failed: {response.text}")
-            raise HTTPException(status_code=401, detail="Invalid credentials")
+            error_data = response.json() if response.text else {"error": "Unknown error"}
+            logger.error(f"Keycloak login failed: {error_data}")
+            
+            # Check for specific error types and provide more user-friendly messages
+            if "error" in error_data and error_data["error"] == "invalid_grant":
+                if "error_description" in error_data and "Invalid user credentials" in error_data["error_description"]:
+                    raise HTTPException(
+                        status_code=401, 
+                        detail="The email or password you entered is incorrect. Please try again."
+                    )
+            
+            # Generic error for other cases
+            raise HTTPException(
+                status_code=401, 
+                detail=f"Authentication failed: {error_data.get('error_description', 'Invalid credentials')}"
+            )
 
         token_data = response.json()
+        logger.info(f"Login successful for user: {request.email}")
 
         # Get user info from access token
         userinfo_response = requests.get(
@@ -195,7 +222,7 @@ async def login(request: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {str(e)}")
+        logger.error(f"Login error: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Authentication failed: {str(e)}")
 
 
@@ -575,7 +602,7 @@ async def forgot_password(request: ForgotPasswordRequest):
     },
 )
 async def get_user(
-    user_id: str = Path(...), user_info: dict = Depends(get_user_from_token)
+    user_id: str = Path(...), user_info: dict = Depends(get_current_user)
 ):
     try:
         # Check if requesting own info or has admin role
@@ -643,7 +670,12 @@ async def get_user(
         )
 
 
+# Include the integration router
+app.include_router(integration_router)
+
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host=Config.HOST, port=Config.PORT)
+    uvicorn.run(
+        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
+    )

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -81,3 +81,61 @@ class ReportRequest(BaseModel):
     examType: str
     reportType: str
     content: str
+
+
+# New models for improved service intercommunication
+
+
+class RadiologyImage(BaseModel):
+    id: Optional[str] = None
+    url: str
+    type: str
+    uploaded_at: Optional[str] = None
+
+
+class RadiologyReportRequest(BaseModel):
+    patient_id: str
+    patient_name: str
+    doctor_id: Optional[str] = None
+    doctor_name: Optional[str] = None
+    exam_type: str
+    report_type: str
+    content: str
+    findings: Optional[str] = None
+    conclusion: Optional[str] = None
+    images: Optional[List[RadiologyImage]] = None
+
+
+class RadiologyReportResponse(BaseModel):
+    id: str
+    patient_id: str
+    patient_name: str
+    doctor_id: Optional[str] = None
+    doctor_name: Optional[str] = None
+    radiologist_id: Optional[str] = None
+    radiologist_name: Optional[str] = None
+    exam_type: str
+    report_type: str
+    content: str
+    findings: Optional[str] = None
+    conclusion: Optional[str] = None
+    images: Optional[List[RadiologyImage]] = None
+    status: str
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class RadiologyReportsListResponse(BaseModel):
+    items: List[RadiologyReportResponse]
+    total: int
+    page: int
+    pages: int
+
+
+class RadiologyExaminationRequest(BaseModel):
+    doctor_id: str
+    patient_id: str
+    patient_name: str
+    exam_type: str
+    reason: Optional[str] = None
+    urgency: str = "normal"  # normal, urgent, emergency

@@ -7,25 +7,29 @@ import smtplib
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from typing import Dict, List, Optional
-import uvicorn
+
 import pytesseract
 import requests
+import uvicorn
 from auth.jwt_auth import create_access_token, get_current_user
 from bs4 import BeautifulSoup
 from bson import ObjectId
 from decorator.health_check import health_check_middleware
 from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, status
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from models.api_models import (ErrorResponse, ForgotPasswordRequest,
                                LoginRequest, LoginResponse, MessageResponse,
+                               RadiologyReportRequest, RadiologyReportResponse,
+                               RadiologyReportsListResponse,
                                ResetPasswordRequest, ScanVisitCardRequest,
                                ScanVisitCardResponse, SignupRequest,
                                VerifyOTPRequest, VerifyRadiologueRequest,
                                VerifyRadiologueResponse)
 from models.radiologue import Radiologue
 from PIL import Image
+from routes.integration_routes import router as integration_router
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
@@ -776,5 +780,194 @@ def scrape_medtn_radiologues():
         logger_service.error(f"Failed to retrieve data: {response.status_code}")
         return []
 
+
+@app.get(
+    "/api/reports",
+    response_model=RadiologyReportsListResponse,
+    responses={500: {"model": ErrorResponse}},
+)
+async def get_radiology_reports(
+    doctor_id: Optional[str] = None,
+    patient_id: Optional[str] = None,
+    status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+):
+    """Get radiology reports with filtering options"""
+    try:
+        # Build query based on parameters
+        query = {}
+        if doctor_id:
+            query["doctor_id"] = doctor_id
+        if patient_id:
+            query["patient_id"] = patient_id
+        if status:
+            query["status"] = status
+
+        # Get total count for pagination
+        total = rapports_collection.count_documents(query)
+
+        # Calculate skip based on page and limit
+        skip = (page - 1) * limit
+
+        # Get paginated results
+        cursor = (
+            rapports_collection.find(query).sort("date", -1).skip(skip).limit(limit)
+        )
+
+        # Convert to list of reports
+        reports = []
+        for report in cursor:
+            report["id"] = str(report.pop("_id"))
+            # Format dates for serialization
+            if "date" in report:
+                report["created_at"] = report["date"].isoformat()
+                report.pop("date")
+            if "updated_at" in report and isinstance(report["updated_at"], datetime):
+                report["updated_at"] = report["updated_at"].isoformat()
+
+            reports.append(report)
+
+        return {
+            "items": reports,
+            "total": total,
+            "page": page,
+            "pages": (total + limit - 1) // limit if limit > 0 else 1,
+        }
+
+    except Exception as e:
+        logger_service.error(f"Error retrieving radiology reports: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve radiology reports: {str(e)}"
+        )
+
+
+@app.get(
+    "/api/reports/{report_id}",
+    response_model=RadiologyReportResponse,
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def get_radiology_report(report_id: str):
+    """Get a specific radiology report by ID"""
+    try:
+        # Validate ID format
+        if not ObjectId.is_valid(report_id):
+            raise HTTPException(status_code=400, detail="Invalid report ID format")
+
+        # Find report
+        report = rapports_collection.find_one({"_id": ObjectId(report_id)})
+
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+
+        # Format report for serialization
+        report["id"] = str(report.pop("_id"))
+
+        # Format dates for serialization
+        if "date" in report:
+            report["created_at"] = report["date"].isoformat()
+            report.pop("date")
+        if "updated_at" in report and isinstance(report["updated_at"], datetime):
+            report["updated_at"] = report["updated_at"].isoformat()
+
+        return report
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error retrieving radiology report: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve radiology report: {str(e)}"
+        )
+
+
+@app.post(
+    "/api/reports",
+    response_model=RadiologyReportResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+)
+async def create_radiology_report(
+    request: RadiologyReportRequest,
+    user_info: Dict = Depends(get_current_user),
+):
+    """Create a new radiology report"""
+    try:
+        radiologue_id = user_info.get("user_id")
+
+        # Get radiologist info
+        radiologue = radiologues_collection.find_one({"_id": ObjectId(radiologue_id)})
+        if not radiologue:
+            raise HTTPException(status_code=404, detail="Radiologist not found")
+
+        # Create report
+        new_report = {
+            "patient_id": request.patient_id,
+            "patient_name": request.patient_name,
+            "doctor_id": request.doctor_id,
+            "doctor_name": request.doctor_name,
+            "radiologist_id": radiologue_id,
+            "radiologist_name": radiologue.get("name", "Unknown Radiologist"),
+            "exam_type": request.exam_type,
+            "report_type": request.report_type,
+            "content": request.content,
+            "findings": request.findings,
+            "conclusion": request.conclusion,
+            "status": "completed",
+            "date": datetime.utcnow(),
+            "images": request.images or [],
+        }
+
+        # Insert into database
+        result = rapports_collection.insert_one(new_report)
+
+        # Get the created report
+        created_report = rapports_collection.find_one({"_id": result.inserted_id})
+
+        # Format for response
+        created_report["id"] = str(created_report.pop("_id"))
+        created_report["created_at"] = created_report["date"].isoformat()
+        created_report.pop("date")
+
+        # Notify doctor about new report via RabbitMQ
+        if request.doctor_id:
+            rabbitmq_client.publish_message(
+                exchange="medical.reports",
+                routing_key="report.completed",
+                message={
+                    "report_id": created_report["id"],
+                    "doctor_id": request.doctor_id,
+                    "patient_id": request.patient_id,
+                    "exam_type": request.exam_type,
+                    "status": "completed",
+                    "timestamp": datetime.utcnow().isoformat(),
+                },
+            )
+
+        return created_report
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error creating radiology report: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create radiology report: {str(e)}"
+        )
+
+
+# Include the integration router
+app.include_router(integration_router)
+
+# Import the consumer module and threading
+import threading
+from consumer import main as consumer_main
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)
+    # Start the consumer in a separate thread
+    consumer_thread = threading.Thread(target=consumer_main, daemon=True)
+    consumer_thread.start()
+    
+    # Run the FastAPI app with uvicorn in the main thread
+    uvicorn.run(
+        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
+    )

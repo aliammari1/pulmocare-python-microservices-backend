@@ -1,3 +1,7 @@
+import uuid
+from datetime import datetime
+from typing import List, Optional
+
 from services.logger_service import logger_service
 
 
@@ -8,6 +12,7 @@ class ReportService:
         self.mongodb_client = mongodb_client
         self.redis_client = redis_client
         self.rabbitmq_client = rabbitmq_client
+        self.db = mongodb_client.db
 
     def get_all_reports(self, search=None):
         """Get all reports with optional filtering"""
@@ -101,3 +106,95 @@ class ReportService:
         except Exception as e:
             logger_service.error(f"Error deleting report {report_id}: {str(e)}")
             raise
+
+    def queue_report_for_analysis(self, report_id: str) -> bool:
+        """Queue a report for analysis"""
+        try:
+            # Get the report
+            report = self.db.reports.find_one({"report_id": report_id})
+            if not report:
+                logger_service.error(f"Report not found: {report_id}")
+                return False
+
+            # Mark as queued for analysis
+            self.db.reports.update_one(
+                {"report_id": report_id},
+                {
+                    "$set": {
+                        "analysis_status": "queued",
+                        "queued_at": datetime.utcnow().isoformat(),
+                    }
+                },
+            )
+
+            # Create an analysis record
+            self.db.report_analyses.insert_one(
+                {
+                    "report_id": report_id,
+                    "status": "queued",
+                    "queued_at": datetime.utcnow().isoformat(),
+                }
+            )
+
+            # Send to RabbitMQ for processing
+            message = {
+                "report_id": report_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            self.rabbitmq_client.publish_message(
+                exchange="medical.reports",
+                routing_key="report.analysis.requested",
+                message=message,
+            )
+
+            return True
+
+        except Exception as e:
+            logger_service.error(f"Error queueing report for analysis: {e}")
+            return False
+
+    def queue_summary_generation(
+        self,
+        report_ids: List[str],
+        summary_type: str,
+        requester_id: Optional[str] = None,
+    ) -> str:
+        """Queue a summary generation job"""
+        try:
+            # Generate a job ID
+            job_id = str(uuid.uuid4())
+
+            # Create a job record
+            job = {
+                "job_id": job_id,
+                "report_ids": report_ids,
+                "summary_type": summary_type,
+                "requester_id": requester_id,
+                "status": "queued",
+                "created_at": datetime.utcnow().isoformat(),
+            }
+
+            # Save to database
+            self.db.summary_jobs.insert_one(job)
+
+            # Send to RabbitMQ for processing
+            message = {
+                "job_id": job_id,
+                "report_ids": report_ids,
+                "summary_type": summary_type,
+                "requester_id": requester_id,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+            self.rabbitmq_client.publish_message(
+                exchange="medical.reports",
+                routing_key="report.summary.requested",
+                message=message,
+            )
+
+            return job_id
+
+        except Exception as e:
+            logger_service.error(f"Error queueing summary generation: {e}")
+            return None

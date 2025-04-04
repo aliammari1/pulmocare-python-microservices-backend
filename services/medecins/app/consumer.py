@@ -11,147 +11,161 @@ from config import Config
 def handle_appointment_request(ch, method, properties, body):
     """Handle incoming appointment requests"""
     try:
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received appointment request: {message}")
+
+        # Store in database
         mongodb_client = MongoDBClient(Config)
-        data = json.loads(body)
-        appointment_id = data.get("appointment_id")
-        doctor_id = data.get("doctor_id")
-        patient_id = data.get("patient_id")
-        requested_time = data.get("requested_time")
+        mongodb_client.db.appointment_requests.insert_one(
+            {
+                "appointment_id": message.get("appointment_id"),
+                "patient_id": message.get("patient_id"),
+                "doctor_id": message.get("doctor_id"),
+                "requested_time": message.get("requested_time"),
+                "reason": message.get("reason"),
+                "status": "pending",
+                "created_at": datetime.utcnow().isoformat(),
+                "raw_request": message,
+            }
+        )
 
-        logger_service.info(f"Received appointment request for doctor {doctor_id}")
-
-        # Get MongoDB connection
-        mongodb_client_service = MongoDBClient(Config)
-        mongodb_client = mongodb_client_service.client
-        db = mongodb_client_service.db
-        if not mongodb_client:
-            logger_service.error("Failed to connect to MongoDB")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-            return
-
-        try:
-            # Check doctor availability
-            doctor = db.doctors.find_one({"_id": doctor_id})
-            if not doctor:
-                logger_service.error(f"Doctor {doctor_id} not found")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            # Store appointment request
-            db.appointments.insert_one(
-                {
-                    "_id": appointment_id,
-                    "doctor_id": doctor_id,
-                    "patient_id": patient_id,
-                    "requested_time": requested_time,
-                    "status": "pending",
-                    "created_at": datetime.utcnow(),
-                }
-            )
-
-            # Notify doctor about new appointment
-            rabbitmq_client = RabbitMQClient(Config)
-            rabbitmq_client.publish_message(
-                "medical.events",
-                "doctor.appointment.requested",
-                {
-                    "event": "appointment_requested",
-                    "appointment_id": appointment_id,
-                    "doctor_id": doctor_id,
-                    "patient_id": patient_id,
-                    "requested_time": requested_time,
-                },
-            )
-
-            logger_service.info(
-                f"Successfully processed appointment request {appointment_id}"
-            )
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-
-        except Exception as e:
-            logger_service.error(f"Error processing appointment request: {str(e)}")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-
-        finally:
-            if mongodb_client:
-                mongodb_client.close()
-            if rabbitmq_client:
-                rabbitmq_client.close()
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logger_service.error(f"Error processing message: {str(e)}")
-        ch.basic_nack(delivery_tag=method.delivery_tag)
+        logger_service.error(f"Error processing appointment request: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
 
 def handle_report_notification(ch, method, properties, body):
     """Handle incoming report notifications"""
     try:
-        data = json.loads(body)
-        report_id = data.get("report_id")
-        event = data.get("event")
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received report notification: {message}")
 
-        logger_service.info(
-            f"Received report notification: {event} for report {report_id}"
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.report_notifications.insert_one(
+            {
+                "report_id": message.get("report_id"),
+                "patient_id": message.get("patient_id"),
+                "doctor_id": message.get("doctor_id"),
+                "status": message.get("status"),
+                "received_at": datetime.utcnow().isoformat(),
+                "raw_notification": message,
+            }
         )
 
-        # Get MongoDB connection
-        mongodb_client_service = MongoDBClient(Config)
-        mongodb_client = mongodb_client_service.client
-        db = mongodb_client_service.db
-        if not mongodb_client:
-            logger_service.error("Failed to connect to MongoDB")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-            return
-
-        try:
-            # Update doctor's notification collection
-            notification = {
-                "type": "report",
-                "report_id": report_id,
-                "event": event,
-                "created_at": datetime.utcnow(),
-                "read": False,
-            }
-
-            db.doctor_notifications.insert_one(notification)
-            logger_service.info(f"Stored notification for report {report_id}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-
-        except Exception as e:
-            logger_service.error(f"Error processing report notification: {str(e)}")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-
-        finally:
-            if mongodb_client:
-                mongodb_client.close()
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logger_service.error(f"Error processing message: {str(e)}")
-        ch.basic_nack(delivery_tag=method.delivery_tag)
+        logger_service.error(f"Error processing report notification: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def handle_radiology_report_completed(ch, method, properties, body):
+    """Handle notifications about completed radiology reports"""
+    try:
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(
+            f"Received radiology report completed notification: {message}"
+        )
+
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.radiology_reports.insert_one(
+            {
+                "request_id": message.get("request_id"),
+                "report_id": message.get("report_id"),
+                "patient_id": message.get("patient_id"),
+                "doctor_id": message.get("doctor_id"),
+                "exam_type": message.get("exam_type"),
+                "status": message.get("status"),
+                "received_at": datetime.utcnow().isoformat(),
+                "raw_notification": message,
+            }
+        )
+
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger_service.error(f"Error processing radiology report: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def handle_prescription_notification(ch, method, properties, body):
+    """Handle notifications about prescriptions"""
+    try:
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received prescription notification: {message}")
+
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.prescription_notifications.insert_one(
+            {
+                "prescription_id": message.get("prescription_id"),
+                "patient_id": message.get("patient_id", "unknown"),
+                "doctor_id": message.get("doctor_id", "unknown"),
+                "action": message.get("action", "unknown"),
+                "received_at": datetime.utcnow().isoformat(),
+                "raw_notification": message,
+            }
+        )
+
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger_service.error(f"Error processing prescription notification: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
 
 def main():
     """Main consumer function"""
     try:
-        # Create RabbitMQ client
+        # Initialize clients
         rabbitmq_client = RabbitMQClient(Config)
 
-        # Setup consumers
-        rabbitmq_client.channel.basic_consume(
-            queue="appointment.requests", on_message_callback=handle_appointment_request
+        # Set up consumers for different queues
+
+        # Appointment requests
+        rabbitmq_client.consume_messages(
+            "appointment.requests", handle_appointment_request
         )
 
-        rabbitmq_client.channel.basic_consume(
-            queue="doctor.notifications", on_message_callback=handle_report_notification
+        # Report notifications
+        rabbitmq_client.consume_messages(
+            "doctor.notifications", handle_report_notification
         )
 
-        logger_service.info("Started consuming messages")
+        # Radiology report completions
+        rabbitmq_client.consume_messages(
+            "doctor.radiology.reports", handle_radiology_report_completed
+        )
+
+        # Prescription events
+        rabbitmq_client.consume_messages(
+            "prescription.events", handle_prescription_notification
+        )
+
+        # Start consuming (this is a blocking call)
+        logger_service.info("Starting to consume messages. Press CTRL+C to exit.")
         rabbitmq_client.channel.start_consuming()
 
+    except KeyboardInterrupt:
+        logger_service.info("Consumer stopped by user.")
     except Exception as e:
-        logger_service.error(f"Consumer error: {str(e)}")
-        if rabbitmq_client:
-            rabbitmq_client.close()
+        logger_service.error(f"Consumer error: {e}")
 
 
 if __name__ == "__main__":

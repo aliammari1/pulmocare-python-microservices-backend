@@ -126,6 +126,9 @@ class Config:
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=1)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
+    # Analysis settings
+    AUTO_ANALYZE_REPORTS = os.getenv("AUTO_ANALYZE_REPORTS", "true").lower() == "true"
+
     @classmethod
     def get_mongodb_uri(cls):
         """Get MongoDB connection URI with proper handling of special characters in password"""

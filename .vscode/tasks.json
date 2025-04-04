@@ -47,10 +47,20 @@
             "problemMatcher": []
         },
         {
+            "label": "Run Auth Service",
+            "type": "shell",
+            "command": "cd services/auth && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "presentation": {
+                "panel": "new"
+            },
+            "problemMatcher": []
+        },
+        {
             "label": "Run All Services",
             "type": "shell",
             "command": "echo Running all services...",
             "dependsOn": [
+                "Run Auth Service",
                 "Run Medecins Service",
                 "Run Ordonnances Service",
                 "Run Patients Service",
@@ -67,6 +77,7 @@
     "compounds": {
         "Run All Services": {
             "tasks": [
+                "Run Auth Service",
                 "Run Medecins Service",
                 "Run Ordonnances Service",
                 "Run Patients Service",

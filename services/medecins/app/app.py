@@ -7,9 +7,10 @@ import smtplib
 from datetime import datetime, timedelta
 from email.mime.text import MIMEText
 from typing import Dict
-import uvicorn
+
 import jwt
 import pytesseract
+import uvicorn
 from auth.keycloak_auth import get_current_user
 from bson import ObjectId
 from decorator.health_check import health_check_middleware
@@ -24,6 +25,7 @@ from models.api_models import (ErrorResponse, ForgotPasswordRequest,
                                VerifyDoctorResponse, VerifyOTPRequest)
 from models.doctor import Doctor, DoctorInDB, DoctorUpdate, PasswordChange
 from PIL import Image
+from routes.integration_routes import router as integration_router
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
@@ -63,7 +65,6 @@ tracing_service = TracingService(app)
 redis_client = RedisClient(Config)
 mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
-
 
 
 def send_otp_email(to_email, otp):
@@ -657,5 +658,18 @@ async def update_signature(
         )
 
 
+app.include_router(integration_router)
+
+# Import the consumer module and threading
+import threading
+from consumer import main as consumer_main
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)
+    # Start the consumer in a separate thread
+    consumer_thread = threading.Thread(target=consumer_main, daemon=True)
+    consumer_thread.start()
+    
+    # Run the FastAPI app with uvicorn in the main thread
+    uvicorn.run(
+        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
+    )

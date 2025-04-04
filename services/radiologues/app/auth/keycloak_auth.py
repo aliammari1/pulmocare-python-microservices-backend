@@ -1,138 +1,132 @@
+import logging
 import os
 from typing import Dict
 
-import jwt
 import requests
-from dotenv import load_dotenv
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-# Load environment variables
-env = os.getenv("ENV", "development")
-dotenv_file = f".env.{env}"
-if not os.path.exists(dotenv_file):
-    dotenv_file = ".env"
-load_dotenv(dotenv_path=dotenv_file)
+logger = logging.getLogger("keycloak_auth")
 
-# Keycloak configuration
-KEYCLOAK_BASE_URL = os.getenv("KEYCLOAK_BASE_URL", "http://localhost:8080")
-KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "medapp")
-KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-client")
-KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
-
-# Load JWT secret from environment or use default
-JWT_SECRET_KEY = os.getenv("JWT_SECRET", "replace-with-strong-secret")
-
-# Create HTTP bearer token scheme
 security = HTTPBearer()
 
 
-def keycloak_auth(token: str) -> Dict:
+class KeycloakAuth:
     """
-    Validate token with Keycloak and return user info
+    Keycloak authentication integration for the radiologues service.
     """
-    introspect_url = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/token/introspect"
 
-    payload = {
-        "token": token,
-        "client_id": KEYCLOAK_CLIENT_ID,
-        "client_secret": KEYCLOAK_CLIENT_SECRET,
-    }
+    def __init__(self):
+        """Initialize the Keycloak authentication client."""
+        self.auth_service_url = os.getenv(
+            "AUTH_SERVICE_URL", "http://auth-service:8086"
+        )
+        logger.info(f"Using auth service at: {self.auth_service_url}")
 
-    try:
-        response = requests.post(introspect_url, data=payload)
-        response.raise_for_status()
-        token_data = response.json()
+    async def verify_token(self, token: str):
+        """
+        Verify a JWT token with Keycloak.
 
-        if not token_data.get("active", False):
+        Args:
+            token: JWT token to verify
+
+        Returns:
+            Token verification result
+        """
+        try:
+            response = requests.post(
+                f"{self.auth_service_url}/api/auth/token/verify", json={"token": token}
+            )
+            response.raise_for_status()
+            return response.json()
+        except Exception as e:
+            logger.error(f"Token verification error: {str(e)}")
+            raise
+
+    async def get_current_user(
+        self, credentials: HTTPAuthorizationCredentials = Depends(security)
+    ):
+        """
+        FastAPI dependency for extracting and validating the token from the request.
+
+        Args:
+            credentials: The HTTP Authorization header credentials
+
+        Returns:
+            The validated user information
+
+        Raises:
+            HTTPException: If the token is invalid or missing
+        """
+        try:
+            token = credentials.credentials
+            verification = await self.verify_token(token)
+
+            if not verification.get("valid", False):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            return verification
+        except Exception as e:
+            logger.error(f"Authentication error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token is invalid or expired",
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Get user details
-        user_info_url = f"{KEYCLOAK_BASE_URL}/realms/{KEYCLOAK_REALM}/protocol/openid-connect/userinfo"
-        user_info_response = requests.get(
-            user_info_url, headers={"Authorization": f"Bearer {token}"}
-        )
-        user_info_response.raise_for_status()
-        user_info = user_info_response.json()
+    async def get_current_radiologist(
+        self, user_info: Dict = Depends(get_current_user)
+    ):
+        """
+        FastAPI dependency for checking if the user has the radiologist role.
 
-        return {
-            "user_id": user_info.get("sub"),
-            "email": user_info.get("email"),
-            "name": user_info.get("name"),
-            "roles": token_data.get("realm_access", {}).get("roles", []),
-        }
+        Args:
+            user_info: The user information from get_current_user
 
-    except requests.RequestException as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Failed to validate token: {str(e)}",
-        )
+        Returns:
+            The validated radiologist information
 
+        Raises:
+            HTTPException: If the user doesn't have the radiologist role
+        """
+        roles = user_info.get("roles", [])
+        if "radiologist-role" not in roles and "admin" not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Radiologist role required",
+            )
+        return user_info
 
-def verify_jwt(token: str) -> Dict:
-    """
-    Verify JWT token when Keycloak is not available
-    """
-    try:
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=["HS256"])
-        return {"user_id": payload.get("user_id")}
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token or expired token",
-        )
+    async def get_current_admin(self, user_info: Dict = Depends(get_current_user)):
+        """
+        FastAPI dependency for checking if the user has the admin role.
 
+        Args:
+            user_info: The user information from get_current_user
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
-    """
-    Get the current user from the token in the request
-    """
-    token = credentials.credentials
+        Returns:
+            The validated admin information
 
-    # Try Keycloak first, fallback to JWT
-    try:
-        return keycloak_auth(token)
-    except HTTPException:
-        # Fallback to local JWT verification
-        return verify_jwt(token)
+        Raises:
+            HTTPException: If the user doesn't have the admin role
+        """
+        roles = user_info.get("roles", [])
+        if "admin" not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin role required",
+            )
+        return user_info
 
 
-async def get_current_radiologist(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
-    """
-    Get the current radiologist from the token, checking for radiologist role
-    """
-    user_info = await get_current_user(credentials)
+# Create a global instance that can be imported directly
+keycloak_auth = KeycloakAuth()
 
-    # Check if roles are available (Keycloak was used)
-    if "roles" in user_info and "radiologist" not in user_info["roles"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User does not have radiologist role",
-        )
-
-    return user_info
-
-
-async def get_current_admin(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
-    """
-    Get the current admin from the token, checking for admin role
-    """
-    user_info = await get_current_user(credentials)
-
-    # Check if roles are available (Keycloak was used)
-    if "roles" in user_info and "admin" not in user_info["roles"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User does not have admin role",
-        )
-
-    return user_info
+# Export dependencies for convenience
+get_current_user = keycloak_auth.get_current_user
+get_current_radiologist = keycloak_auth.get_current_radiologist
+get_current_admin = keycloak_auth.get_current_admin

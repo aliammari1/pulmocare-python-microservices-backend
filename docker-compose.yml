@@ -15,7 +15,11 @@ x-service-env: &service-env
   OTEL_LOGS_EXPORTER: "otlp"
   LOG_FORMAT: "json"
   LOG_LEVEL: "DEBUG"
-  KEYCLOAK_URL: "http://keycloak:8080"
+  KEYCLOAK_URL: "http://keycloak:8080/auth"
+  KEYCLOAK_REALM: "medapp"
+  KEYCLOAK_CLIENT_ID: "medapp-api"
+  KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"
+  AUTH_SERVICE_URL: "http://auth-service:8086"
 
 services:
   # Keycloak Service
@@ -626,6 +630,26 @@ services:
       timeout: 10s
       retries: 3
 
+  # Portainer - Container Management
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: medapp-portainer
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "9002:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
 networks:
   medapp-network:
     driver: bridge
@@ -646,4 +670,5 @@ volumes:
   grafana_data:
   loki_data:
   tempo_data:
+  portainer_data:
   keycloak_db_data:

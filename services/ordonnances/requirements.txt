@@ -12,7 +12,7 @@ reportlab
 redis
 pika
 psutil
-prometheus_client
+prometheus_client>=0.17.1
 opentelemetry-api==1.31.0
 opentelemetry-sdk==1.31.0
 opentelemetry-instrumentation-fastapi==0.52b0
@@ -23,4 +23,5 @@ opentelemetry-instrumentation-grpc==0.52b0
 opentelemetry-instrumentation==0.52b0
 opentelemetry-exporter-otlp-proto-grpc==1.31.0
 opentelemetry-exporter-otlp-proto-http==1.31.0
+opentelemetry-exporter-prometheus==0.52b0
 opentelemetry-semantic-conventions==0.52b0

@@ -8,89 +8,129 @@ from services.rabbitmq_client import RabbitMQClient
 from config import Config
 
 
-def handle_analysis_request(ch, method, properties, body):
-    """Handle incoming radiology analysis requests"""
+def handle_examination_request(ch, method, properties, body):
+    """Handle incoming radiology examination requests"""
     try:
-        data = json.loads(body)
-        report_id = data.get("report_id")
-        image_data = data.get("image_data")
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received examination request: {message}")
 
-        logger_service.info(f"Received analysis request for report {report_id}")
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.examination_requests.insert_one(
+            {
+                "request_id": message.get("request_id"),
+                "doctor_id": message.get("doctor_id"),
+                "patient_id": message.get("patient_id"),
+                "patient_name": message.get("patient_name"),
+                "exam_type": message.get("exam_type"),
+                "reason": message.get("reason"),
+                "urgency": message.get("urgency", "normal"),
+                "status": "requested",
+                "timestamp": datetime.utcnow().isoformat(),
+                "raw_request": message,
+            }
+        )
 
-        # Get MongoDB connection
-        mongodb_client_service = MongoDBClient(Config)
-        mongodb_client = mongodb_client_service.client
-        db = mongodb_client_service.db
-        if not mongodb_client:
-            logger_service.error("Failed to connect to MongoDB")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-            return
-
-        try:
-            # Find the radiology report
-            report = db.radiology_reports.find_one({"_id": report_id})
-            if not report:
-                logger_service.error(f"Report {report_id} not found")
-                ch.basic_ack(delivery_tag=method.delivery_tag)
-                return
-
-            # Perform image analysis
-            analysis_result = (
-                "the analyis result modify it in the radilogues service consumer.py"
-            )
-
-            # Update report with analysis results
-            db.radiology_reports.update_one(
-                {"_id": report_id},
-                {
-                    "$set": {
-                        "analysis": analysis_result,
-                        "analyzed_at": datetime.utcnow(),
-                        "status": "analyzed",
-                    }
-                },
-            )
-
-            # Publish analysis results
-            rabbitmq_client = RabbitMQClient(Config)
-            rabbitmq_client.publish_analysis_result(report_id, analysis_result)
-
-            logger_service.info(f"Successfully analyzed report {report_id}")
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-
-        except Exception as e:
-            logger_service.error(f"Error processing analysis request: {str(e)}")
-            ch.basic_nack(delivery_tag=method.delivery_tag)
-
-        finally:
-            if mongodb_client:
-                mongodb_client.close()
-            if rabbitmq_client:
-                rabbitmq_client.close()
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
-        logger_service.error(f"Error processing message: {str(e)}")
-        ch.basic_nack(delivery_tag=method.delivery_tag)
+        logger_service.error(f"Error processing examination request: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def handle_report_analysis_request(ch, method, properties, body):
+    """Handle requests for radiology report analysis"""
+    try:
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received report analysis request: {message}")
+
+        # Get the report data
+        report_id = message.get("report_id")
+        report_data = message.get("report_data")
+
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.analysis_requests.insert_one(
+            {
+                "report_id": report_id,
+                "received_at": datetime.utcnow().isoformat(),
+                "status": "received",
+                "report_data": report_data,
+                "raw_request": message,
+            }
+        )
+
+        # Here you would typically trigger the analysis process
+        # For now, just acknowledge the message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger_service.error(f"Error processing report analysis request: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def handle_notification(ch, method, properties, body):
+    """Handle general notifications for radiologists"""
+    try:
+        # Parse message
+        message = json.loads(body)
+        logger_service.info(f"Received notification: {message}")
+
+        # Store in database
+        mongodb_client = MongoDBClient(Config)
+        mongodb_client.db.notifications.insert_one(
+            {
+                "notification_type": method.routing_key,
+                "received_at": datetime.utcnow().isoformat(),
+                "raw_notification": message,
+            }
+        )
+
+        # Acknowledge message
+        ch.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger_service.error(f"Error processing notification: {e}")
+        # Negative acknowledgment with requeue=True to retry later
+        ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
 
 def main():
     """Main consumer function"""
     try:
-        # Create RabbitMQ client
+        # Initialize clients
         rabbitmq_client = RabbitMQClient(Config)
 
-        # Setup analysis request consumer
-        rabbitmq_client.channel.basic_consume(
-            queue="radiology.analysis", on_message_callback=handle_analysis_request
+        # Set up consumers for different queues
+
+        # Examination requests
+        rabbitmq_client.consume_messages(
+            "radiologues.examinations", handle_examination_request
         )
 
-        logger_service.info("Started consuming analysis requests")
+        # Report analysis requests
+        rabbitmq_client.consume_messages(
+            "radiologues.analysis", handle_report_analysis_request
+        )
+
+        # General notifications
+        rabbitmq_client.consume_messages(
+            "radiologues.notifications", handle_notification
+        )
+
+        # Start consuming (this is a blocking call)
+        logger_service.info("Starting to consume messages. Press CTRL+C to exit.")
         rabbitmq_client.channel.start_consuming()
 
+    except KeyboardInterrupt:
+        logger_service.info("Consumer stopped by user.")
     except Exception as e:
-        logger_service.error(f"Consumer error: {str(e)}")
-        if rabbitmq_client:
-            rabbitmq_client.close()
+        logger_service.error(f"Consumer error: {e}")
 
 
 if __name__ == "__main__":

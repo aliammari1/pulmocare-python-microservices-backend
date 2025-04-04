@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: medapp-services
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: ${REGISTRY_URL:-localhost}/medapp-auth-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8086
+              name: http
+            - containerPort: 9096
+              name: metrics
+          envFrom:
+            - configMapRef:
+                name: medapp-common-config
+          env:
+            - name: ENV
+              value: "production"
+            - name: PORT
+              value: "8086"
+            - name: METRICS_PORT
+              value: "9096"
+            - name: OTEL_SERVICE_NAME
+              value: "auth-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=auth-service"
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: medapp-secrets
+                  key: keycloak-client-secret
+          volumeMounts:
+            - name: auth-logs
+              mountPath: /app/logs
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: auth-logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: medapp-services
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - port: 8086
+      targetPort: 8086
+      name: http
+    - port: 9096
+      targetPort: 9096
+      name: metrics

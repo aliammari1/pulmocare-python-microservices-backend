@@ -1,0 +1,18 @@
+[
+  {
+    "id": "doctor123",
+    "name": "Test Doctor",
+    "email": "testdoctor@example.com",
+    "specialty": "General",
+    "phone_number": "1234567890",
+    "is_verified": true
+  },
+  {
+    "id": "doctor456",
+    "name": "Another Doctor",
+    "email": "anotherdoctor@example.com",
+    "specialty": "Cardiology",
+    "phone_number": "9876543210",
+    "is_verified": true
+  }
+]
