@@ -203,6 +203,8 @@ class KeycloakMiddleware:
 
         try:
             token = credentials.credentials
+            
+            # Normal token verification path
             payload = self.verify_token(token)
 
             # Check for required roles if specified

@@ -1,288 +1,7 @@
 _format_version: "3.0"
 _transform: true
 
-# The configuration remains the same, but it will now be imported to the database
-# rather than being used directly in DB-less mode
-
-upstreams:
-  - name: medecins-service-upstream
-    targets:
-      - target: medecins-service:8081
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-  - name: patients-service-upstream
-    targets:
-      - target: patients-service:8083
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-  - name: ordonnances-service-upstream
-    targets:
-      - target: ordonnances-service:8082
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-  - name: radiologues-service-upstream
-    targets:
-      - target: radiologues-service:8084
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-  - name: reports-service-upstream
-    targets:
-      - target: reports-service:8085
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-  - name: auth-service-upstream
-    targets:
-      - target: auth-service:8086
-        weight: 100
-    healthchecks:
-      active:
-        concurrency: 10
-        healthy:
-          interval: 5
-          successes: 1
-          http_statuses: [200, 302]
-        unhealthy:
-          interval: 5
-          timeouts: 2
-          http_failures: 2
-          http_statuses: [429, 404, 500, 501, 502, 503, 504, 505]
-        type: http
-        http_path: /health
-        timeout: 1
-
-services:
-  - name: medecins-service
-    url: http://medecins-service:8081
-    retries: 5
-    connect_timeout: 1000
-    write_timeout: 60000
-    read_timeout: 60000
-    routes:
-      - name: medecins-auth
-        paths:
-          - /api/signup
-          - /api/login
-          - /api/forgot-password
-          - /api/verify-otp
-          - /api/reset-password
-        strip_path: false
-        methods:
-          - POST
-      - name: medecins-profile
-        paths:
-          - /api/profile
-          - /api/change-password
-          - /api/update-profile
-          - /api/logout
-        strip_path: false
-      - name: medecins-special
-        paths:
-          - /api/scan-visit-card
-          - /api/verify-doctor
-          - /api/update-signature
-        strip_path: false
-      - name: medecins-api
-        paths:
-          - /api/medecins
-        strip_path: false
-        preserve_host: true
-      - name: medecins-integration
-        paths:
-          - /api/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
-  - name: ordonnances-service
-    url: http://ordonnances-service:8082
-    routes:
-      - name: ordonnances-main
-        paths:
-          - /api/ordonnances
-        strip_path: false
-      - name: ordonnances-specific
-        paths:
-          - /api/ordonnances/medecin
-          - /api/ordonnances/ordonnance
-        strip_path: false
-      - name: ordonnances-verify
-        paths:
-          - /api/ordonnances/verify
-        strip_path: false
-      - name: ordonnances-integration
-        paths:
-          - /api/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
-  - name: patients-service
-    url: http://patients-service:8083
-    routes:
-      - name: patients-auth
-        paths:
-          - /api/patient/signup
-          - /api/patient/login
-          - /api/patient/forgot-password
-          - /api/patient/verify-otp
-          - /api/patient/reset-password
-        strip_path: false
-        methods:
-          - POST
-      - name: patients-api
-        paths:
-          - /api/patients
-          - /api/patient/list
-        strip_path: false
-      - name: patients-integration
-        paths:
-          - /api/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
-  - name: radiologues-service
-    url: http://radiologues-service:8084
-    routes:
-      - name: radiologues
-        paths:
-          - /api/v1/radiologues
-        strip_path: false
-        preserve_host: true
-      - name: radiologues-integration
-        paths:
-          - /api/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
-  - name: reports-service
-    url: http://reports-service:8085
-    routes:
-      - name: reports-api
-        paths:
-          - /api/reports
-        strip_path: false
-      - name: reports-integration
-        paths:
-          - /api/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
-  - name: auth-service
-    url: http://auth-service:8086
-    retries: 5
-    connect_timeout: 1000
-    write_timeout: 60000
-    read_timeout: 60000
-    routes:
-      - name: auth-routes
-        paths:
-          - /api/auth
-        strip_path: false
-        preserve_host: true
-      - name: auth-integration
-        paths:
-          - /api/auth/integration
-        strip_path: false
-        methods:
-          - GET
-          - POST
-          - PUT
-          - DELETE
-        preserve_host: true
-
+# Global plugins applied to all services
 plugins:
   - name: cors
     config:
@@ -327,13 +46,26 @@ plugins:
       upstream_health_metrics: true
       bandwidth_metrics: true
 
-  - name: jwt
-    service: auth-service
+  # Global OpenID Connect plugin configuration
+  - name: openid-connect
     config:
-      claims_to_verify:
-        - exp
+      issuer: "http://keycloak:8080/auth/realms/medapp"
+      client_id: ["medapp-api"]
+      client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+      ssl_verify: false
+      session_secret: "${OIDC_SESSION_SECRET:-mAjFkf86JuisaDs}"
+      response_type: ["code"]
+      bearer_token_param_type: ["header", "query"]
+      scopes: ["openid", "email", "profile", "roles"]
+      auth_methods: ["bearer", "session"]
+
+  - name: jwt
+    config:
+      key_claim_name: "kid"
+      claims_to_verify: ["exp"]
       run_on_preflight: true
-      maximum_expiration: 86400 # 24 hours
+      cookie_names: []
+      header_names: ["Authorization"]
 
   - name: correlation-id
     config:
@@ -341,17 +73,103 @@ plugins:
       generator: uuid#counter
       echo_downstream: true
 
-  - name: request-transformer
-    config:
-      add:
-        headers:
-          - X-Service-Version:${service.version}
-          - X-Service-ID:${service.id}
-          - X-Service-Name:${service.name}
+services:
+  # Auth service for Keycloak
+  - name: auth-service
+    url: http://keycloak:8080
+    routes:
+      - name: keycloak-auth
+        paths:
+          - /auth
+        strip_path: false
+        preserve_host: true
 
-  - name: response-transformer
-    config:
-      add:
-        headers:
-          - X-Kong-Upstream-Latency:${upstream_response_time}
-          - X-Kong-Proxy:${kong.node.id}
+  # API Services with protected routes
+  - name: medecins-service
+    url: http://medecins-service:8081
+    routes:
+      - name: medecins-public
+        paths:
+          - /api/signup
+          - /api/login
+          - /api/forgot-password
+        strip_path: false
+        methods: ["POST", "OPTIONS"]
+      - name: medecins-protected
+        paths:
+          - /api/medecins
+          - /api/profile
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "http://keycloak:8080/auth/realms/medapp"
+              client_id: ["medapp-api"]
+              client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+
+  - name: patients-service
+    url: http://patients-service:8083
+    routes:
+      - name: patients-public
+        paths:
+          - /api/patient/signup
+          - /api/patient/login
+          - /api/patient/forgot-password
+        strip_path: false
+        methods: ["POST", "OPTIONS"]
+      - name: patients-protected
+        paths:
+          - /api/patients
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "http://keycloak:8080/auth/realms/medapp"
+              client_id: ["medapp-api"]
+              client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+
+  - name: ordonnances-service
+    url: http://ordonnances-service:8082
+    routes:
+      - name: ordonnances-protected
+        paths:
+          - /api/ordonnances
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "http://keycloak:8080/auth/realms/medapp"
+              client_id: ["medapp-api"]
+              client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+
+  - name: radiologues-service
+    url: http://radiologues-service:8084
+    routes:
+      - name: radiologues-protected
+        paths:
+          - /api/v1/radiologues
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "http://keycloak:8080/auth/realms/medapp"
+              client_id: ["medapp-api"]
+              client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+
+  - name: reports-service
+    url: http://reports-service:8085
+    routes:
+      - name: reports-protected
+        paths:
+          - /api/reports
+        strip_path: false
+        plugins:
+          - name: openid-connect
+            config:
+              issuer: "http://keycloak:8080/auth/realms/medapp"
+              client_id: ["medapp-api"]
+              client_secret: ["${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"]
+
+consumers:
+  - username: keycloak
+    custom_id: keycloak-integration

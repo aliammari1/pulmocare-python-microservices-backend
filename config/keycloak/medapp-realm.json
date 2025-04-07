@@ -20,9 +20,7 @@
   "quickLoginCheckMilliSeconds": 1000,
   "maxDeltaTimeSeconds": 43200,
   "failureFactor": 5,
-  "defaultRoles": [
-    "user"
-  ],
+  "defaultRoles": ["user"],
   "roles": {
     "realm": [
       {
@@ -349,14 +347,8 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "secret": "your-client-secret",
-      "redirectUris": [
-        "http://localhost:8000/*",
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:8000",
-        "http://localhost:3000"
-      ],
+      "redirectUris": ["http://localhost:8000/*", "http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:8000", "http://localhost:3000"],
       "notBefore": 0,
       "bearerOnly": false,
       "consentRequired": false,
@@ -376,7 +368,8 @@
         "saml.server.signature.keyinfo.ext": "false",
         "exclude.session.state.from.auth.response": "false",
         "backchannel.logout.session.required": "true",
-        "backchannel.logout.revoke.offline.tokens": "false"
+        "backchannel.logout.revoke.offline.tokens": "false",
+        "service.accounts.roles": "true"
       },
       "fullScopeAllowed": true,
       "nodeReRegistrationTimeout": -1,
@@ -438,18 +431,19 @@
           }
         }
       ],
-      "defaultClientScopes": [
-        "web-origins",
-        "roles",
-        "profile",
-        "email"
-      ],
+      "defaultClientScopes": ["web-origins", "roles", "profile", "email"],
       "optionalClientScopes": [
         "address",
         "phone",
         "offline_access",
         "microprofile-jwt"
-      ]
+      ],
+      "authorizationSettings": {
+        "allowRemoteResourceManagement": true,
+        "policyEnforcementMode": "ENFORCING",
+        "resources": [],
+        "policies": []
+      }
     },
     {
       "clientId": "medapp-frontend",
@@ -462,12 +456,8 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "redirectUris": [
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:3000"
-      ],
+      "redirectUris": ["http://localhost:3000/*"],
+      "webOrigins": ["http://localhost:3000"],
       "notBefore": 0,
       "bearerOnly": false,
       "consentRequired": false,

@@ -6,3 +6,4 @@ logs
 venv
 .vscode/mcp.json
 *.pyc
+.pytest_cache

@@ -72,6 +72,85 @@
                 "panel": "dedicated"
             },
             "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Medecins Service",
+            "type": "shell",
+            "command": "cd services/medecins && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Ordonnances Service",
+            "type": "shell",
+            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Patients Service",
+            "type": "shell",
+            "command": "cd services/patients && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Radiologues Service",
+            "type": "shell",
+            "command": "cd services/radiologues && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Reports Service",
+            "type": "shell",
+            "command": "cd services/reports && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run Tests - Auth Service",
+            "type": "shell",
+            "command": "cd services/auth && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "presentation": {
+                "panel": "new",
+                "reveal": "always"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run All Tests",
+            "type": "shell",
+            "command": "echo Running all tests...",
+            "dependsOn": [
+                "Run Tests - Auth Service",
+                "Run Tests - Medecins Service",
+                "Run Tests - Ordonnances Service",
+                "Run Tests - Patients Service",
+                "Run Tests - Radiologues Service",
+                "Run Tests - Reports Service"
+            ],
+            "dependsOrder": "parallel",
+            "presentation": {
+                "panel": "dedicated",
+                "reveal": "always"
+            },
+            "problemMatcher": []
         }
     ],
     "compounds": {

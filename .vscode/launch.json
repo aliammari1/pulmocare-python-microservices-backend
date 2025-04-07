@@ -70,6 +70,56 @@
                 "PYTHONPATH": "${workspaceFolder}/services/reports:${env:PYTHONPATH}"
             },
             "justMyCode": false
+        },
+        {
+            "name": "Debug Auth Service",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "app.py",
+            "cwd": "${workspaceFolder}/services/auth/app",
+            "console": "integratedTerminal",
+            "env": {
+                "VIRTUAL_ENV": "${workspaceFolder}/services/auth/.venv",
+                "PATH": "${workspaceFolder}/services/auth/.venv/Scripts:${env:PATH}",
+                "PYTHONPATH": "${workspaceFolder}/services/auth:${env:PYTHONPATH}"
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "Debug Auth Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-v",
+                "test.py"
+            ],
+            "cwd": "${workspaceFolder}/services/auth/app",
+            "console": "integratedTerminal",
+            "env": {
+                "VIRTUAL_ENV": "${workspaceFolder}/services/auth/.venv",
+                "PATH": "${workspaceFolder}/services/auth/.venv/Scripts:${env:PATH}",
+                "PYTHONPATH": "${workspaceFolder}/services/auth:${env:PYTHONPATH}"
+            },
+            "justMyCode": false
+        },
+        {
+            "name": "Debug Medecins Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest",
+            "args": [
+                "-v",
+                "app/test.py"
+            ],
+            "cwd": "${workspaceFolder}/services/medecins",
+            "console": "integratedTerminal",
+            "env": {
+                "VIRTUAL_ENV": "${workspaceFolder}/services/medecins/.venv",
+                "PATH": "${workspaceFolder}/services/medecins/.venv/Scripts:${env:PATH}",
+                "PYTHONPATH": "${workspaceFolder}/services/medecins:${env:PYTHONPATH}"
+            },
+            "justMyCode": false
         }
     ]
 }

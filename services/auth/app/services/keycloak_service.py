@@ -25,33 +25,28 @@ class KeycloakService:
         self.userinfo_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/userinfo"
         self.users_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users"
 
-        if KeycloakOpenID and KeycloakAdmin:
-            try:
-                # Initialize the client for regular operations
-                self.keycloak_openid = KeycloakOpenID(
-                    server_url=self.keycloak_url,
-                    client_id=self.client_id,
-                    realm_name=self.realm,
-                    client_secret_key=self.client_secret,
-                )
+        # Test mode flag
+        self.is_test_mode = os.getenv("AUTH_TEST_MODE", "false").lower() == "true"
+        if self.is_test_mode:
+            logging.info("Keycloak service running in TEST MODE")
 
-                # Initialize admin client for administrative operations
-                self.keycloak_admin = KeycloakAdmin(
-                    server_url=self.keycloak_url,
-                    username=self.config.KEYCLOAK_ADMIN_USERNAME,
-                    password=self.config.KEYCLOAK_ADMIN_PASSWORD,
-                    realm_name=self.realm,
-                    verify=True,
-                )
-                logging.info("Keycloak service initialized with native client")
-            except Exception as e:
-                logging.error(f"Error initializing Keycloak clients: {str(e)}")
-                self.keycloak_openid = None
-                self.keycloak_admin = None
-        else:
-            logging.warning("Using direct API calls as fallback for Keycloak operations")
-            self.keycloak_openid = None
-            self.keycloak_admin = None
+        self.keycloak_openid = KeycloakOpenID(
+            server_url=self.keycloak_url,
+            client_id=self.client_id,
+            realm_name=self.realm,
+            client_secret_key=self.client_secret,
+        )
+
+        # Initialize admin client for administrative operations
+        self.keycloak_admin = KeycloakAdmin(
+            server_url=self.keycloak_url,
+            username=self.config.KEYCLOAK_ADMIN_USERNAME,
+            password=self.config.KEYCLOAK_ADMIN_PASSWORD,
+            realm_name=self.realm,
+            verify=True,
+        )
+        logging.info("Keycloak service initialized with native client")
+
 
     def login(self, username, password):
         """
@@ -181,7 +176,15 @@ class KeycloakService:
             dict: Decoded token information
         """
         try:
-            # Get the public key for verification
+            # For test mode, try our token provider first
+            if self.is_test_mode:
+                try:
+                    return token_provider.verify_token(token)
+                except Exception as e:
+                    logging.debug(f"Test token verification failed: {str(e)}, trying regular verification")
+                    # Continue to regular verification
+            
+            # Regular verification for all tokens
             JWKS = self.keycloak_openid.well_known()["jwks_uri"]
             options = {
                 "verify_signature": True,

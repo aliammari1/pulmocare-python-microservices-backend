@@ -1,5 +1,6 @@
 import logging
 import os
+import datetime
 from typing import List, Optional
 
 import requests
@@ -151,7 +152,7 @@ async def login(request: LoginRequest):
         # Log the login attempt (without password)
         logger.info(f"Login attempt for user: {request.email}")
         
-        # Prepare the request data
+        # Prepare the request data for authentication
         login_data = {
             "client_id": KEYCLOAK_CLIENT_ID,
             "client_secret": KEYCLOAK_CLIENT_SECRET,
@@ -201,9 +202,14 @@ async def login(request: LoginRequest):
 
         if userinfo_response.status_code != 200:
             logger.error(f"Failed to get user info: {userinfo_response.text}")
-            raise HTTPException(status_code=500, detail="Failed to get user info")
-
-        user_info = userinfo_response.json()
+            # Instead of failing, provide minimal user info based on the token
+            user_info = {
+                "sub": token_data.get("sub", "unknown"),
+                "email": request.email,
+                "realm_access": {"roles": ["user"]},
+            }
+        else:
+            user_info = userinfo_response.json()
 
         # Return combined response
         return {
@@ -211,12 +217,12 @@ async def login(request: LoginRequest):
             "refresh_token": token_data["refresh_token"],
             "expires_in": token_data["expires_in"],
             "user_id": user_info.get("sub"),
-            "email": user_info.get("email"),
+            "email": user_info.get("email", request.email),
             "name": user_info.get("name"),
             "given_name": user_info.get("given_name"),
             "family_name": user_info.get("family_name"),
-            "preferred_username": user_info.get("preferred_username"),
-            "roles": user_info.get("realm_access", {}).get("roles", []),
+            "preferred_username": user_info.get("preferred_username", request.email),
+            "roles": user_info.get("realm_access", {}).get("roles", ["user"]),
         }
 
     except HTTPException:
@@ -231,36 +237,29 @@ async def login(request: LoginRequest):
 async def verify_token(request: TokenRequest):
     try:
         token = request.token
-
+        
         try:
-            # Verify token with Keycloak middleware
+            # Standard token verification using Keycloak middleware
             payload = keycloak_middleware.verify_token(token)
-
-            # Get user info
-            userinfo_response = requests.get(
-                USERINFO_URL, headers={"Authorization": f"Bearer {token}"}
-            )
-
-            if userinfo_response.status_code != 200:
-                logger.warning(f"Failed to get user info: {userinfo_response.text}")
-
-                # Still return basic verification if token is valid
-                return {
-                    "valid": True,
-                    "user_id": payload.get("sub"),
-                    "expires_at": payload.get("exp"),
-                    "issued_at": payload.get("iat"),
-                }
-
-            user_info = userinfo_response.json()
-
-            # Return combined verification
+            
+            # Get user info when possible
+            user_info = None
+            try:
+                userinfo_response = requests.get(
+                    USERINFO_URL, headers={"Authorization": f"Bearer {token}"}
+                )
+                if userinfo_response.status_code == 200:
+                    user_info = userinfo_response.json()
+            except Exception as e:
+                logger.warning(f"Failed to get supplementary user info: {str(e)}")
+            
+            # Return verification result with payload from middleware
             return {
                 "valid": True,
                 "user_id": payload.get("sub"),
-                "email": user_info.get("email"),
-                "name": user_info.get("name"),
-                "roles": user_info.get("realm_access", {}).get("roles", []),
+                "email": user_info.get("email") if user_info else payload.get("email"),
+                "name": user_info.get("name") if user_info else payload.get("name"),
+                "roles": payload.get("realm_access", {}).get("roles", []),
                 "expires_at": payload.get("exp"),
                 "issued_at": payload.get("iat"),
             }
@@ -331,7 +330,11 @@ async def refresh_token(request: RefreshTokenRequest):
 )
 async def register(request: RegisterRequest):
     try:
+        # Log registration attempt
+        logger.info(f"Registration attempt for user: {request.email}")
+        
         # Get admin token to create user
+        logger.debug("Requesting admin token from Keycloak")
         admin_token_response = requests.post(
             TOKEN_URL,
             data={
@@ -342,11 +345,15 @@ async def register(request: RegisterRequest):
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
 
+        # Enhanced error logging for admin token request
         if admin_token_response.status_code != 200:
-            logger.error(f"Failed to get admin token: {admin_token_response.text}")
-            raise HTTPException(status_code=500, detail="Authentication server error")
+            error_msg = admin_token_response.text if admin_token_response.text else "No error details"
+            logger.error(f"Failed to get admin token: Status {admin_token_response.status_code}, Response: {error_msg}")
+            logger.error(f"Check that client {KEYCLOAK_CLIENT_ID} is properly configured in Keycloak with 'Service Account Roles' and has realm-management roles assigned")
+            raise HTTPException(status_code=500, detail="Authentication server error: insufficient permissions")
 
         admin_token = admin_token_response.json()["access_token"]
+        logger.debug("Successfully obtained admin token")
 
         # Prepare user data
         username = request.username or request.email
@@ -369,7 +376,8 @@ async def register(request: RegisterRequest):
             if hasattr(request, attr) and getattr(request, attr):
                 user_data["attributes"][attr] = [getattr(request, attr)]
 
-        # Create user in Keycloak
+        # Create user in Keycloak with enhanced logging
+        logger.debug(f"Attempting to create user with username: {username}")
         create_user_response = requests.post(
             REGISTER_URL,
             json=user_data,
@@ -379,17 +387,29 @@ async def register(request: RegisterRequest):
             },
         )
 
+        # Enhanced error handling for user creation
         if (
             create_user_response.status_code != 201
             and create_user_response.status_code != 204
         ):
-            logger.error(f"User creation failed: {create_user_response.text}")
-
+            error_content = create_user_response.text if create_user_response.text else "No error details"
+            logger.error(f"User creation failed: Status {create_user_response.status_code}, Response: {error_content}")
+            
             if create_user_response.status_code == 409:
                 raise HTTPException(status_code=409, detail="Email already registered")
+            elif create_user_response.status_code == 403:
+                logger.error(
+                    "Permission denied. Ensure the client has realm-admin role or manage-users permission in realm-management."
+                )
+                raise HTTPException(
+                    status_code=500, 
+                    detail="User registration failed: Insufficient permissions. Contact the administrator."
+                )
+            else:
+                raise HTTPException(status_code=500, detail=f"User registration failed: {error_content}")
 
-            raise HTTPException(status_code=500, detail="User registration failed")
-
+        logger.info(f"User created successfully in Keycloak: {username}")
+        
         # Get user ID from location header or search for the user
         user_id = None
         if "Location" in create_user_response.headers:
@@ -543,7 +563,10 @@ async def forgot_password(request: ForgotPasswordRequest):
 
         if admin_token_response.status_code != 200:
             logger.error(f"Failed to get admin token: {admin_token_response.text}")
-            raise HTTPException(status_code=500, detail="Authentication server error")
+            # Return generic message for security
+            return {
+                "message": "If your email is registered, you will receive a password reset link"
+            }
 
         admin_token = admin_token_response.json()["access_token"]
 
@@ -577,9 +600,7 @@ async def forgot_password(request: ForgotPasswordRequest):
 
         if reset_response.status_code != 204:
             logger.error(f"Password reset email failed: {reset_response.text}")
-            raise HTTPException(
-                status_code=500, detail="Failed to send password reset email"
-            )
+            return {"message": "If your email is registered, you will receive a password reset link"}
 
         return {"message": "Password reset email sent successfully"}
 
@@ -587,9 +608,7 @@ async def forgot_password(request: ForgotPasswordRequest):
         raise
     except Exception as e:
         logger.error(f"Password reset error: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Password reset request failed: {str(e)}"
-        )
+        return {"message": "If your email is registered, you will receive a password reset link"}
 
 
 # User info endpoint
