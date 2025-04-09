@@ -1,17 +1,24 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including Tesseract OCR
 RUN apt-get -y update && \
     apt-get install -y --no-install-recommends \
     curl \
-
+    tesseract-ocr \
+    libtesseract-dev \
+    libleptonica-dev \
+    pkg-config \
+    gcc \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python packages
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install wheel setuptools && \
+    pip install -r requirements.txt
 
 # Copy application code
 COPY ./app/ .

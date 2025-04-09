@@ -32,11 +32,15 @@ scrape_configs:
     static_configs:
       - targets: ["reports-service:9095"]
 
-  - job_name: "kong"
+  - job_name: "apisix"
+    metrics_path: /apisix/prometheus/metrics
     static_configs:
-      - targets: ["kong:8001"]
+      - targets: ["apisix:9091"]
+
+  - job_name: "etcd"
+    static_configs:
+      - targets: ["etcd:2379"]
 
   - job_name: "prometheus"
     static_configs:
       - targets: ["localhost:9090"]
-

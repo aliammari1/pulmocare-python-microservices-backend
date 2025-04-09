@@ -186,8 +186,8 @@ pipeline {
                 }
                 stage('API Gateway') {
                     steps {
-                        // Deploy Kong Gateway
-                        sh "${DOCKER_COMPOSE} up -d kong"
+                        // Deploy APISIX Gateway
+                        sh "${DOCKER_COMPOSE} up -d etcd apisix apisix-dashboard apisix-init"
                     }
                 }
                 stage('Core Services') {
@@ -218,15 +218,15 @@ pipeline {
                     steps {
                         script {
                             sh '''
-                                # Check Kong Gateway
-                                curl --retry 5 --retry-delay 10 http://kong:8001/status
+                                # Check APISIX Gateway
+                                curl --retry 5 --retry-delay 10 http://apisix:9180/apisix/admin/health
 
-                                # Check all services through Kong
-                                curl --retry 5 --retry-delay 10 http://kong:8000/medecins/health
-                                curl --retry 5 --retry-delay 10 http://kong:8000/ordonnances/health
-                                curl --retry 5 --retry-delay 10 http://kong:8000/patients/health
-                                curl --retry 5 --retry-delay 10 http://kong:8000/radiologues/health
-                                curl --retry 5 --retry-delay 10 http://kong:8000/reports/health
+                                # Check all services through APISIX
+                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/medecins/health
+                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/ordonnances/health
+                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/patients/health
+                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/radiologues/health
+                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/reports/health
                             '''
                         }
                     }

@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -10,7 +10,9 @@ RUN apt-get update && \
 
 # Copy requirements and install Python packages
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && \
+    pip install wheel setuptools && \
+    pip install -r requirements.txt
 
 # Copy application code
 COPY ./app/ .

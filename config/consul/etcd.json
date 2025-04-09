@@ -1,0 +1,14 @@
+{
+  "service": {
+    "name": "etcd",
+    "tags": ["database", "apisix-config"],
+    "port": 2379,
+    "check": {
+      "id": "etcd",
+      "name": "etcd health check",
+      "http": "http://etcd:2379/health",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

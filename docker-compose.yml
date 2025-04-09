@@ -52,7 +52,11 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;"]
+      test:
+        [
+          "CMD-SHELL",
+          "exec 3<>/dev/tcp/127.0.0.1/9000;echo -e 'GET /health/ready HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n' >&3;if [ $? -eq 0 ]; then echo 'Healthcheck Successful';exit 0;else echo 'Healthcheck Failed';exit 1;fi;",
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -83,12 +87,10 @@ services:
     container_name: medapp-auth-service
     ports:
       - "8086:8086"
-      - "9096:9096" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8086"
-      METRICS_PORT: "9096"
       OTEL_SERVICE_NAME: auth-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=auth-service
       KEYCLOAK_REALM: medapp
@@ -149,8 +151,7 @@ services:
       - consul_data:/consul/data
       - ./config/consul:/consul/config
     networks:
-      medapp-network:
-        ipv4_address: 172.20.0.100
+      - medapp-network
     environment:
       CONSUL_LOCAL_CONFIG: '{"leave_on_terminate": true, "skip_leave_on_interrupt": true, "rejoin_after_leave": true}'
       CONSUL_BIND_INTERFACE: eth0
@@ -162,101 +163,87 @@ services:
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
-  kong-migrations:
-    image: kong/kong-gateway:latest
-    command: kong migrations bootstrap
-    depends_on:
-      medecins-service:
-        condition: service_started
-      ordonnances-service:
-        condition: service_started
-      patients-service:
-        condition: service_started
-      radiologues-service:
-        condition: service_started
-      reports-service:
-        condition: service_started
+  
+  # etcd Service
+  etcd:
+    image: bitnami/etcd:latest
+    container_name: medapp-etcd
     environment:
-      KONG_DATABASE: postgres
-      KONG_PG_DATABASE: ${KONG_PG_DATABASE:-kong}
-      KONG_PG_HOST: kong-database
-      KONG_PG_USER: ${POSTGRES_USER:-kong}
-      KONG_PG_PASSWORD: kongpass
-    networks:
-      - medapp-network
-    restart: on-failure
-
-  kong-migrations-up:
-    image: kong/kong-gateway:latest
-    command: bash -c "kong migrations up && kong migrations finish && kong config db_import /kong.yaml"
-    depends_on:
-      kong-migrations:
-        condition: service_completed_successfully
-      kong-database:
-        condition: service_healthy
-    environment:
-      KONG_DATABASE: postgres
-      KONG_PG_DATABASE: kong
-      KONG_PG_HOST: kong-database
-      KONG_PG_USER: kong
-      KONG_PG_PASSWORD: kongpass
-      KONG_PG_PORT: "5432"
-    volumes:
-      - ./config/kong/kong.yaml:/kong.yaml
-    networks:
-      - medapp-network
-    restart: on-failure
-
-  kong-gateway:
-    image: kong/kong-gateway:latest
-    container_name: medapp-kong-gateway
-    user: root
-    networks:
-      - medapp-network
-    volumes:
-      - ./config/kong/kong.conf:/etc/kong/kong.conf
-      - ./config/kong/kong.yaml:/kong.yaml
+      - ALLOW_NONE_AUTHENTICATION=yes
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
     ports:
-      - "8000:8000"
-      - "8001:8001"
-      - "8002:8002"
-    depends_on:
-      kong-migrations-up:
-        condition: service_completed_successfully
-      kong-database:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "kong", "health"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-    restart: always
-
-  kong-database:
-    image: postgres:13
-    environment:
-      - POSTGRES_DB=kong
-      - POSTGRES_USER=kong
-      - POSTGRES_PASSWORD=kongpass
-    ports:
-      - "5432:5432"
-    volumes:
-      - kong_database:/var/lib/postgresql/data
+      - "2379:2379"
     networks:
-      medapp-network:
-        ipv4_address: 172.20.0.200
+      - medapp-network
+    volumes:
+      - etcd_data:/bitnami/etcd
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "kong"]
+      test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 30s
+
+  # APISIX Service
+  apisix:
+    image: apache/apisix:latest
+    container_name: medapp-apisix
+    volumes:
+      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./config/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+    environment:
+      - APISIX_STAND_ALONE=false
+      - ETCD_HOST=http://etcd:2379
+    depends_on:
+      etcd:
+        condition: service_healthy
+    ports:
+      - "9080:9080"
+      - "9091:9091"
+      - "9443:9443"
+      - "9180:9180"
+    networks:
+      - medapp-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9180/apisix/admin/health", "-H", "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # APISIX Dashboard
+  apisix-dashboard:
+    image: apache/apisix-dashboard:latest
+    container_name: medapp-apisix-dashboard
+    volumes:
+      - ./config/apisix-dashboard/conf.yaml:/usr/local/apisix-dashboard/conf/conf.yaml:ro
+    ports:
+      - "8999:9000"
+    environment:
+      - APISIX_BASE_URL=http://apisix:9180
+      - APISIX_API_KEY=edd1c9f034335f136f87ad84b625c8f1
+    depends_on:
+      etcd:
+        condition: service_healthy
+      apisix:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/user/login"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # RabbitMQ Service
   rabbitmq:
     image: rabbitmq:3.12-management
     container_name: medapp-rabbitmq
     volumes:
-      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./config/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -359,8 +346,6 @@ services:
     command: ["--config=/etc/otel-collector/config.yaml"]
     volumes:
       - ./monitoring/otel-collector/config.yaml:/etc/otel-collector/config.yaml
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/log:/var/log:ro
     ports:
       - "4317:4317" # OTLP gRPC
       - "4318:4318" # OTLP HTTP
@@ -410,12 +395,10 @@ services:
     container_name: medapp-medecins-service
     ports:
       - "8081:8081"
-      - "9091:9091" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8081"
-      METRICS_PORT: "9091"
       OTEL_SERVICE_NAME: medecins-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=medecins-service
     depends_on:
@@ -448,12 +431,10 @@ services:
     container_name: medapp-ordonnances-service
     ports:
       - "8082:8082"
-      - "9092:9092" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8082"
-      METRICS_PORT: "9092"
       OTEL_SERVICE_NAME: ordonnances-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=ordonnances-service
     depends_on:
@@ -486,12 +467,10 @@ services:
     container_name: medapp-patients-service
     ports:
       - "8083:8083"
-      - "9093:9093" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8083"
-      METRICS_PORT: "9093"
       OTEL_SERVICE_NAME: patients-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=patients-service
     depends_on:
@@ -524,12 +503,10 @@ services:
     container_name: medapp-radiologues-service
     ports:
       - "8084:8084"
-      - "9094:9094" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8084"
-      METRICS_PORT: "9094"
       OTEL_SERVICE_NAME: radiologues-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=radiologues-service
     depends_on:
@@ -562,12 +539,10 @@ services:
     container_name: medapp-reports-service
     ports:
       - "8085:8085"
-      - "9095:9095" # Metrics port
     environment:
       <<: *service-env
       ENV: production
       PORT: "8085"
-      METRICS_PORT: "9095"
       OTEL_SERVICE_NAME: reports-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=reports-service
     volumes:
@@ -645,7 +620,8 @@ services:
     networks:
       - medapp-network
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/status"]
+      test:
+        ["CMD", "wget", "--spider", "-q", "http://localhost:9000/api/status"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -653,14 +629,11 @@ services:
 networks:
   medapp-network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 volumes:
   mongo_data:
   redis_data:
-  kong_database:
+  etcd_data:
   consul_data:
   sonarqube_data:
   sonarqube_logs:
@@ -672,3 +645,4 @@ volumes:
   tempo_data:
   portainer_data:
   keycloak_db_data:
+  apisix_dashboard_data:
