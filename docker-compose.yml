@@ -163,7 +163,7 @@ services:
       timeout: 5s
       retries: 5
     command: "agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0 -dns-port=8600"
-  
+
   # etcd Service
   etcd:
     image: bitnami/etcd:latest
@@ -187,29 +187,59 @@ services:
 
   # APISIX Service
   apisix:
-    image: apache/apisix:latest
+    build:
+      context: ./config/apisix
+      dockerfile: Dockerfile
     container_name: medapp-apisix
     volumes:
-      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
-      - ./config/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./config/apisix/config.yaml:/usr/local/apisix/conf/config.yaml
+      - ./config/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml
     environment:
       - APISIX_STAND_ALONE=false
       - ETCD_HOST=http://etcd:2379
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-your-client-secret}
+      - APISIX_ADMIN_KEY=edd1c9f034335f136f87ad84b625c8f1
+      # Enable health checks in the logs
+      - APISIX_ERROR_LOG_LEVEL=info
     depends_on:
       etcd:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      medecins-service:
+        condition: service_healthy
+      ordonnances-service:
+        condition: service_healthy
+      patients-service:
+        condition: service_healthy
+      radiologues-service:
+        condition: service_healthy
+      reports-service:
         condition: service_healthy
     ports:
       - "9080:9080"
       - "9091:9091"
+      - "9099:9090"
       - "9443:9443"
       - "9180:9180"
     networks:
       - medapp-network
+    # Health check for other services that depend on APISIX
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9180/apisix/admin/health", "-H", "X-API-KEY: edd1c9f034335f136f87ad84b625c8f1"]
-      interval: 15s
+      test:
+        [
+          "CMD",
+          "curl",
+          "-f",
+          "http://localhost:9180/apisix/admin/server_info",
+          "-H",
+          "X-API-KEY: ${APISIX_ADMIN_KEY}",
+        ]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 30s
 
   # APISIX Dashboard
@@ -217,7 +247,7 @@ services:
     image: apache/apisix-dashboard:latest
     container_name: medapp-apisix-dashboard
     volumes:
-      - ./config/apisix-dashboard/conf.yaml:/usr/local/apisix-dashboard/conf/conf.yaml:ro
+      - ./config/apisix-dashboard/conf.yaml:/usr/local/apisix-dashboard/conf/conf.yaml
     ports:
       - "8999:9000"
     environment:
@@ -227,7 +257,7 @@ services:
       etcd:
         condition: service_healthy
       apisix:
-        condition: service_healthy
+        condition: service_started
     networks:
       - medapp-network
     restart: always

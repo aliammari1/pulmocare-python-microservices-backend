@@ -1,413 +1,189 @@
-#
-# Licensed to the Apache Software Foundation (ASF) under one or more
-# contributor license agreements.  See the NOTICE file distributed with
-# this work for additional information regarding copyright ownership.
-# The ASF licenses this file to You under the Apache License, Version 2.0
-# (the "License"); you may not use this file except in compliance with
-# the License.  You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-#
-
-
-routes:
-  # Health Check Routes
-  - id: health-check
-    name: service-health-checks
-    uri: /health
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-    upstream:
-      type: roundrobin
-      nodes:
-        "auth-service:8086": 1
-        "medecins-service:8081": 1
-        "ordonnances-service:8082": 1
-        "patients-service:8083": 1
-        "radiologues-service:8084": 1
-        "reports-service:8085": 1
-
-  # Medecins Service Routes
-  - id: 1
-    name: medecins-public
-    uri: "^/api/(signup|login|forgot-password)$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "medecins-service:8081": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  - id: 2
-    name: medecins-protected
-    uri: "^/api/(medecins|profile)(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "medecins-service:8081": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        enable: true
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-        realm: "medapp"
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  # Ordonnances Service Routes
-  - id: 3
-    name: ordonnances-protected
-    uri: "^/api/ordonnances(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "ordonnances-service:8082": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        enable: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  # Patients Service Routes
-  - id: 4
-    name: patients-public
-    uri: "^/api/patient/(signup|login|forgot-password)$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "patients-service:8083": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  - id: 5
-    name: patients-protected
-    uri: "^/api/patients(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "patients-service:8083": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        enable: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  # Radiologues Service Routes
-  - id: 6
-    name: radiologues-protected
-    uri: "^/api/v1/radiologues(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "radiologues-service:8084": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        enable: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  # Reports Service Routes
-  - id: 7
-    name: reports-protected
-    uri: "^/api/reports(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "reports-service:8085": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        enable: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  # Auth Service Route (for Keycloak integration)
-  - id: 8
-    name: auth-service
-    uri: "^/auth(/.*)*$"
-    upstream:
-      type: roundrobin
-      nodes:
-        "auth-service:8086": 1
-    plugins:
-      request-id:
-        enable: true
-        header_name: X-Request-Id
-      cors:
-        enable: true
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "Authorization,Content-Type,Accept"
-        expose_headers: "X-Request-Id"
-        max_age: 3600
-        allow_credential: true
-      opentelemetry:
-        enable: true
-        sampler:
-          name: always_on
-
-  - id: auth_service
-    uri: /auth/*
-    upstream:
-      nodes:
-        "auth-service:8086": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-
-  - id: medecins_service
-    uri: /medecins/*
-    upstream:
-      nodes:
-        "medecins-service:8081": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-
-  - id: patients_service
-    uri: /patients/*
-    upstream:
-      nodes:
-        "patients-service:8083": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-
-  - id: ordonnances_service
-    uri: /ordonnances/*
-    upstream:
-      nodes:
-        "ordonnances-service:8082": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-
-  - id: radiologues_service
-    uri: /radiologues/*
-    upstream:
-      nodes:
-        "radiologues-service:8084": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-
-  - id: reports_service
-    uri: /reports/*
-    upstream:
-      nodes:
-        "reports-service:8085": 1
-      type: roundrobin
-    plugins:
-      prometheus:
-        prefer_name: true
-      cors:
-        allow_origins: "*"
-        allow_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
-        allow_headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
-        expose_headers: "Content-Length,Content-Range"
-        max_age: 3600
-        allow_credential: true
-      jwt-auth:
-        header: "Authorization"
-        query: "token"
-        cookie: "jwt"
-        hide_credentials: false
-
-# Global Rule
-global_rules:
-  - id: 1
-    plugins:
-      response-rewrite:
-        enable: true
-        headers:
-          set:
-            X-Powered-By: "APISIX"
-      prometheus:
-        prefer_name: true
-
-# Consumers for authentication
 consumers:
-  - username: jwt_user
-    plugins:
-      jwt-auth:
-        key: user-key
-        secret: user-secret
-
-  - username: api-client
-    plugins:
-      key-auth:
-        key: "api-client-key"
-
-# Define a global rate limit
-plugins:
-  - id: 1
-    plugins:
-      limit-count:
-        enable: true
-        count: 100
-        time_window: 60
-        rejected_code: 429
-        key: remote_addr
-        policy: local
+- plugins:
+    key-auth:
+      header_name: X-API-Key
+      key: ${API_KEY}
+  username: api_user
+global_rules:
+- id: 1
+  plugins:
+    prometheus:
+      prefer_name: true
+    response-rewrite:
+      headers:
+        set:
+          Content-Security-Policy: default-src 'self'; frame-ancestors 'none'
+          Strict-Transport-Security: max-age=31536000; includeSubDomains
+          X-Content-Type-Options: nosniff
+          X-Frame-Options: DENY
+          X-XSS-Protection: 1; mode=block
+routes:
+- enable_websocket: false
+  id: health-check
+  name: service-health-checks
+  plugins:
+    prometheus:
+      enable: true
+    request-id:
+      enable: true
+      header_name: X-Request-Id
+  upstream:
+    nodes:
+      auth-service:8086: 1
+      medecins-service:8081: 1
+      ordonnances-service:8082: 1
+      patients-service:8083: 1
+      radiologues-service:8084: 1
+      reports-service:8085: 1
+    type: roundrobin
+  uri: /health
+- id: auth-service
+  name: auth-service
+  plugins:
+    cors:
+      allow_credential: true
+      allow_headers: Authorization,Content-Type,Accept
+      allow_methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+      allow_origins: ${ALLOWED_ORIGINS}
+      expose_headers: X-Request-Id
+      max_age: 3600
+    limit-req:
+      burst: 20
+      key: remote_addr
+      rate: 10
+      rejected_code: 429
+    prometheus:
+      enable: true
+    request-id:
+      enable: true
+  upstream:
+    checks:
+      active:
+        healthy:
+          interval: 5
+          successes: 2
+        http_path: /health
+        type: http
+        unhealthy:
+          http_failures: 3
+          interval: 3
+    nodes:
+      auth-service:8086: 1
+    type: roundrobin
+  uri: /auth/*
+- id: medecins-protected
+  name: medecins-service
+  plugins:
+    cors:
+      allow_credential: true
+      allow_headers: Authorization,Content-Type,Accept
+      allow_methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+      allow_origins: ${ALLOWED_ORIGINS}
+      expose_headers: X-Request-Id
+      max_age: 3600
+    limit-count:
+      count: 100
+      key: remote_addr
+      policy: redis
+      rejected_code: 429
+      time_window: 60
+    openid-connect:
+      bearer_only: true
+      client_id: ${KEYCLOAK_CLIENT_ID}
+      client_secret: ${KEYCLOAK_CLIENT_SECRET}
+      discovery: ${KEYCLOAK_DISCOVERY_URL}
+      ssl_verify: true
+      timeout: 10
+    prometheus:
+      enable: true
+  upstream:
+    checks:
+      active:
+        healthy:
+          interval: 5
+          successes: 2
+        http_path: /health
+        type: http
+        unhealthy:
+          http_failures: 3
+          interval: 3
+    nodes:
+      medecins-service:8081: 1
+    type: roundrobin
+  uri: /api/medecins/*
+- id: patients-protected
+  name: patients-service
+  plugins:
+    cors:
+      allow_credential: true
+      allow_headers: Authorization,Content-Type,Accept
+      allow_methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+      allow_origins: ${ALLOWED_ORIGINS}
+      expose_headers: X-Request-Id
+      max_age: 3600
+    limit-count:
+      count: 100
+      key: remote_addr
+      policy: redis
+      rejected_code: 429
+      time_window: 60
+    openid-connect:
+      bearer_only: true
+      client_id: ${KEYCLOAK_CLIENT_ID}
+      client_secret: ${KEYCLOAK_CLIENT_SECRET}
+      discovery: ${KEYCLOAK_DISCOVERY_URL}
+      ssl_verify: true
+      timeout: 10
+  upstream:
+    checks:
+      active:
+        healthy:
+          interval: 5
+          successes: 2
+        http_path: /health
+        type: http
+        unhealthy:
+          http_failures: 3
+          interval: 3
+    nodes:
+      patients-service:8083: 1
+    type: roundrobin
+  uri: /api/patients/*
+- id: reports-service
+  name: reports-service
+  plugins:
+    cors:
+      allow_credential: true
+      allow_headers: Authorization,Content-Type,Accept
+      allow_methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+      allow_origins: ${ALLOWED_ORIGINS}
+      expose_headers: X-Request-Id
+      max_age: 3600
+    limit-count:
+      count: 50
+      key: remote_addr
+      policy: redis
+      rejected_code: 429
+      time_window: 60
+    openid-connect:
+      bearer_only: true
+      client_id: ${KEYCLOAK_CLIENT_ID}
+      client_secret: ${KEYCLOAK_CLIENT_SECRET}
+      discovery: ${KEYCLOAK_DISCOVERY_URL}
+      ssl_verify: true
+      timeout: 10
+  upstream:
+    checks:
+      active:
+        healthy:
+          interval: 5
+          successes: 2
+        http_path: /health
+        type: http
+        unhealthy:
+          http_failures: 3
+          interval: 3
+    nodes:
+      reports-service:8085: 1
+    type: roundrobin
+  uri: /api/reports/*

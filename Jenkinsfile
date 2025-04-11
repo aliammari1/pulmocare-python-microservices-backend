@@ -2,14 +2,17 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_COMPOSE = 'docker compose'
+        // Use standard docker-compose command for Windows
+        DOCKER_COMPOSE = 'docker-compose'
         SONAR_HOST_URL = 'http://sonarqube:9002'
         DOCKER_REGISTRY = 'localhost:5000'
-        VERSION = sh(script: 'git describe --tags --always || echo "dev"', returnStdout: true).trim()
+        // Use PowerShell to get version
+        VERSION = powershell(script: '(git describe --tags --always) -Or "dev"', returnStdout: true).trim()
         CONSUL_HTTP_ADDR = 'http://localhost:8500'
     }
 
     tools {
+        // Make sure this Python tool is configured in Jenkins
         python 'Python3'
     }
 
@@ -17,12 +20,12 @@ pipeline {
         stage('Setup Tools') {
             steps {
                 script {
-                    // Install required tools
-                    sh '''
-                        curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
-                        python3 get-pip.py --user
-                        python3 -m pip install --upgrade pip
-                        python3 -m pip install --user pytest pytest-cov pytest-asyncio aiohttp requests
+                    // Windows-compatible pip installation
+                    bat '''
+                        curl -o get-pip.py https://bootstrap.pypa.io/get-pip.py
+                        python get-pip.py --user
+                        python -m pip install --upgrade pip
+                        python -m pip install --user pytest pytest-cov pytest-asyncio aiohttp requests
                     '''
                 }
             }
@@ -31,7 +34,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                sh 'git fetch --tags'
+                bat 'git fetch --tags'
             }
         }
 
@@ -40,35 +43,42 @@ pipeline {
                 stage('Medecins') {
                     steps {
                         dir('services/medecins') {
-                            sh 'python3 -m pip install -r requirements.txt'
+                            bat 'python -m pip install -r requirements.txt'
                         }
                     }
                 }
                 stage('Ordonnances') {
                     steps {
                         dir('services/ordonnances') {
-                            sh 'python3 -m pip install -r requirements.txt'
+                            bat 'python -m pip install -r requirements.txt'
                         }
                     }
                 }
                 stage('Patients') {
                     steps {
                         dir('services/patients') {
-                            sh 'python3 -m pip install -r requirements.txt'
+                            bat 'python -m pip install -r requirements.txt'
                         }
                     }
                 }
                 stage('Radiologues') {
                     steps {
                         dir('services/radiologues') {
-                            sh 'python3 -m pip install -r requirements.txt'
+                            bat 'python -m pip install -r requirements.txt'
                         }
                     }
                 }
                 stage('Reports') {
                     steps {
                         dir('services/reports') {
-                            sh 'python3 -m pip install -r requirements.txt'
+                            bat 'python -m pip install -r requirements.txt'
+                        }
+                    }
+                }
+                stage('Auth') {
+                    steps {
+                        dir('services/auth') {
+                            bat 'python -m pip install -r requirements.txt'
                         }
                     }
                 }
@@ -79,19 +89,25 @@ pipeline {
             parallel {
                 stage('Lint') {
                     steps {
-                        sh '''
-                            python3 -m pip install flake8 black
-                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs flake8
-                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs black --check
+                        bat '''
+                            python -m pip install flake8 black
+                            FOR /R %%F IN (*.py) DO (
+                                echo Checking %%F
+                                python -m flake8 "%%F"
+                                python -m black --check "%%F"
+                            )
                         '''
                     }
                 }
                 stage('Security Scan') {
                     steps {
-                        sh '''
-                            python3 -m pip install bandit safety
-                            find . -name "*.py" -not -path "*/\.*" -not -path "*/venv/*" | xargs bandit -r
-                            safety check
+                        bat '''
+                            python -m pip install bandit safety
+                            FOR /R %%F IN (*.py) DO (
+                                echo Scanning %%F
+                                python -m bandit "%%F"
+                            )
+                            python -m safety check
                         '''
                     }
                 }
@@ -102,39 +118,52 @@ pipeline {
             parallel {
                 stage('Medecins Tests') {
                     steps {
-                        dir('services/medecins') {
-                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        dir('services/medecins/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
                         }
                     }
                 }
                 stage('Ordonnances Tests') {
                     steps {
-                        dir('services/ordonnances') {
-                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        dir('services/ordonnances/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
                         }
                     }
                 }
                 stage('Patients Tests') {
                     steps {
-                        dir('services/patients') {
-                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        dir('services/patients/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
                         }
                     }
                 }
                 stage('Radiologues Tests') {
                     steps {
-                        dir('services/radiologues') {
-                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        dir('services/radiologues/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
                         }
                     }
                 }
                 stage('Reports Tests') {
                     steps {
-                        dir('services/reports') {
-                            sh 'python3 -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        dir('services/reports/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
                         }
                     }
                 }
+                stage('Auth Tests') {
+                    steps {
+                        dir('services/auth/app') {
+                            bat 'python -m pytest --cov=. --cov-report=xml -v --junitxml=test-results.xml'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                bat 'python -m pytest test_integration.py -v --junitxml=integration-test-results.xml'
             }
         }
 
@@ -143,7 +172,7 @@ pipeline {
                 script {
                     def scannerHome = tool 'SonarScanner'
                     withSonarQubeEnv('SonarQube') {
-                        sh "${scannerHome}/bin/sonar-scanner -Dsonar.projectVersion=${VERSION}"
+                        bat "${scannerHome}\\bin\\sonar-scanner.bat -Dsonar.projectVersion=${VERSION}"
                     }
                 }
             }
@@ -161,7 +190,7 @@ pipeline {
             steps {
                 script {
                     docker.withRegistry("https://${DOCKER_REGISTRY}", 'docker-credentials') {
-                        sh """
+                        bat """
                             ${DOCKER_COMPOSE} build
                             ${DOCKER_COMPOSE} push
                         """
@@ -178,27 +207,55 @@ pipeline {
                 stage('Infrastructure') {
                     steps {
                         // Deploy infrastructure services first
-                        sh """
+                        bat """
                             ${DOCKER_COMPOSE} up -d consul mongodb redis rabbitmq elasticsearch kibana prometheus grafana jaeger
-                            sleep 30  # Wait for infrastructure to be ready
+                            timeout /t 30 /nobreak
                         """
                     }
                 }
                 stage('API Gateway') {
                     steps {
                         // Deploy APISIX Gateway
-                        sh "${DOCKER_COMPOSE} up -d etcd apisix apisix-dashboard apisix-init"
+                        bat "${DOCKER_COMPOSE} up -d etcd apisix apisix-dashboard apisix-init"
                     }
                 }
                 stage('Core Services') {
                     steps {
                         script {
-                            def services = ['medecins', 'ordonnances', 'patients', 'radiologues', 'reports']
+                            def services = ['auth', 'medecins', 'ordonnances', 'patients', 'radiologues', 'reports']
                             for (service in services) {
-                                sh """
+                                bat """
                                     ${DOCKER_COMPOSE} up -d ${service}
-                                    // Wait for service to register with Consul
-                                    curl --retry 30 --retry-delay 2 --retry-connrefused ${CONSUL_HTTP_ADDR}/v1/health/service/${service}
+                                    rem Wait for service to be ready
+                                    timeout /t 10 /nobreak
+                                """
+                                // Use PowerShell for complex HTTP requests
+                                powershell """
+                                    \$maxRetries = 30
+                                    \$retryCount = 0
+                                    \$success = \$false
+                                    
+                                    while (-not \$success -and \$retryCount -lt \$maxRetries) {
+                                        try {
+                                            \$response = Invoke-WebRequest -Uri "${CONSUL_HTTP_ADDR}/v1/health/service/${service}" -UseBasicParsing
+                                            if (\$response.StatusCode -eq 200) {
+                                                \$success = \$true
+                                                Write-Host "Service ${service} is registered with Consul"
+                                            }
+                                        } catch {
+                                            Write-Host "Waiting for service ${service} to register with Consul... \$retryCount/\$maxRetries"
+                                        }
+                                        
+                                        if (-not \$success) {
+                                            Start-Sleep -Seconds 2
+                                            \$retryCount++
+                                        }
+                                    }
+                                    
+                                    if (-not \$success) {
+                                        Write-Error "Service ${service} failed to register with Consul after \$maxRetries attempts"
+                                        exit 1
+                                    }
                                 """
                             }
                         }
@@ -206,27 +263,59 @@ pipeline {
                 }
                 stage('Monitoring Setup') {
                     steps {
-                        sh """
-                            ${DOCKER_COMPOSE} up -d otel-collector
-                            curl -X POST -H "Content-Type: application/json" \\
-                                -d @monitoring/grafana/dashboards/services-dashboard.json \\
-                                http://admin:admin@grafana:3000/api/dashboards/db
-                        """
+                        bat "${DOCKER_COMPOSE} up -d otel-collector"
+                        
+                        // Use PowerShell for JSON posting
+                        powershell '''
+                            $dashboardJson = Get-Content -Raw "monitoring/grafana/dashboards/services-dashboard.json"
+                            $headers = @{
+                                "Content-Type" = "application/json"
+                            }
+                            $base64AuthInfo = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes(("admin:admin")))
+                            $headers.Add("Authorization", "Basic $base64AuthInfo")
+                            
+                            Invoke-RestMethod -Uri "http://grafana:3000/api/dashboards/db" -Method Post -Body $dashboardJson -Headers $headers
+                        '''
                     }
                 }
                 stage('Health Check') {
                     steps {
                         script {
-                            sh '''
+                            // PowerShell for health checks
+                            powershell '''
+                                # Helper function for health checks with retry
+                                function Test-ServiceHealth {
+                                    param($Url, $MaxRetries = 5, $RetryDelay = 10)
+                                    
+                                    for ($i = 1; $i -le $MaxRetries; $i++) {
+                                        try {
+                                            Write-Host "Checking health for $Url (Attempt $i/$MaxRetries)"
+                                            $response = Invoke-WebRequest -Uri $Url -UseBasicParsing
+                                            if ($response.StatusCode -eq 200) {
+                                                Write-Host "Service is healthy: $Url" -ForegroundColor Green
+                                                return $true
+                                            }
+                                        } catch {
+                                            Write-Host "Service health check failed: $Url" -ForegroundColor Yellow
+                                        }
+                                        
+                                        Start-Sleep -Seconds $RetryDelay
+                                    }
+                                    
+                                    Write-Error "Service health check failed after $MaxRetries attempts: $Url"
+                                    return $false
+                                }
+                                
                                 # Check APISIX Gateway
-                                curl --retry 5 --retry-delay 10 http://apisix:9180/apisix/admin/health
-
+                                Test-ServiceHealth -Url "http://apisix:9180/apisix/admin/health"
+                                
                                 # Check all services through APISIX
-                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/medecins/health
-                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/ordonnances/health
-                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/patients/health
-                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/radiologues/health
-                                curl --retry 5 --retry-delay 10 http://apisix:9080/api/reports/health
+                                Test-ServiceHealth -Url "http://apisix:9080/api/medecins/health"
+                                Test-ServiceHealth -Url "http://apisix:9080/api/ordonnances/health"
+                                Test-ServiceHealth -Url "http://apisix:9080/api/patients/health"
+                                Test-ServiceHealth -Url "http://apisix:9080/api/radiologues/health"
+                                Test-ServiceHealth -Url "http://apisix:9080/api/reports/health"
+                                Test-ServiceHealth -Url "http://apisix:9080/api/auth/health"
                             '''
                         }
                     }
@@ -237,13 +326,13 @@ pipeline {
 
     post {
         always {
-            junit '**/test-results.xml'
+            junit '**/test-results.xml, **/integration-test-results.xml'
             publishCoverage adapters: [coberturaAdapter('**/coverage.xml')]
 
             script {
                 // Cleanup only if not on main branch
                 if (env.BRANCH_NAME != 'main') {
-                    sh "${DOCKER_COMPOSE} down --volumes --remove-orphans"
+                    bat "${DOCKER_COMPOSE} down --volumes --remove-orphans"
                 }
             }
             cleanWs()
@@ -251,19 +340,27 @@ pipeline {
         success {
             script {
                 def message = "Pipeline for version ${VERSION} completed successfully!"
-                // Add your notification logic here
+                echo message
+                // Add notification logic here if needed
             }
         }
         failure {
             script {
                 def message = "Pipeline for version ${VERSION} failed! Check the logs for details."
-                // Add your notification logic here
-                sh '''
-                    mkdir -p pipeline-logs
-                    docker compose logs > pipeline-logs/docker-compose.log
-                    tar -czf pipeline-logs.tar.gz pipeline-logs/
+                echo message
+                
+                // Create logs directory and collect Docker logs
+                bat '''
+                    if not exist pipeline-logs mkdir pipeline-logs
+                    docker-compose logs > pipeline-logs\\docker-compose.log 2>&1
                 '''
-                archiveArtifacts artifacts: 'pipeline-logs.tar.gz', fingerprint: true
+                
+                // Using PowerShell to create archive
+                powershell '''
+                    Compress-Archive -Path pipeline-logs -DestinationPath pipeline-logs.zip -Force
+                '''
+                
+                archiveArtifacts artifacts: 'pipeline-logs.zip', fingerprint: true
             }
         }
     }
