@@ -57,18 +57,6 @@ COPY entrypoint.sh /usr/local/apisix/entrypoint.sh
 RUN chmod 755 /usr/local/apisix/entrypoint.sh \
     && chmod 755 /usr/local/apisix/import-routes.sh
 
-# Basic log rotation setup
-COPY <<-'EOF' /etc/logrotate.d/apisix
-/usr/local/apisix/logs/*.log {
-    daily
-    missingok
-    rotate 7
-    compress
-    delaycompress
-    notifempty
-    create 644 root root
-}
-EOF
 
 # Set environment variables
 ENV APISIX_STAND_ALONE=false \

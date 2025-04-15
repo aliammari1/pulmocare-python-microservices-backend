@@ -1,21 +1,18 @@
 {
-    "service": {
-        "name": "reports-service",
-        "tags": [
-            "python",
-            "api",
-            "metrics"
-        ],
-        "port": 8085,
-        "meta": {
-            "metrics_port": "9095"
-        },
-        "check": {
-            "id": "reports",
-            "name": "Reports API health check",
-            "http": "http://reports-service:8085/health",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "reports-service",
+    "tags": ["python", "api", "metrics"],
+    "address": "reports-service",
+    "port": 8085,
+    "meta": {
+      "metrics_port": "9095"
+    },
+    "check": {
+      "id": "reports",
+      "name": "Reports API health check",
+      "http": "http://reports-service:8085/health",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

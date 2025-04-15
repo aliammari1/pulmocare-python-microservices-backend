@@ -1,21 +1,18 @@
 {
-    "service": {
-        "name": "ordonnances-service",
-        "tags": [
-            "python",
-            "api",
-            "metrics"
-        ],
-        "port": 8082,
-        "meta": {
-            "metrics_port": "9092"
-        },
-        "check": {
-            "id": "ordonnances",
-            "name": "Ordonnances API health check",
-            "http": "http://ordonnances-service:8082/health",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "ordonnances-service",
+    "tags": ["python", "api", "metrics"],
+    "address": "ordonnances-service",
+    "port": 8082,
+    "meta": {
+      "metrics_port": "9092"
+    },
+    "check": {
+      "id": "ordonnances",
+      "name": "Ordonnances API health check",
+      "http": "http://ordonnances-service:8082/health",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

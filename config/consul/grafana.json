@@ -1,7 +1,8 @@
 {
   "service": {
     "name": "grafana",
-    "tags": ["monitoring", "visualization"],
+    "tags": ["visualization", "dashboard", "monitoring"],
+    "address": "grafana",
     "port": 3000,
     "check": {
       "id": "grafana",

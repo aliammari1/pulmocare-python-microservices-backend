@@ -1,21 +1,18 @@
 {
-    "service": {
-        "name": "radiologues-service",
-        "tags": [
-            "python",
-            "api",
-            "metrics"
-        ],
-        "port": 8084,
-        "meta": {
-            "metrics_port": "9094"
-        },
-        "check": {
-            "id": "radiologues",
-            "name": "Radiologues API health check",
-            "http": "http://radiologues-service:8084/health",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "radiologues-service",
+    "tags": ["python", "api", "metrics"],
+    "address": "radiologues-service",
+    "port": 8084,
+    "meta": {
+      "metrics_port": "9094"
+    },
+    "check": {
+      "id": "radiologues",
+      "name": "Radiologues API health check",
+      "http": "http://radiologues-service:8084/health",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

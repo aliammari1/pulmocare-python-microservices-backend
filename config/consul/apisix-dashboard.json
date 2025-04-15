@@ -1,0 +1,15 @@
+{
+  "service": {
+    "name": "apisix-dashboard",
+    "tags": ["dashboard", "apisix", "management"],
+    "address": "apisix-dashboard",
+    "port": 9000,
+    "check": {
+      "id": "apisix-dashboard",
+      "name": "APISIX Dashboard health check",
+      "http": "http://apisix-dashboard:9000/user/login",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

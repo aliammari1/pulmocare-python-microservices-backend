@@ -1,0 +1,15 @@
+{
+  "service": {
+    "name": "jenkins",
+    "tags": ["ci-cd", "automation", "pipeline"],
+    "address": "jenkins",
+    "port": 8080,
+    "check": {
+      "id": "jenkins",
+      "name": "Jenkins health check",
+      "http": "http://jenkins:8080/login",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

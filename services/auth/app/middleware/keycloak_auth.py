@@ -36,10 +36,10 @@ class KeycloakMiddleware:
         self.keycloak_url = keycloak_url or os.getenv(
             "KEYCLOAK_URL", "http://keycloak:8080"
         )
-        self.realm = realm or os.getenv("KEYCLOAK_REALM", "medapp")
-        self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "medapp-api")
+        self.realm = realm or os.getenv("KEYCLOAK_REALM", "pulmocare")
+        self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
         self.client_secret = client_secret or os.getenv(
-            "KEYCLOAK_CLIENT_SECRET", "your-client-secret"
+            "KEYCLOAK_CLIENT_SECRET", "pulmocare-secret"
         )
 
         # Cache for public key to avoid repeated requests

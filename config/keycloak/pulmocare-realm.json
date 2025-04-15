@@ -1,0 +1,148 @@
+{
+  "realm": "pulmocare",
+  "enabled": true,
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "roles": {
+    "realm": [
+      {
+        "name": "admin",
+        "description": "Administrator role"
+      },
+      {
+        "name": "doctor-role",
+        "description": "Doctor role"
+      },
+      {
+        "name": "patient-role",
+        "description": "Patient role"
+      },
+      {
+        "name": "radiologist-role",
+        "description": "Radiologist role"
+      }
+    ]
+  },
+  "defaultRoles": [
+    "offline_access",
+    "uma_authorization"
+  ],
+  "clients": [
+    {
+      "clientId": "pulmocare-api",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "pulmocare-secret",
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "authorizationServicesEnabled": false,
+      "publicClient": false,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true,
+      "attributes": {
+        "saml.assertion.signature": "false",
+        "saml.force.post.binding": "false",
+        "saml.multivalued.roles": "false",
+        "saml.encrypt": "false",
+        "saml.server.signature": "false",
+        "saml.server.signature.keyinfo.ext": "false",
+        "exclude.session.state.from.auth.response": "false",
+        "saml_force_name_id_format": "false",
+        "saml.client.signature": "false",
+        "tls.client.certificate.bound.access.tokens": "false",
+        "saml.authnstatement": "false",
+        "display.on.consent.screen": "false",
+        "saml.onetimeuse.condition": "false"
+      }
+    },
+    {
+      "clientId": "pulmocare-mobile",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "pulmocare-mobile-secret",
+      "redirectUris": [
+        "*"
+      ],
+      "webOrigins": [
+        "*"
+      ],
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "publicClient": true,
+      "frontchannelLogout": false,
+      "protocol": "openid-connect",
+      "fullScopeAllowed": true
+    }
+  ],
+  "groups": [
+    {
+      "name": "Doctors",
+      "path": "/Doctors",
+      "realmRoles": [
+        "doctor-role"
+      ]
+    },
+    {
+      "name": "Patients",
+      "path": "/Patients",
+      "realmRoles": [
+        "patient-role"
+      ]
+    },
+    {
+      "name": "Radiologists",
+      "path": "/Radiologists",
+      "realmRoles": [
+        "radiologist-role"
+      ]
+    },
+    {
+      "name": "Administrators",
+      "path": "/Administrators",
+      "realmRoles": [
+        "admin"
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "totp": false,
+      "emailVerified": true,
+      "firstName": "Admin",
+      "lastName": "User",
+      "email": "admin@pulmocare.com",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "admin"
+      ],
+      "clientRoles": {},
+      "groups": [
+        "/Administrators"
+      ]
+    }
+  ],
+  "scopeMappings": [],
+  "clientScopeMappings": {}
+}

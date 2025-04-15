@@ -16,9 +16,9 @@ x-service-env: &service-env
   LOG_FORMAT: "json"
   LOG_LEVEL: "DEBUG"
   KEYCLOAK_URL: "http://keycloak:8080/auth"
-  KEYCLOAK_REALM: "medapp"
-  KEYCLOAK_CLIENT_ID: "medapp-api"
-  KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:-your-client-secret}"
+  KEYCLOAK_REALM: "pulmocare"
+  KEYCLOAK_CLIENT_ID: "pulmocare-api"
+  KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:-pulmocare-secret}"
   AUTH_SERVICE_URL: "http://auth-service:8086"
 
 services:
@@ -93,9 +93,9 @@ services:
       PORT: "8086"
       OTEL_SERVICE_NAME: auth-service
       OTEL_RESOURCE_ATTRIBUTES: service.name=auth-service
-      KEYCLOAK_REALM: medapp
-      KEYCLOAK_CLIENT_ID: medapp-api
-      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-your-client-secret}
+      KEYCLOAK_REALM: pulmocare
+      KEYCLOAK_CLIENT_ID: pulmocare-api
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:-pulmocare-secret}
     depends_on:
       keycloak:
         condition: service_healthy
@@ -197,7 +197,7 @@ services:
     environment:
       - APISIX_STAND_ALONE=false
       - ETCD_HOST=http://etcd:2379
-      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-your-client-secret}
+      - KEYCLOAK_CLIENT_SECRET=${KEYCLOAK_CLIENT_SECRET:-pulmocare-secret}
       - APISIX_ADMIN_KEY=edd1c9f034335f136f87ad84b625c8f1
       # Enable health checks in the logs
       - APISIX_ERROR_LOG_LEVEL=info
@@ -235,7 +235,7 @@ services:
           "-f",
           "http://localhost:9180/apisix/admin/server_info",
           "-H",
-          "X-API-KEY: ${APISIX_ADMIN_KEY}",
+          "X-API-KEY: ${APISIX_ADMIN_KEY:-edd1c9f034335f136f87ad84b625c8f1}",
         ]
       interval: 10s
       timeout: 5s
@@ -388,7 +388,7 @@ services:
       - prometheus
       - loki
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3300"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -626,6 +626,7 @@ services:
     ports:
       - "8080:8080"
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - jenkins_home:/var/jenkins_home
     networks:
       - medapp-network

@@ -4,121 +4,244 @@ set -e
 LOG_FILE="/usr/local/apisix/logs/import-routes.log"
 echo "$(date) - Starting route import to APISIX..." | tee -a $LOG_FILE
 
+
+# Extract routes, consumers and global rules using yq (assuming it's installed, if not we'd need to install it)
+if ! command -v yq &> /dev/null; then
+    echo "Installing yq to parse YAML..."
+    wget -q https://github.com/mikefarah/yq/releases/download/v4.31.2/yq_linux_amd64 -O /usr/local/bin/yq
+    chmod +x /usr/local/bin/yq
+fi
+
 # Admin API endpoint
 ADMIN_API="http://localhost:9180/apisix/admin"
-ADMIN_KEY=${APISIX_ADMIN_KEY:-edd1c9f034335f136f87ad84b625c8f1}
+ADMIN_KEY=$(yq '.deployment.admin.admin_key[0].key' conf/config.yaml | sed 's/"//g')
 
-# Import routes using Python
-python3 << 'EOF'
-import yaml
-import os
-import json
-import sys
-import requests
-import time
-from datetime import datetime
+# Default environment variable values if not set
+# Use simple values that won't cause escaping issues
+: ${API_KEY:="test-api-key"}
+: ${KEYCLOAK_CLIENT_ID:="medapp-client"}
+: ${KEYCLOAK_CLIENT_SECRET:="medapp-secret"}
+: ${KEYCLOAK_DISCOVERY_URL:="http://keycloak:8080/realms/medapp/.well-known/openid-configuration"}
 
-def log(msg):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print("{} - {}".format(timestamp, msg))
+# Function to log with timestamp
+log() {
+    timestamp=$(date +"%Y-%m-%d %H:%M:%S")
+    echo "$timestamp - $1" | tee -a $LOG_FILE
+}
 
-try:
-    config_path = "/usr/local/apisix/conf/apisix.yaml"
-    log("Reading config from: " + config_path)
+# Check if config file exists
+CONFIG_PATH="/usr/local/apisix/conf/apisix.yaml"
+echo "Reading config from: $CONFIG_PATH"
+
+if [ ! -f "$CONFIG_PATH" ]; then
+    echo "Error: Config file not found"
+    exit 1
+fi
+
+# Create a temporary file for the processed config
+TEMP_CONFIG=$(mktemp)
+
+# Create a modified YAML directly with yq to avoid sed issues with special characters
+echo "Pre-processing configuration to replace environment variables"
+
+# Copy the original file first
+cp "$CONFIG_PATH" "$TEMP_CONFIG"
+
+# Process CORS plugin configuration directly with yq
+for i in $(yq e '.routes | length' "$TEMP_CONFIG" | wc -l); do
+    # Check if the route has cors plugin
+    if yq e ".routes[$i].plugins.cors" "$TEMP_CONFIG" &> /dev/null; then
+        # Update cors allow_origins if it's using environment variables
+        yq e ".routes[$i].plugins.cors.allow_origins = \"*\"" -i "$TEMP_CONFIG"
+    fi
+done
+
+# Validate the YAML file before proceeding
+echo "Validating YAML configuration..."
+if ! yq e '.' "$TEMP_CONFIG" &> /dev/null; then
+    echo "Error: YAML validation failed. Manual inspection needed."
+    exit 1
+fi
+
+echo "Configuration pre-processing completed"
+
+# Import routes
+ROUTES_COUNT=$(yq e '.routes | length' "$TEMP_CONFIG")
+echo "Found $ROUTES_COUNT routes"
+SUCCESS_ROUTES=0
+
+for i in $(seq 0 $((ROUTES_COUNT - 1))); do
+    # Extract the ID directly from YAML before converting to JSON
+    ROUTE_ID=$(yq e ".routes[$i].id" "$TEMP_CONFIG")
+    ROUTE_JSON=$(yq e ".routes[$i]" -j "$TEMP_CONFIG")
     
-    if not os.path.exists(config_path):
-        log("Error: Config file not found")
-        sys.exit(1)
-
-    with open(config_path) as f:
-        config = yaml.safe_load(f)
-
-    headers = {
-        "X-API-KEY": os.getenv("APISIX_ADMIN_KEY", "edd1c9f034335f136f87ad84b625c8f1"),
-        "Content-Type": "application/json"
-    }
-    base_url = "http://localhost:9180/apisix/admin"
-
-    # Import routes
-    if "routes" in config:
-        routes = config["routes"]
-        log("Found {} routes".format(len(routes)))
-        success = 0
+    if [ -z "$ROUTE_ID" ] || [ "$ROUTE_ID" = "null" ]; then
+        # Generate a unique ID if none exists
+        ROUTE_ID="route-$(date +%s)-$i"
+        echo "Route at index $i has no ID, generated: $ROUTE_ID"
+        # Add the ID to the JSON
+        ROUTE_JSON=$(echo "$ROUTE_JSON" | jq --arg id "$ROUTE_ID" '. + {id: $id}')
+    fi
+    
+    echo "Importing route $ROUTE_ID"
+    
+    # Debug output to see what we're sending
+    echo "Route JSON: $(echo "$ROUTE_JSON" | jq -c '.')"
+    
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-KEY: $ADMIN_KEY" \
+        -H "Content-Type: application/json" \
+        -X PUT "$ADMIN_API/routes/$ROUTE_ID" \
+        -d "$ROUTE_JSON")
+    
+    HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+    
+    if [[ "$HTTP_CODE" == 2* ]]; then
+        SUCCESS_ROUTES=$((SUCCESS_ROUTES + 1))
+        echo "Route $ROUTE_ID imported successfully"
+    else
+        RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+        echo "Failed to import route $ROUTE_ID: $HTTP_CODE - $RESPONSE_BODY"
         
-        for route in routes:
-            try:
-                route_id = route.get("id", "unknown")
-                url = base_url + "/routes/" + str(route_id)
-                response = requests.put(url, headers=headers, json=route)
-                
-                if response.status_code in [200, 201]:
-                    success += 1
-                    log("Route {} imported successfully".format(route_id))
-                else:
-                    log("Failed to import route {}: {}".format(route_id, response.status_code))
-            except Exception as e:
-                log("Error importing route: " + str(e))
+        # Simplify the route to try again with minimal configuration
+        echo "Trying simplified version of route $ROUTE_ID"
         
-        log("Routes imported: {}/{}".format(success, len(routes)))
+        # Extract only essential fields
+        URI=$(echo "$ROUTE_JSON" | jq -r '.uri // "/unknown"')
+        SIMPLIFIED_ROUTE=$(jq -n \
+            --arg id "$ROUTE_ID" \
+            --arg uri "$URI" \
+            '{id: $id, uri: $uri, upstream: {type: "roundrobin", nodes: {"auth-service:8086": 1}}}')
+        
+        RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-KEY: $ADMIN_KEY" \
+            -H "Content-Type: application/json" \
+            -X PUT "$ADMIN_API/routes/$ROUTE_ID" \
+            -d "$SIMPLIFIED_ROUTE")
+            
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        
+        if [[ "$HTTP_CODE" == 2* ]]; then
+            SUCCESS_ROUTES=$((SUCCESS_ROUTES + 1))
+            echo "Simplified route $ROUTE_ID imported successfully"
+        else
+            RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+            echo "Still failed to import simplified route $ROUTE_ID: $HTTP_CODE - $RESPONSE_BODY"
+        fi
+    fi
+done
 
-    # Import consumers
-    if "consumers" in config:
-        consumers = config["consumers"]
-        log("Found {} consumers".format(len(consumers)))
-        success = 0
-        
-        for consumer in consumers:
-            try:
-                username = consumer.get("username", "unknown")
-                url = base_url + "/consumers/" + str(username)
-                response = requests.put(url, headers=headers, json=consumer)
-                
-                if response.status_code in [200, 201]:
-                    success += 1
-                    log("Consumer {} imported successfully".format(username))
-                else:
-                    log("Failed to import consumer {}: {}".format(username, response.status_code))
-            except Exception as e:
-                log("Error importing consumer: " + str(e))
-        
-        log("Consumers imported: {}/{}".format(success, len(consumers)))
+echo "Routes imported: $SUCCESS_ROUTES/$ROUTES_COUNT"
 
-    # Import global rules
-    if "global_rules" in config:
-        rules = config["global_rules"]
-        log("Found {} global rules".format(len(rules)))
-        success = 0
+# Import consumers
+CONSUMERS_COUNT=$(yq e '.consumers | length // 0' "$TEMP_CONFIG")
+if [ "$CONSUMERS_COUNT" -gt 0 ]; then
+    echo "Found $CONSUMERS_COUNT consumers"
+    SUCCESS_CONSUMERS=0
+    
+    for i in $(seq 0 $((CONSUMERS_COUNT - 1))); do
+        # Extract the username directly from YAML before converting to JSON
+        USERNAME=$(yq e ".consumers[$i].username" "$TEMP_CONFIG")
+        CONSUMER_JSON=$(yq e ".consumers[$i]" -j "$TEMP_CONFIG")
         
-        for rule in rules:
-            try:
-                rule_id = rule.get("id", "unknown")
-                url = base_url + "/global_rules/" + str(rule_id)
-                response = requests.put(url, headers=headers, json=rule)
-                
-                if response.status_code in [200, 201]:
-                    success += 1
-                    log("Global rule {} imported successfully".format(rule_id))
-                else:
-                    log("Failed to import global rule {}: {}".format(rule_id, response.status_code))
-            except Exception as e:
-                log("Error importing global rule: " + str(e))
+        if [ -z "$USERNAME" ] || [ "$USERNAME" = "null" ]; then
+            USERNAME="consumer-$(date +%s)-$i"
+            echo "Consumer at index $i has no username, generated: $USERNAME"
+            # Add the username to the JSON
+            CONSUMER_JSON=$(echo "$CONSUMER_JSON" | jq --arg username "$USERNAME" '. + {username: $username}')
+        fi
         
-        log("Global rules imported: {}/{}".format(success, len(rules)))
+        echo "Importing consumer $USERNAME"
+        
+        RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-KEY: $ADMIN_KEY" \
+            -H "Content-Type: application/json" \
+            -X PUT "$ADMIN_API/consumers/$USERNAME" \
+            -d "$CONSUMER_JSON")
+        
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        
+        if [[ "$HTTP_CODE" == 2* ]]; then
+            SUCCESS_CONSUMERS=$((SUCCESS_CONSUMERS + 1))
+            echo "Consumer $USERNAME imported successfully"
+        else
+            RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+            echo "Failed to import consumer $USERNAME: $HTTP_CODE - $RESPONSE_BODY"
+        fi
+    done
+    
+    echo "Consumers imported: $SUCCESS_CONSUMERS/$CONSUMERS_COUNT"
+fi
 
-except Exception as e:
-    log("Critical error: " + str(e))
-    sys.exit(1)
-EOF
+# Import global rules
+RULES_COUNT=$(yq e '.global_rules | length // 0' "$TEMP_CONFIG")
+if [ "$RULES_COUNT" -gt 0 ]; then
+    echo "Found $RULES_COUNT global rules"
+    SUCCESS_RULES=0
+    
+    for i in $(seq 0 $((RULES_COUNT - 1))); do
+        # Extract the ID directly from YAML before converting to JSON
+        RULE_ID=$(yq e ".global_rules[$i].id" "$TEMP_CONFIG")
+        RULE_JSON=$(yq e ".global_rules[$i]" -j "$TEMP_CONFIG")
+        
+        if [ -z "$RULE_ID" ] || [ "$RULE_ID" = "null" ]; then
+            RULE_ID="rule-$(date +%s)-$i"
+            echo "Global rule at index $i has no ID, generated: $RULE_ID"
+            # Add the ID to the JSON
+            RULE_JSON=$(echo "$RULE_JSON" | jq --arg id "$RULE_ID" '. + {id: $id}')
+        fi
+        
+        echo "Importing global rule $RULE_ID"
+        
+        RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-KEY: $ADMIN_KEY" \
+            -H "Content-Type: application/json" \
+            -X PUT "$ADMIN_API/global_rules/$RULE_ID" \
+            -d "$RULE_JSON")
+        
+        HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+        
+        if [[ "$HTTP_CODE" == 2* ]]; then
+            SUCCESS_RULES=$((SUCCESS_RULES + 1))
+            echo "Global rule $RULE_ID imported successfully"
+        else
+            RESPONSE_BODY=$(echo "$RESPONSE" | sed '$d')
+            echo "Failed to import global rule $RULE_ID: $HTTP_CODE - $RESPONSE_BODY"
+        fi
+    done
+    
+    echo "Global rules imported: $SUCCESS_RULES/$RULES_COUNT"
+fi
+
+# Clean up temporary file
+rm -f "$TEMP_CONFIG"
 
 # Verify routes were imported
-echo "$(date) - Verifying routes..." | tee -a $LOG_FILE
+echo "Verifying routes..."
 sleep 2
 ROUTES_COUNT=$(curl -s -H "X-API-KEY: $ADMIN_KEY" $ADMIN_API/routes | grep -o '"total":[0-9]*' | grep -o '[0-9]*')
 
 if [ -n "$ROUTES_COUNT" ] && [ "$ROUTES_COUNT" -gt 0 ]; then
-    echo "$(date) - Verification successful: $ROUTES_COUNT routes found." | tee -a $LOG_FILE
+    echo "Verification successful: $ROUTES_COUNT routes found."
     exit 0
 else
-    echo "$(date) - Warning: No routes found after import." | tee -a $LOG_FILE
+    echo "Warning: No routes found after import. Trying individual route import with debugging..."
+    
+    # Create a basic test route as a last resort
+    TEST_ROUTE='{
+        "id": "test-route",
+        "uri": "/test",
+        "upstream": {
+            "nodes": {
+                "auth-service:8086": 1
+            },
+            "type": "roundrobin"
+        }
+    }'
+    
+    echo "Trying to import a basic test route"
+    RESPONSE=$(curl -v -H "X-API-KEY: $ADMIN_KEY" \
+        -H "Content-Type: application/json" \
+        -X PUT "$ADMIN_API/routes/test-route" \
+        -d "$TEST_ROUTE" 2>&1)
+        
+    echo "Test route response: $RESPONSE"
+    
     exit 1
 fi

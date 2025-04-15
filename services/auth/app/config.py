@@ -31,7 +31,7 @@ class Config:
     MONGODB_PORT = int(os.getenv("MONGODB_PORT", 27017))
     MONGODB_USERNAME = os.getenv("MONGODB_USERNAME", "admin")
     MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "admin")
-    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "medapp")
+    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "pulmocare")
     MONGODB_POOL_SIZE = int(os.getenv("MONGODB_POOL_SIZE", 50))
     MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE", 10))
     MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS", 60000))
@@ -71,9 +71,9 @@ class Config:
 
     # Keycloak settings
     KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://localhost:8090")
-    KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "medapp")
-    KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-api")
-    KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "your-client-secret")
+    KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "pulmocare")
+    KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
+    KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "pulmocare-secret")
     KEYCLOAK_ADMIN_USERNAME = os.getenv("KEYCLOAK_ADMIN_USERNAME", "admin")
     KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
 

@@ -1,17 +1,15 @@
 {
-    "service": {
-        "name": "loki",
-        "tags": [
-            "logging",
-            "monitoring"
-        ],
-        "port": 3100,
-        "check": {
-            "id": "loki",
-            "name": "Loki health check",
-            "http": "http://loki:3100/ready",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "loki",
+    "tags": ["logging", "observability", "monitoring"],
+    "address": "loki",
+    "port": 3100,
+    "check": {
+      "id": "loki",
+      "name": "Loki health check",
+      "http": "http://loki:3100/ready",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

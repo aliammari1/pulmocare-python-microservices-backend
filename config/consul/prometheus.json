@@ -1,17 +1,15 @@
 {
-    "service": {
-        "name": "prometheus",
-        "tags": [
-            "metrics",
-            "monitoring"
-        ],
-        "port": 9090,
-        "check": {
-            "id": "prometheus",
-            "name": "Prometheus health check",
-            "http": "http://prometheus:9090/-/healthy",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "prometheus",
+    "tags": ["metrics", "monitoring"],
+    "address": "prometheus",
+    "port": 9090,
+    "check": {
+      "id": "prometheus",
+      "name": "Prometheus health check",
+      "http": "http://prometheus:9090/-/healthy",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

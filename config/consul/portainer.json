@@ -1,0 +1,15 @@
+{
+  "service": {
+    "name": "portainer",
+    "tags": ["container-management", "docker", "ui"],
+    "address": "portainer",
+    "port": 9000,
+    "check": {
+      "id": "portainer",
+      "name": "Portainer health check",
+      "http": "http://portainer:9000/api/status",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

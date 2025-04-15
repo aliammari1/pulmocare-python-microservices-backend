@@ -1,0 +1,20 @@
+{
+  "service": {
+    "name": "otel-collector",
+    "tags": ["observability", "telemetry", "monitoring"],
+    "address": "otel-collector",
+    "port": 4317,
+    "meta": {
+      "http_port": "4318",
+      "metrics_port": "8889",
+      "health_check_port": "13133"
+    },
+    "check": {
+      "id": "otel-collector",
+      "name": "OpenTelemetry Collector health check",
+      "http": "http://otel-collector:13133",
+      "interval": "10s",
+      "timeout": "5s"
+    }
+  }
+}

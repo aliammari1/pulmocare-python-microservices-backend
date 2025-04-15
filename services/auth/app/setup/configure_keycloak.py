@@ -10,9 +10,9 @@ logger = logging.getLogger("keycloak_setup")
 KEYCLOAK_URL = os.getenv("KEYCLOAK_URL", "http://localhost:8090")
 KEYCLOAK_ADMIN = os.getenv("KEYCLOAK_ADMIN", "admin")
 KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
-KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "medapp")
-KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-api")
-KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "your-client-secret")
+KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "pulmocare")
+KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
+KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "pulmocare-secret")
 
 def get_admin_token():
     """Get admin token from Keycloak"""

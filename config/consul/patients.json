@@ -1,21 +1,18 @@
 {
-    "service": {
-        "name": "patients-service",
-        "tags": [
-            "python",
-            "api",
-            "metrics"
-        ],
-        "port": 8083,
-        "meta": {
-            "metrics_port": "9093"
-        },
-        "check": {
-            "id": "patients",
-            "name": "Patients API health check",
-            "http": "http://patients-service:8083/health",
-            "interval": "10s",
-            "timeout": "5s"
-        }
+  "service": {
+    "name": "patients-service",
+    "tags": ["python", "api", "metrics"],
+    "address": "patients-service",
+    "port": 8083,
+    "meta": {
+      "metrics_port": "9093"
+    },
+    "check": {
+      "id": "patients",
+      "name": "Patients API health check",
+      "http": "http://patients-service:8083/health",
+      "interval": "10s",
+      "timeout": "5s"
     }
+  }
 }

@@ -2,69 +2,72 @@ apisix:
   node_listen: 9080
   enable_ipv6: false
   enable_admin: true
-  enable_admin_cors: true  # Enabled for development
-  enable_debug: true      # Enabled for development
-  enable_dev_mode: true   # Enabled for development
+  enable_admin_cors: true # Enabled for development
+  enable_debug: true # Enabled for development
+  enable_dev_mode: true # Enabled for development
   enable_reuseport: true
-  enable_server_tokens: true  # Enabled for development
+  enable_server_tokens: true # Enabled for development
   enable_control: true
   control:
-    ip: 0.0.0.0  # Allow all IPs in development
+    ip: 0.0.0.0 # Allow all IPs in development
     port: 9090
 
 deployment:
   admin:
     allow_admin:
-      - 0.0.0.0/0  # Allow all IPs in development
+      - 0.0.0.0/0 # Allow all IPs in development
     admin_key:
       - name: "admin"
-        key: edd1c9f034335f136f87ad84b625c8f1  # Default key for development
+        key: edd1c9f034335f136f87ad84b625c8f1 # Default key for development
         role: admin
 
   etcd:
     host:
-      - "http://etcd:2379"  # Plain HTTP for development
+      - "http://etcd:2379" # Plain HTTP for development
     prefix: "/apisix"
     timeout: 30
 
 plugins:
-  - real-ip
   - request-id
   - cors
   - prometheus
-  - proxy-rewrite
   - response-rewrite
   - jwt-auth
   - key-auth
   - basic-auth
-  - openid-connect
-  - limit-count
   - limit-req
-  - http-logger
   - file-logger
 
 plugin_attr:
   prometheus:
     export_addr:
-      ip: 0.0.0.0  # Allow all IPs in development
+      ip: 0.0.0.0 # Allow all IPs in development
       port: 9091
     metric_prefix: apisix_
     enable_export_server: true
 
 nginx_config:
-  error_log_level: debug  # More verbose logging for development
-  worker_processes: auto
+  user: root
 
-  http:
-    access_log_buffer: 32768
-    keepalive_timeout: 60s
-    client_max_body_size: 0
-    client_body_buffer_size: 8m
-    proxy_connect_timeout: 60s
-    proxy_send_timeout: 60s
-    proxy_read_timeout: 60s
-    proxy_buffer_size: 4k
-    proxy_buffers: 8 4k
+# nginx_config:
+#   error_log_level: debug # More verbose logging for development
+#   worker_processes: auto
 
-    access_log_format: |
-      $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_time $upstream_response_time $upstream_addr "$http_x_request_id"
+#   http:
+#     access_log_buffer: 32768
+#     keepalive_timeout: 60s
+#     client_max_body_size: 0
+#     client_body_buffer_size: 8m
+#     proxy_connect_timeout: 60s
+#     proxy_send_timeout: 60s
+#     proxy_read_timeout: 60s
+#     proxy_buffer_size: 4k
+#     proxy_buffers: 8 4k
+
+#     access_log_format: |
+#       $remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_time $upstream_response_time $upstream_addr "$http_x_request_id"
+
+discovery:
+  consul:
+    servers:                      # make sure service name is unique in these consul servers
+      - "http://consul:8500"   # `http://consul:8500` and `http://consul:8600` are different clusters
