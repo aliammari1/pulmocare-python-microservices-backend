@@ -25,10 +25,10 @@ class PydanticObjectId(str):
 class PatientBase(BaseModel):
     name: str
     email: EmailStr
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     date_of_birth: Optional[date] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     medical_history: Optional[Dict[str, Any]] = None
     insurance_details: Optional[Dict[str, Any]] = None
 
@@ -46,10 +46,10 @@ class PatientCreate(PatientBase):
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     date_of_birth: Optional[date] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     medical_history: Optional[Dict[str, Any]] = None
     insurance_details: Optional[Dict[str, Any]] = None
 
@@ -80,10 +80,10 @@ class LoginResponse(BaseModel):
     id: str
     name: str
     email: EmailStr
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
     date_of_birth: Optional[date] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -114,7 +114,7 @@ class Patient:
         self,
         name,
         email,
-        phone_number=None,
+        phone=None,
         address=None,
         date_of_birth=None,
         password=None,
@@ -123,7 +123,7 @@ class Patient:
         self._id = _id or ObjectId()
         self.name = name
         self.email = email
-        self.phone_number = phone_number
+        self.phone = phone
         self.address = address
         self.date_of_birth = date_of_birth
         self.password_hash = None
@@ -145,10 +145,10 @@ class Patient:
             "id": str(self._id),
             "name": self.name,
             "email": self.email,
-            "phone_number": self.phone_number,
+            "phone": self.phone,
             "address": self.address,
             "date_of_birth": self.date_of_birth,
-            "profile_image": getattr(self, "profile_image", None),
+            "profile_picture": getattr(self, "profile_picture", None),
             "created_at": getattr(self, "created_at", datetime.utcnow()),
         }
 
@@ -157,14 +157,14 @@ class Patient:
         patient = cls(
             name=data["name"],
             email=data["email"],
-            phone_number=data.get("phone_number"),
+            phone=data.get("phone"),
             address=data.get("address"),
             date_of_birth=data.get("date_of_birth"),
         )
         patient._id = data["_id"]
 
         # Copy additional fields
-        for field in ["profile_image", "medical_history", "insurance_details"]:
+        for field in ["profile_picture", "medical_history", "insurance_details"]:
             if field in data:
                 setattr(patient, field, data[field])
 
@@ -179,7 +179,7 @@ class Patient:
         return cls(
             name=patient_model.name,
             email=patient_model.email,
-            phone_number=patient_model.phone_number,
+            phone=patient_model.phone,
             address=patient_model.address,
             date_of_birth=patient_model.date_of_birth,
             password=patient_model.password,
@@ -191,10 +191,10 @@ class Patient:
             id=str(self._id),
             name=self.name,
             email=self.email,
-            phone_number=self.phone_number,
+            phone=self.phone,
             address=self.address,
             date_of_birth=self.date_of_birth,
-            profile_image=getattr(self, "profile_image", None),
+            profile_picture=getattr(self, "profile_picture", None),
             medical_history=getattr(self, "medical_history", None),
             insurance_details=getattr(self, "insurance_details", None),
             created_at=getattr(self, "created_at", None),

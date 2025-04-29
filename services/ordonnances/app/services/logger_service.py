@@ -22,6 +22,11 @@ class LoggerService:
 
             # Create logs directory if it doesn't exist
             os.makedirs(Config.LOG_DIR, exist_ok=True)
+            
+            # Ensure the log file path exists
+            log_file_dir = os.path.dirname(Config.LOG_FILE)
+            if log_file_dir:
+                os.makedirs(log_file_dir, exist_ok=True)
 
             # Initialize logger
             cls._instance.logger = logging.getLogger(Config.SERVICE_NAME)
@@ -30,22 +35,25 @@ class LoggerService:
             # Create formatters and handlers
             formatter = logging.Formatter(Config.LOG_FORMAT)
 
-            # File Handler
-            file_handler = RotatingFileHandler(
-                Config.LOG_FILE,
-                maxBytes=Config.LOG_MAX_SIZE,
-                backupCount=Config.LOG_BACKUP_COUNT,
-            )
-            file_handler.setFormatter(formatter)
-            file_handler.setLevel(Config.LOG_LEVEL)
-
+            try:
+                # File Handler
+                file_handler = RotatingFileHandler(
+                    Config.LOG_FILE,
+                    maxBytes=Config.LOG_MAX_SIZE,
+                    backupCount=Config.LOG_BACKUP_COUNT,
+                )
+                file_handler.setFormatter(formatter)
+                file_handler.setLevel(Config.LOG_LEVEL)
+                cls._instance.logger.addHandler(file_handler)
+            except Exception as e:
+                print(f"Failed to create file handler: {str(e)}. Using console logging only.")
+            
             # Console Handler
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
             console_handler.setLevel(Config.LOG_LEVEL)
 
             # Add handlers to logger
-            cls._instance.logger.addHandler(file_handler)
             cls._instance.logger.addHandler(console_handler)
 
             # Setup OpenTelemetry logging

@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Dict
 
@@ -6,7 +5,7 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-logger = logging.getLogger("keycloak_auth")
+
 
 security = HTTPBearer()
 
@@ -21,7 +20,7 @@ class KeycloakAuth:
         self.auth_service_url = os.getenv(
             "AUTH_SERVICE_URL", "http://auth-service:8086"
         )
-        logger.info(f"Using auth service at: {self.auth_service_url}")
+        print(f"Using auth service at: {self.auth_service_url}")
 
     async def verify_token(self, token: str):
         """
@@ -40,7 +39,7 @@ class KeycloakAuth:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Token verification error: {str(e)}")
+            print(f"Token verification error: {str(e)}")
             raise
 
     async def get_current_user(
@@ -71,7 +70,7 @@ class KeycloakAuth:
 
             return verification
         except Exception as e:
-            logger.error(f"Authentication error: {str(e)}")
+            print(f"Authentication error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",

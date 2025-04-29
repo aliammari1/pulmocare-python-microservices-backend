@@ -1,4 +1,3 @@
-import logging
 import os
 from typing import Dict
 
@@ -6,7 +5,7 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-logger = logging.getLogger("keycloak_auth")
+
 
 security = HTTPBearer()
 
@@ -21,7 +20,7 @@ class KeycloakAuth:
         self.auth_service_url = os.getenv(
             "AUTH_SERVICE_URL", "http://auth-service:8086"
         )
-        logger.info(f"Using auth service at: {self.auth_service_url}")
+        print(f"Using auth service at: {self.auth_service_url}")
 
     async def login(self, email: str, password: str):
         """
@@ -43,7 +42,7 @@ class KeycloakAuth:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Keycloak login error: {str(e)}")
+            print(f"Keycloak login error: {str(e)}")
             raise
 
     async def register(self, patient_data: Dict):
@@ -75,8 +74,8 @@ class KeycloakAuth:
                     and len(patient_data.get("name", "").split()) > 1
                     else ""
                 ),
-                "phone_number": patient_data.get("phoneNumber", ""),
-                "user_type": "patient",
+                "phone": patient_data.get("phone", ""),
+                "role": "patient",
             }
 
             # Call auth service to register
@@ -86,7 +85,7 @@ class KeycloakAuth:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Keycloak registration error: {str(e)}")
+            print(f"Keycloak registration error: {str(e)}")
             raise
 
     async def verify_token(self, token: str):
@@ -106,7 +105,7 @@ class KeycloakAuth:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Token verification error: {str(e)}")
+            print(f"Token verification error: {str(e)}")
             raise
 
     async def get_current_user(
@@ -137,7 +136,7 @@ class KeycloakAuth:
 
             return verification
         except Exception as e:
-            logger.error(f"Authentication error: {str(e)}")
+            print(f"Authentication error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
@@ -183,7 +182,7 @@ class KeycloakAuth:
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            logger.error(f"Password reset request error: {str(e)}")
+            print(f"Password reset request error: {str(e)}")
             raise
 
 

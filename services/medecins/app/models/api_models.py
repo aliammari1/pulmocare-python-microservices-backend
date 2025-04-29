@@ -14,9 +14,9 @@ class LoginResponse(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone_number: Optional[str] = ""
+    phone: Optional[str] = ""
     address: Optional[str] = ""
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_verified: Optional[bool] = False
     verification_details: Optional[Dict] = None
     signature: Optional[str] = None
@@ -27,7 +27,7 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str
     specialty: str
-    phoneNumber: str
+    phone: str
     address: str
 
 
@@ -77,7 +77,7 @@ class ScanVisitCardResponse(BaseModel):
     name: Optional[str] = ""
     email: Optional[str] = ""
     specialty: Optional[str] = ""
-    phone_number: Optional[str] = ""
+    phone: Optional[str] = ""
 
 
 # Models for prescriptions

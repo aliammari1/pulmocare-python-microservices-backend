@@ -7,7 +7,7 @@ class Patient:
         id=None,
         name=None,
         email=None,
-        phoneNumber=None,
+        phone=None,
         password=None,
         date_of_birth=None,
         medical_history=None,
@@ -15,7 +15,7 @@ class Patient:
         self.id = id
         self.name = name
         self.email = email
-        self.phoneNumber = phoneNumber
+        self.phone = phone
         self.date_of_birth = date_of_birth
         self.medical_history = medical_history or []
         self.password_hash = None
@@ -33,7 +33,7 @@ class Patient:
             "id": self.id,
             "name": self.name,
             "email": self.email,
-            "phoneNumber": self.phoneNumber,
+            "phone": self.phone,
             "date_of_birth": self.date_of_birth,
             "medical_history": self.medical_history,
             "password_hash": self.password_hash,
@@ -45,7 +45,7 @@ class Patient:
             id=data.get("id"),
             name=data.get("name"),
             email=data.get("email"),
-            phoneNumber=data.get("phoneNumber"),
+            phone=data.get("phone"),
             date_of_birth=data.get("date_of_birth"),
             medical_history=data.get("medical_history", []),
             password=None,  # Don't set password, instead set hash directly

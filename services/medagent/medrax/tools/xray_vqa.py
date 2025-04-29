@@ -68,7 +68,7 @@ class XRayVQATool(BaseTool):
         original_transformers_version = transformers.__version__
         transformers.__version__ = "4.40.0"
 
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.device =  "cuda" if device and torch.cuda.is_available() else "cpu"
         self.dtype = dtype
         self.cache_dir = cache_dir
 

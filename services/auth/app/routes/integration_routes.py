@@ -5,6 +5,7 @@ from middleware.keycloak_auth import get_current_user
 from pydantic import BaseModel
 from services.keycloak_service import KeycloakService
 
+# Integration router
 router = APIRouter(prefix="/api/auth/integration", tags=["Integration"])
 
 
@@ -50,22 +51,46 @@ async def get_user_roles(
     return {"roles": ["user"]}
 
 
-router = APIRouter(prefix="/api/auth/diagnostics", tags=["diagnostics"])
+# Diagnostics router - separate router for diagnostics endpoints
+diagnostics_router = APIRouter(prefix="/api/auth/diagnostics", tags=["diagnostics"])
 
 class DiagnosticsResponse(BaseModel):
     results: Dict[str, Any]
     
-@router.get("/keycloak", response_model=DiagnosticsResponse)
+@diagnostics_router.get("/keycloak", response_model=DiagnosticsResponse)
 async def test_keycloak_connection(user_info: dict = Depends(get_current_user)):
     """
     Test Keycloak connection and configuration
     This endpoint requires authentication to prevent exposing sensitive information
     """
     # Verify the user has admin privileges
-    if "admin" not in user_info.get("roles", []):
+    if "admin" not in user_info.get("realm_access", {}).get("roles", []):
         raise HTTPException(status_code=403, detail="Only administrators can access this endpoint")
         
     keycloak_service = KeycloakService()
-    results = keycloak_service.test_connection()
+    
+    # Get both connection test and realm configuration verification
+    connection_results = keycloak_service.test_connection()
+    config_results = keycloak_service.verify_realm_configuration()
+    
+    # Combine the results
+    results = {
+        "connection": connection_results,
+        "realm_configuration": config_results
+    }
+    
+    return {"results": results}
+
+@diagnostics_router.get("/realm-config", response_model=DiagnosticsResponse)
+async def verify_keycloak_realm(user_info: dict = Depends(get_current_user)):
+    """
+    Verify that the Keycloak realm configuration matches expected structure
+    """
+    # Verify the user has admin privileges
+    if "admin" not in user_info.get("realm_access", {}).get("roles", []):
+        raise HTTPException(status_code=403, detail="Only administrators can access this endpoint")
+        
+    keycloak_service = KeycloakService()
+    results = keycloak_service.verify_realm_configuration()
     
     return {"results": results}

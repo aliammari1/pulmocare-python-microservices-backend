@@ -159,7 +159,7 @@ async def signup(request: SignupRequest):
         name=request.name,
         email=request.email,
         specialty=request.specialty,
-        phone_number=request.phone_number,
+        phone=request.phone,
         address=request.address,
         password=request.password,
     )
@@ -172,7 +172,7 @@ async def signup(request: SignupRequest):
             "email": radiologue.email,
             "password_hash": radiologue.password_hash,
             "specialty": radiologue.specialty,
-            "phone_number": radiologue.phone_number,
+            "phone": radiologue.phone,
             "address": radiologue.address,
             "is_verified": False,  # Add default verification status
         }
@@ -208,9 +208,9 @@ async def login(request: LoginRequest):
                 name=radiologue_data["name"],
                 email=radiologue_data["email"],
                 specialty=radiologue_data["specialty"],
-                phone_number=radiologue_data.get("phone_number", ""),
+                phone=radiologue_data.get("phone", ""),
                 address=radiologue_data.get("address", ""),
-                profile_image=radiologue_data.get("profile_image"),
+                profile_picture=radiologue_data.get("profile_picture"),
                 is_verified=radiologue_data.get("is_verified", False),
                 verification_details=radiologue_data.get("verification_details", None),
             )
@@ -407,9 +407,9 @@ async def change_password(
 async def update_profile(
     name: Optional[str] = Body(None),
     specialty: Optional[str] = Body(None),
-    phone_number: Optional[str] = Body(None),
+    phone: Optional[str] = Body(None),
     address: Optional[str] = Body(None),
-    profile_image: Optional[str] = Body(None),
+    profile_picture: Optional[str] = Body(None),
     user_info: Dict = Depends(get_current_user),
 ):
     user_id = user_info.get("user_id")
@@ -425,12 +425,12 @@ async def update_profile(
         update_fields["name"] = name
     if specialty is not None:
         update_fields["specialty"] = specialty
-    if phone_number is not None:
-        update_fields["phone_number"] = phone_number
+    if phone is not None:
+        update_fields["phone"] = phone
     if address is not None:
         update_fields["address"] = address
-    if profile_image is not None:
-        update_fields["profile_image"] = profile_image
+    if profile_picture is not None:
+        update_fields["profile_picture"] = profile_picture
 
     # Update database
     radiologues_collection.update_one(
@@ -446,7 +446,7 @@ async def update_profile(
     response_data["verification_details"] = current_radiologue.get(
         "verification_details"
     )
-    response_data["profile_image"] = updated_radiologue.get("profile_image")
+    response_data["profile_picture"] = updated_radiologue.get("profile_picture")
 
     return response_data
 
@@ -477,13 +477,13 @@ async def scan_visit_card(request: ScanVisitCardRequest):
         name = extract_name(text)
         email = extract_email(text)
         specialty = extract_specialty(text)
-        phone = extract_phone_number(text)
+        phone = extract_phone(text)
 
         return ScanVisitCardResponse(
             name=name,
             email=email,
             specialty=specialty,
-            phone_number=phone,
+            phone=phone,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -748,7 +748,7 @@ def extract_specialty(text):
     return ""
 
 
-def extract_phone_number(text):
+def extract_phone(text):
     # Basic pattern to match phone formats, can be refined
     phone_match = re.search(r"(\+?\d[\d\s\-]{7,}\d)", text)
     if phone_match:

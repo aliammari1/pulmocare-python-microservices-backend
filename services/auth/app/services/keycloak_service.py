@@ -1,34 +1,50 @@
-import logging
 import os
 import requests
 from typing import Dict, Any, Optional
 
-from keycloak import KeycloakAdmin, KeycloakOpenID
+from keycloak import KeycloakAdmin, KeycloakOpenID, KeycloakOpenIDConnection
 
 from config import Config
+from services.token_provider import TokenProvider
 
 
 class KeycloakService:
-    def __init__(self, config=None):
+    def __init__(
+        self,
+        config=None,
+        keycloak_url=None,
+        realm=None,
+        client_id=None,
+        client_secret=None,
+    ):
         self.config = config or Config()
-        logging.info(
-            f"Initializing Keycloak service with URL: {self.config.KEYCLOAK_URL}"
+        self.keycloak_url = keycloak_url or os.getenv(
+            "KEYCLOAK_URL", "http://localhost:8090"
         )
 
-        self.keycloak_url = self.config.KEYCLOAK_URL
-        self.realm = self.config.KEYCLOAK_REALM
-        self.client_id = self.config.KEYCLOAK_CLIENT_ID
-        self.client_secret = self.config.KEYCLOAK_CLIENT_SECRET
-        
-        # Endpoints
-        self.token_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token"
-        self.userinfo_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/userinfo"
-        self.users_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users"
+        # Strip trailing '/auth' if present as newer Keycloak versions don't use this path
+        if self.keycloak_url.endswith("/auth"):
+            print(
+                f"Detected '/auth' suffix in Keycloak URL, removing it for compatibility"
+            )
+            self.keycloak_url = self.keycloak_url.removesuffix("/auth")
+        # Print initialized URL after removing '/auth' suffix
+        print(f"Initializing Keycloak service with URL: {self.keycloak_url}")
 
-        # Test mode flag
-        self.is_test_mode = os.getenv("AUTH_TEST_MODE", "false").lower() == "true"
-        if self.is_test_mode:
-            logging.info("Keycloak service running in TEST MODE")
+        self.realm = realm or os.getenv("KEYCLOAK_REALM", "pulmocare")
+        self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
+        self.client_secret = client_secret or os.getenv(
+            "KEYCLOAK_CLIENT_SECRET", "pulmocare-secret"
+        )
+
+        # Endpoints
+        self.token_url = (
+            f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token"
+        )
+        self.userinfo_url = (
+            f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/userinfo"
+        )
+        self.users_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users"
 
         self.keycloak_openid = KeycloakOpenID(
             server_url=self.keycloak_url,
@@ -37,16 +53,21 @@ class KeycloakService:
             client_secret_key=self.client_secret,
         )
 
-        # Initialize admin client for administrative operations
-        self.keycloak_admin = KeycloakAdmin(
+        # Create a connection with service account
+        print(
+            f"Setting up KeycloakOpenIDConnection with client credentials for {self.client_id}"
+        )
+        self.keycloak_connection = KeycloakOpenIDConnection(
             server_url=self.keycloak_url,
-            username=self.config.KEYCLOAK_ADMIN_USERNAME,
-            password=self.config.KEYCLOAK_ADMIN_PASSWORD,
             realm_name=self.realm,
+            client_id=self.client_id,
+            client_secret_key=self.client_secret,
             verify=True,
         )
-        logging.info("Keycloak service initialized with native client")
 
+        # Initialize admin client for administrative operations using service account
+        self.keycloak_admin = KeycloakAdmin(connection=self.keycloak_connection)
+        print("Keycloak service initialized with service account credentials")
 
     def login(self, username, password):
         """
@@ -64,6 +85,9 @@ class KeycloakService:
                 # Use the Keycloak client if available
                 token = self.keycloak_openid.token(username, password)
                 user_info = self.keycloak_openid.userinfo(token["access_token"])
+
+                # Get token claims to extract role
+                token_info = self.keycloak_openid.decode_token(token["access_token"])
             else:
                 # Fallback to direct API calls
                 token_response = requests.post(
@@ -77,24 +101,69 @@ class KeycloakService:
                     },
                     headers={"Content-Type": "application/x-www-form-urlencoded"},
                 )
-                
+
                 if token_response.status_code != 200:
-                    logging.error(f"Login failed: {token_response.text}")
+                    print(f"Login failed: {token_response.text}")
                     raise Exception(f"Authentication failed: {token_response.text}")
-                    
+
                 token = token_response.json()
-                
+
                 # Get user info
                 userinfo_response = requests.get(
                     self.userinfo_url,
                     headers={"Authorization": f"Bearer {token['access_token']}"},
                 )
-                
+
                 if userinfo_response.status_code != 200:
-                    logging.error(f"Failed to get user info: {userinfo_response.text}")
+                    print(f"Failed to get user info: {userinfo_response.text}")
                     raise Exception("Failed to get user info")
-                    
+
                 user_info = userinfo_response.json()
+
+                # Decode token to get roles
+                token_info = self.verify_token(token["access_token"])
+
+            # Extract role from realm_access roles or attributes
+            user_role = None
+
+            # First try to get role from realm_access in the token
+            if (
+                token_info
+                and "realm_access" in token_info
+                and "roles" in token_info["realm_access"]
+            ):
+                roles = token_info["realm_access"]["roles"]
+                # Look for role-specific roles (patient-role, doctor-role, etc.)
+                for role in roles:
+                    if role.endswith("-role") and role != "default-roles-pulmocare":
+                        user_role = role  # Keep the full role name including '-role'
+                        break
+                    elif role == "admin":
+                        user_role = "admin"
+                        break
+
+            # If no role found in token, try to get from user attributes
+            if (
+                not user_role
+                and "attributes" in user_info
+                and "role" in user_info["attributes"]
+            ):
+                role_attr = user_info["attributes"]["role"]
+                if isinstance(role_attr, list) and role_attr:
+                    user_role = role_attr[0]  # Keep the original format
+                elif isinstance(role_attr, str):
+                    user_role = role_attr  # Keep the original format
+
+            # Check for a role without the suffix and add it if needed
+            if user_role and user_role not in [
+                "admin",
+                "patient-role",
+                "doctor-role",
+                "radiologist-role",
+            ]:
+                # If it's one of our standard roles but missing the suffix, add it back
+                if user_role in ["patient", "doctor", "radiologist"]:
+                    user_role = f"{user_role}-role"
 
             return {
                 "access_token": token["access_token"],
@@ -106,9 +175,10 @@ class KeycloakService:
                 "given_name": user_info.get("given_name", ""),
                 "family_name": user_info.get("family_name", ""),
                 "preferred_username": user_info.get("preferred_username", ""),
+                "role": user_role,
             }
         except Exception as e:
-            logging.error(f"Login error: {str(e)}")
+            print(f"Login error: {str(e)}")
             raise
 
     def register_user(self, user_data):
@@ -122,47 +192,166 @@ class KeycloakService:
                 - password
                 - firstName (optional)
                 - lastName (optional)
+                - role (optional, defaults to "patient")
 
         Returns:
             str: User ID of the created user
         """
         try:
-            # Create user in Keycloak
-            user_id = self.keycloak_admin.create_user(
-                {
-                    "email": user_data.get("email"),
-                    "username": user_data.get("username", user_data.get("email")),
-                    "firstName": user_data.get("firstName", ""),
-                    "lastName": user_data.get("lastName", ""),
-                    "enabled": True,
-                    "emailVerified": False,
-                    "attributes": {
-                        "phone_number": user_data.get("phone_number", ""),
-                        "address": user_data.get("address", ""),
-                        "specialty": user_data.get("specialty", ""),
-                        "user_type": user_data.get("user_type", "patient"),
-                    },
-                }
+            # Determine role name based on role type
+            role = user_data.get("role", "patient").lower()
+            # Special case for admin role which doesn't have "-role" suffix in realm config
+            role_name = role if role == "admin" else f"{role}-role"
+
+            # Log the registration attempt
+            print(f"Registration attempt for user: {user_data.get('email')}")
+            print(
+                f"Attempting to create user: {user_data.get('email')} with role: {role_name}"
             )
 
+            # Verify the service account token is valid
+            try:
+                # Ensure we have a valid service account token
+                if not self.keycloak_admin.connection.token:
+                    # Try to get a service account token
+                    print(
+                        "Service account token missing, attempting to get a new token..."
+                    )
+
+                    # Get a fresh client credentials token
+                    response = requests.post(
+                        self.token_url,
+                        data={
+                            "client_id": self.client_id,
+                            "client_secret": self.client_secret,
+                            "grant_type": "client_credentials",
+                        },
+                        headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    )
+
+                    if response.status_code != 200:
+                        print(f"Failed to get service account token: {response.text}")
+                        raise Exception(
+                            f"Failed to get service account token: HTTP {response.status_code}"
+                        )
+
+                    # Update the connection token
+                    self.keycloak_connection.token = response.json()
+
+                # Test the token with a basic operation
+                test_token = self.keycloak_admin.connection.token.get("access_token")
+                test_response = requests.get(
+                    f"{self.keycloak_url}/admin/realms/{self.realm}/roles",
+                    headers={"Authorization": f"Bearer {test_token}"},
+                )
+
+                if test_response.status_code != 200:
+                    print(
+                        f"Service account token validation failed: {test_response.status_code} - {test_response.text}"
+                    )
+                    raise Exception(
+                        f"Invalid service account token: HTTP {test_response.status_code}"
+                    )
+                else:
+                    print("Service account token validated successfully")
+            except Exception as e:
+                print(f"Service account token validation error: {str(e)}")
+                # Re-initialize the admin client with a fresh connection
+                print(
+                    "Re-initializing Keycloak admin client with fresh service account credentials"
+                )
+                self.keycloak_connection = KeycloakOpenIDConnection(
+                    server_url=self.keycloak_url,
+                    realm_name=self.realm,
+                    client_id=self.client_id,
+                    client_secret_key=self.client_secret,
+                    verify=True,
+                )
+                self.keycloak_admin = KeycloakAdmin(connection=self.keycloak_connection)
+
+            # Create user in Keycloak
+            user_payload = {
+                "email": user_data.get("email"),
+                "username": user_data.get("username", user_data.get("email")),
+                "firstName": user_data.get("firstName", ""),
+                "lastName": user_data.get("lastName", ""),
+                "enabled": True,
+                "emailVerified": False,
+                "attributes": {
+                    "phone": user_data.get("phone", ""),
+                    "address": user_data.get("address", ""),
+                    "specialty": user_data.get("specialty", ""),
+                    "role": role_name,
+                },
+            }
+
+            print(f"Creating user with payload: {user_payload}")
+            user_id = self.keycloak_admin.create_user(user_payload)
+            print(f"User created with ID: {user_id}")
+
             # Set password
+            print(f"Setting password for user {user_id}")
             self.keycloak_admin.set_user_password(
                 user_id=user_id, password=user_data.get("password"), temporary=False
             )
 
-            # Optionally assign roles based on user type
-            user_type = user_data.get("user_type", "patient")
-            role_name = f"{user_type.lower()}-role"
-
+            # Assign role to user
             try:
-                role = self.keycloak_admin.get_realm_role(role_name)
-                self.keycloak_admin.assign_realm_roles(user_id, [role])
+                print(f"Getting realm role: {role_name}")
+                role_obj = self.keycloak_admin.get_realm_role(role_name)
+                print(f"Assigning role {role_name} to user {user_id}")
+                self.keycloak_admin.assign_realm_roles(user_id, [role_name])
+                print(f"Role {role_name} assigned successfully")
             except Exception as e:
-                logging.warning(f"Could not assign role {role_name}: {str(e)}")
+                print(f"Could not assign role {role_name}: {str(e)}")
+
+            # Assign user to appropriate group
+            try:
+                # Map role to group name - capitalize first letter and add 's'
+                if role == "admin":
+                    group_name = "Administrators"
+                else:
+                    group_name = (
+                        role.capitalize() + "s"
+                    )  # e.g., "Doctors", "Patients", "Radiologists"
+
+                print(f"Getting groups to assign user to {group_name}")
+                # Get all groups and find the right one by name
+                groups = self.keycloak_admin.get_groups()
+                group_id = None
+                for group in groups:
+                    if group["name"] == group_name:
+                        group_id = group["id"]
+                        break
+
+                if group_id:
+                    print(
+                        f"Adding user {user_id} to group {group_name} (ID: {group_id})"
+                    )
+                    self.keycloak_admin.group_user_add(user_id, group_id)
+                    print(f"User {user_id} added to group {group_name}")
+                else:
+                    print(f"Warning: Group {group_name} not found")
+            except Exception as e:
+                print(f"Could not assign user to group {group_name}: {str(e)}")
 
             return user_id
         except Exception as e:
-            logging.error(f"User registration error: {str(e)}")
+            error_msg = f"User registration error: {str(e)}"
+            print(error_msg)
+
+            # Check if this is a permission issue
+            if "403" in str(e) or "Forbidden" in str(e):
+                print("Permission denied. Checking Keycloak client permissions...")
+                print("Permission denied. Make sure:")
+                print(
+                    "1. The client has 'Service Account Roles' properly configured in Keycloak"
+                )
+                print(
+                    "2. The service account has the 'manage-users' role in realm-management"
+                )
+                print("3. Client service account has been granted necessary roles")
+
             raise
 
     def verify_token(self, token):
@@ -176,27 +365,12 @@ class KeycloakService:
             dict: Decoded token information
         """
         try:
-            # For test mode, try our token provider first
-            if self.is_test_mode:
-                try:
-                    return token_provider.verify_token(token)
-                except Exception as e:
-                    logging.debug(f"Test token verification failed: {str(e)}, trying regular verification")
-                    # Continue to regular verification
-            
-            # Regular verification for all tokens
-            JWKS = self.keycloak_openid.well_known()["jwks_uri"]
-            options = {
-                "verify_signature": True,
-                "verify_aud": False,
-                "verify_exp": True,
-            }
-            token_info = self.keycloak_openid.decode_token(
-                token, key=JWKS, options=options
-            )
+            config_well_known = self.keycloak_openid.well_known()
+            token_info = self.keycloak_openid.decode_token(token, False)
+            print(f"Decoded token info: {token_info}")
             return token_info
         except Exception as e:
-            logging.error(f"Token verification error: {str(e)}")
+            print(f"Token verification error: {str(e)}")
             raise
 
     def refresh_token(self, refresh_token):
@@ -217,7 +391,7 @@ class KeycloakService:
                 "expires_in": token["expires_in"],
             }
         except Exception as e:
-            logging.error(f"Token refresh error: {str(e)}")
+            print(f"Token refresh error: {str(e)}")
             raise
 
     def logout(self, refresh_token):
@@ -231,10 +405,10 @@ class KeycloakService:
             self.keycloak_openid.logout(refresh_token)
             return True
         except Exception as e:
-            logging.error(f"Logout error: {str(e)}")
+            print(f"Logout error: {str(e)}")
             raise
 
-    def get_user_info(self, user_id):
+    def get_user_info_by_id(self, user_id):
         """
         Get user information from Keycloak
 
@@ -248,7 +422,24 @@ class KeycloakService:
             user_info = self.keycloak_admin.get_user(user_id)
             return user_info
         except Exception as e:
-            logging.error(f"Get user info error: {str(e)}")
+            print(f"Get user info error: {str(e)}")
+            raise
+
+    def get_user_info_by_token(self, token):
+        """
+        Get user information from Keycloak
+
+        Args:
+            token (str): JWT access token
+
+        Returns:
+            dict: User information
+        """
+        try:
+            user_info = self.keycloak_openid.userinfo(token)
+            return user_info
+        except Exception as e:
+            print(f"Get user info error: {str(e)}")
             raise
 
     def update_user(self, user_id, user_data):
@@ -277,8 +468,8 @@ class KeycloakService:
 
             # Handle attributes separately
             attributes = existing_user.get("attributes", {})
-            if user_data.get("phone_number"):
-                attributes["phone_number"] = [user_data["phone_number"]]
+            if user_data.get("phone"):
+                attributes["phone"] = [user_data["phone"]]
             if user_data.get("address"):
                 attributes["address"] = [user_data["address"]]
             if user_data.get("specialty"):
@@ -298,7 +489,7 @@ class KeycloakService:
 
             return True
         except Exception as e:
-            logging.error(f"Update user error: {str(e)}")
+            print(f"Update user error: {str(e)}")
             raise
 
     def request_password_reset(self, email):
@@ -315,9 +506,7 @@ class KeycloakService:
             # Find user by email
             users = self.keycloak_admin.get_users({"email": email})
             if not users:
-                logging.warning(
-                    f"Password reset requested for non-existent email: {email}"
-                )
+                print(f"Password reset requested for non-existent email: {email}")
                 return False
 
             user_id = users[0]["id"]
@@ -329,7 +518,7 @@ class KeycloakService:
 
             return True
         except Exception as e:
-            logging.error(f"Password reset request error: {str(e)}")
+            print(f"Password reset request error: {str(e)}")
             raise
 
     def get_admin_token(self) -> Optional[str]:
@@ -340,86 +529,16 @@ class KeycloakService:
                 data={
                     "client_id": self.client_id,
                     "client_secret": self.client_secret,
-                    "grant_type": "client_credentials"
+                    "grant_type": "client_credentials",
                 },
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
             )
-            
+
             if response.status_code != 200:
-                logging.error(f"Failed to get admin token: {response.text}")
+                print(f"Failed to get admin token: {response.text}")
                 return None
-                
+
             return response.json().get("access_token")
         except Exception as e:
-            logging.error(f"Error getting admin token: {str(e)}")
+            print(f"Error getting admin token: {str(e)}")
             return None
-            
-    def test_connection(self) -> Dict[str, Any]:
-        """Test the connection to Keycloak and validate configuration"""
-        results = {
-            "keycloak_url": {
-                "value": self.keycloak_url,
-                "status": "unknown"
-            },
-            "realm": {
-                "value": self.realm,
-                "status": "unknown"
-            },
-            "client_id": {
-                "value": self.client_id,
-                "status": "unknown"
-            },
-            "client_credentials": {
-                "status": "unknown"
-            }
-        }
-        
-        # Test basic connectivity
-        try:
-            response = requests.get(f"{self.keycloak_url}")
-            if response.status_code < 400:
-                results["keycloak_url"]["status"] = "ok"
-            else:
-                results["keycloak_url"]["status"] = "error"
-                results["keycloak_url"]["message"] = f"HTTP {response.status_code}"
-        except Exception as e:
-            results["keycloak_url"]["status"] = "error"
-            results["keycloak_url"]["message"] = str(e)
-            
-        # Test realm existence
-        try:
-            response = requests.get(f"{self.keycloak_url}/realms/{self.realm}")
-            if response.status_code < 400:
-                results["realm"]["status"] = "ok"
-            else:
-                results["realm"]["status"] = "error"
-                results["realm"]["message"] = f"HTTP {response.status_code}"
-        except Exception as e:
-            results["realm"]["status"] = "error"
-            results["realm"]["message"] = str(e)
-            
-        # Test client credentials
-        try:
-            response = requests.post(
-                self.token_url,
-                data={
-                    "client_id": self.client_id,
-                    "client_secret": self.client_secret,
-                    "grant_type": "client_credentials"
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"}
-            )
-            
-            if response.status_code == 200:
-                results["client_credentials"]["status"] = "ok"
-                results["client_id"]["status"] = "ok"
-            else:
-                error_data = response.json() if response.text else {"error": "Unknown error"}
-                results["client_credentials"]["status"] = "error"
-                results["client_credentials"]["message"] = error_data.get("error_description", "Unknown error")
-                results["client_id"]["status"] = "unknown"
-        except Exception as e:
-            results["client_credentials"]["status"] = "error"
-            results["client_credentials"]["message"] = str(e)
-            
-        return results

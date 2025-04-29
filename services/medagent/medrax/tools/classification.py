@@ -47,14 +47,14 @@ class ChestXRayClassifierTool(BaseTool):
     )
     args_schema: Type[BaseModel] = ChestXRayInput
     model: xrv.models.DenseNet = None
-    device: Optional[str] = "cuda"
+    device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
     transform: torchvision.transforms.Compose = None
 
     def __init__(self, model_name: str = "densenet121-res224-all", device: Optional[str] = "cuda"):
         super().__init__()
         self.model = xrv.models.DenseNet(weights=model_name)
         self.model.eval()
-        self.device = torch.device(device) if device else "cuda"
+        self.device = torch.device(device) if device and torch.cuda.is_available() else "cpu"
         self.model = self.model.to(self.device)
         self.transform = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop()])
 

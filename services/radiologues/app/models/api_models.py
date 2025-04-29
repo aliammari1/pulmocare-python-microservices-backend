@@ -14,9 +14,9 @@ class LoginResponse(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_verified: Optional[bool] = False
     verification_details: Optional[Dict[str, Any]] = None
     signature: Optional[str] = None
@@ -26,7 +26,7 @@ class SignupRequest(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phoneNumber: str
+    phone: str
     address: Optional[str] = None
     password: str
 
@@ -73,7 +73,7 @@ class ScanVisitCardResponse(BaseModel):
     name: str
     email: str
     specialty: str
-    phone_number: str
+    phone: str
 
 
 class ReportRequest(BaseModel):

@@ -28,22 +28,15 @@
       }
     ]
   },
-  "defaultRoles": [
-    "offline_access",
-    "uma_authorization"
-  ],
+  "defaultRoles": ["offline_access", "uma_authorization"],
   "clients": [
     {
       "clientId": "pulmocare-api",
       "enabled": true,
       "clientAuthenticatorType": "client-secret",
       "secret": "pulmocare-secret",
-      "redirectUris": [
-        "*"
-      ],
-      "webOrigins": [
-        "*"
-      ],
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
       "standardFlowEnabled": true,
       "directAccessGrantsEnabled": true,
       "serviceAccountsEnabled": true,
@@ -67,55 +60,28 @@
         "display.on.consent.screen": "false",
         "saml.onetimeuse.condition": "false"
       }
-    },
-    {
-      "clientId": "pulmocare-mobile",
-      "enabled": true,
-      "clientAuthenticatorType": "client-secret",
-      "secret": "pulmocare-mobile-secret",
-      "redirectUris": [
-        "*"
-      ],
-      "webOrigins": [
-        "*"
-      ],
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
-      "serviceAccountsEnabled": false,
-      "publicClient": true,
-      "frontchannelLogout": false,
-      "protocol": "openid-connect",
-      "fullScopeAllowed": true
     }
   ],
   "groups": [
     {
       "name": "Doctors",
       "path": "/Doctors",
-      "realmRoles": [
-        "doctor-role"
-      ]
+      "realmRoles": ["doctor-role"]
     },
     {
       "name": "Patients",
       "path": "/Patients",
-      "realmRoles": [
-        "patient-role"
-      ]
+      "realmRoles": ["patient-role"]
     },
     {
       "name": "Radiologists",
       "path": "/Radiologists",
-      "realmRoles": [
-        "radiologist-role"
-      ]
+      "realmRoles": ["radiologist-role"]
     },
     {
       "name": "Administrators",
       "path": "/Administrators",
-      "realmRoles": [
-        "admin"
-      ]
+      "realmRoles": ["admin"]
     }
   ],
   "users": [
@@ -134,13 +100,9 @@
           "temporary": false
         }
       ],
-      "realmRoles": [
-        "admin"
-      ],
+      "realmRoles": ["admin"],
       "clientRoles": {},
-      "groups": [
-        "/Administrators"
-      ]
+      "groups": ["/Administrators"]
     }
   ],
   "scopeMappings": [],

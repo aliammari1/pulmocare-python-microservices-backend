@@ -71,7 +71,7 @@ async def signup(request: PatientCreate):
     patient = Patient(
         name=request.name,
         email=request.email,
-        phone_number=request.phone_number,
+        phone=request.phone,
         address=request.address,
         date_of_birth=request.date_of_birth,
         password=request.password,
@@ -84,7 +84,7 @@ async def signup(request: PatientCreate):
             "name": patient.name,
             "email": patient.email,
             "password_hash": patient.password_hash,
-            "phone_number": patient.phone_number,
+            "phone": patient.phone,
             "address": patient.address,
             "date_of_birth": patient.date_of_birth,
             "created_at": datetime.utcnow(),
@@ -127,10 +127,10 @@ async def login(request: LoginRequest):
                 id=str(patient_data["_id"]),
                 name=patient_data["name"],
                 email=patient_data["email"],
-                phone_number=patient_data.get("phone_number", ""),
+                phone=patient_data.get("phone", ""),
                 address=patient_data.get("address", ""),
                 date_of_birth=patient_data.get("date_of_birth"),
-                profile_image=patient_data.get("profile_image"),
+                profile_picture=patient_data.get("profile_picture"),
             )
         else:
             logger_service.debug("Invalid password")

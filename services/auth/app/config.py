@@ -87,3 +87,9 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = int(
         os.getenv("JWT_REFRESH_TOKEN_EXPIRES", 2592000)
     )  # 30 days
+
+    # Default redirect URL after login (if applicable)
+    DEFAULT_REDIRECT_URL = os.getenv("DEFAULT_REDIRECT_URL", "http://localhost:3000")
+
+    # CORS settings
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")

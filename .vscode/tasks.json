@@ -4,7 +4,7 @@
         {
             "label": "Run Medecins Service",
             "type": "shell",
-            "command": "cd services/medecins && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/medecins && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -13,7 +13,7 @@
         {
             "label": "Run Ordonnances Service",
             "type": "shell",
-            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/ordonnances && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -22,7 +22,7 @@
         {
             "label": "Run Patients Service",
             "type": "shell",
-            "command": "cd services/patients && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/patients && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -31,7 +31,7 @@
         {
             "label": "Run Radiologues Service",
             "type": "shell",
-            "command": "cd services/radiologues && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/radiologues && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -40,7 +40,7 @@
         {
             "label": "Run Reports Service",
             "type": "shell",
-            "command": "cd services/reports && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/reports && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -49,7 +49,7 @@
         {
             "label": "Run Auth Service",
             "type": "shell",
-            "command": "cd services/auth && .venv\\Scripts\\Activate && python -m pip install -r requirements.txt && cd app && python app.py",
+            "command": "cd services/auth && python3 -m venv .venv && source .venv/bin/activate && python3 -m pip install -r requirements.txt && cd app && python3 app.py",
             "presentation": {
                 "panel": "new"
             },
@@ -76,7 +76,7 @@
         {
             "label": "Run Tests - Medecins Service",
             "type": "shell",
-            "command": "cd services/medecins && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/medecins && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"
@@ -86,7 +86,7 @@
         {
             "label": "Run Tests - Ordonnances Service",
             "type": "shell",
-            "command": "cd services/ordonnances && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/ordonnances && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"
@@ -96,7 +96,7 @@
         {
             "label": "Run Tests - Patients Service",
             "type": "shell",
-            "command": "cd services/patients && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/patients && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"
@@ -106,7 +106,7 @@
         {
             "label": "Run Tests - Radiologues Service",
             "type": "shell",
-            "command": "cd services/radiologues && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/radiologues && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"
@@ -116,7 +116,7 @@
         {
             "label": "Run Tests - Reports Service",
             "type": "shell",
-            "command": "cd services/reports && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/reports && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"
@@ -126,7 +126,7 @@
         {
             "label": "Run Tests - Auth Service",
             "type": "shell",
-            "command": "cd services/auth && .venv\\Scripts\\Activate && cd app && python -m pytest -v test.py",
+            "command": "cd services/auth && python3 -m venv .venv && source .venv/bin/activate && cd app && python3 -m pytest -v test.py",
             "presentation": {
                 "panel": "new",
                 "reveal": "always"

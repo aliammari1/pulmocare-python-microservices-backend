@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 from typing import Any, Dict, List
 
@@ -9,7 +8,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.algorithms import RSAAlgorithm
 
-logger = logging.getLogger("auth_middleware")
 
 # Security scheme for Swagger UI
 security = HTTPBearer()
@@ -36,6 +34,12 @@ class KeycloakMiddleware:
         self.keycloak_url = keycloak_url or os.getenv(
             "KEYCLOAK_URL", "http://keycloak:8080"
         )
+        
+        # Strip trailing '/auth' if present as newer Keycloak versions don't use this path
+        if self.keycloak_url.endswith('/auth'):
+            print(f"Detected '/auth' suffix in Keycloak URL, removing it for compatibility with newer versions")
+            self.keycloak_url = self.keycloak_url.removesuffix('/auth')
+            
         self.realm = realm or os.getenv("KEYCLOAK_REALM", "pulmocare")
         self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
         self.client_secret = client_secret or os.getenv(
@@ -52,7 +56,7 @@ class KeycloakMiddleware:
         )
         self.token_introspection_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token/introspect"
 
-        logger.info(f"Keycloak middleware initialized for realm {self.realm}")
+        print(f"Keycloak middleware initialized for realm {self.realm} with URL {self.keycloak_url}")
 
     def get_public_key(self, kid=None):
         """
@@ -77,7 +81,7 @@ class KeycloakMiddleware:
                 response.raise_for_status()
                 self._jwks = response.json()
             except Exception as e:
-                logger.error(f"Error fetching JWKS: {str(e)}")
+                print(f"Error fetching JWKS: {str(e)}")
                 raise
 
         # Find the key with matching kid
@@ -136,13 +140,13 @@ class KeycloakMiddleware:
 
             return payload
         except jwt.ExpiredSignatureError:
-            logger.warning("Token expired")
+            print("Token expired")
             raise
         except jwt.InvalidTokenError as e:
-            logger.warning(f"Invalid token: {str(e)}")
+            print(f"Invalid token: {str(e)}")
             raise
         except Exception as e:
-            logger.error(f"Error verifying token: {str(e)}")
+            print(f"Error verifying token: {str(e)}")
             raise
 
     def introspect_token(self, token):
@@ -173,7 +177,7 @@ class KeycloakMiddleware:
 
             return result
         except Exception as e:
-            logger.error(f"Error introspecting token: {str(e)}")
+            print(f"Error introspecting token: {str(e)}")
             raise
 
     async def get_current_user(
@@ -233,7 +237,7 @@ class KeycloakMiddleware:
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except Exception as e:
-            logger.error(f"Authentication error: {str(e)}")
+            print(f"Authentication error: {str(e)}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication failed",

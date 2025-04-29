@@ -47,7 +47,7 @@ class ChestXRayReportGeneratorTool(BaseTool):
         "to a chest X-ray image file. Output is a structured report with both detailed "
         "observations and key clinical conclusions."
     )
-    device: Optional[str] = "cuda"
+    device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
     args_schema: Type[BaseModel] = ChestXRayInput
     findings_model: VisionEncoderDecoderModel = None
     impression_model: VisionEncoderDecoderModel = None
@@ -57,10 +57,10 @@ class ChestXRayReportGeneratorTool(BaseTool):
     impression_processor: ViTImageProcessor = None
     generation_args: Dict[str, Any] = None
 
-    def __init__(self, cache_dir: str = "/model-weights", device: Optional[str] = "cuda"):
+    def __init__(self, cache_dir: str = "./model-weights", device: Optional[str] = "cuda"):
         """Initialize the ChestXRayReportGeneratorTool with both findings and impression models."""
         super().__init__()
-        self.device = torch.device(device) if device else "cuda"
+        self.device = torch.device(device) if device and torch.cuda.is_available() else "cpu"
 
         # Initialize findings model
         self.findings_model = VisionEncoderDecoderModel.from_pretrained(

@@ -25,9 +25,9 @@ class DoctorBase(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone_number: str
+    phone: str
     address: str
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_verified: Optional[bool] = False
     verification_details: Optional[Dict] = None
     signature: Optional[str] = None
@@ -46,9 +46,9 @@ class DoctorCreate(DoctorBase):
 class DoctorUpdate(BaseModel):
     name: Optional[str] = None
     specialty: Optional[str] = None
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -69,13 +69,13 @@ class PasswordChange(BaseModel):
 
 class Doctor:
     def __init__(
-        self, name, email, specialty, phone_number, address, password=None, _id=None
+        self, name, email, specialty, phone, address, password=None, _id=None
     ):
         self._id = _id or ObjectId()
         self.name = name
         self.email = email
         self.specialty = specialty
-        self.phone_number = phone_number
+        self.phone = phone
         self.address = address
         self.password_hash = None
         if password:
@@ -96,10 +96,10 @@ class Doctor:
             "name": self.name,
             "email": self.email,
             "specialty": self.specialty,
-            "phone_number": self.phone_number,
+            "phone": self.phone,
             "address": self.address,
-            "profile_image": (
-                self.profile_image if hasattr(self, "profile_image") else None
+            "profile_picture": (
+                self.profile_picture if hasattr(self, "profile_picture") else None
             ),
         }
 
@@ -109,12 +109,12 @@ class Doctor:
             name=data["name"],
             email=data["email"],
             specialty=data["specialty"],
-            phone_number=data["phone_number"],
+            phone=data["phone"],
             address=data["address"],
         )
         doctor._id = data["_id"]
-        if "profile_image" in data:
-            doctor.profile_image = data["profile_image"]
+        if "profile_picture" in data:
+            doctor.profile_picture = data["profile_picture"]
         return doctor
 
     @classmethod
@@ -124,7 +124,7 @@ class Doctor:
             name=doctor_model.name,
             email=doctor_model.email,
             specialty=doctor_model.specialty,
-            phone_number=doctor_model.phone_number,
+            phone=doctor_model.phone,
             address=doctor_model.address,
             password=doctor_model.password,
         )
@@ -136,9 +136,9 @@ class Doctor:
             name=self.name,
             email=self.email,
             specialty=self.specialty,
-            phone_number=self.phone_number,
+            phone=self.phone,
             address=self.address,
-            profile_image=getattr(self, "profile_image", None),
+            profile_picture=getattr(self, "profile_picture", None),
             is_verified=getattr(self, "is_verified", False),
             verification_details=getattr(self, "verification_details", None),
             signature=getattr(self, "signature", None),

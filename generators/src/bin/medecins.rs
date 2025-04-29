@@ -22,11 +22,11 @@ struct Doctor {
     name: String,
     email: String,
     specialty: String,
-    phone_number: String,
+    phone: String,
     address: String,
     password_hash: String,
     is_verified: bool,
-    profile_image: Option<String>,
+    profile_picture: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -43,7 +43,7 @@ async fn generate_doctors(count: usize) -> Result<(), Box<dyn Error>> {
     let (db, _client) = connect_to_mongodb().await?;
     let collection = db.collection::<Document>("doctors");
 
-    let specialities = vec![
+    let specialities: Vec<&str> = vec![
         "Cardiology",
         "Dermatology",
         "Neurology",
@@ -86,26 +86,34 @@ async fn generate_doctors(count: usize) -> Result<(), Box<dyn Error>> {
 
             let password_hash = hash_password("password");
 
+            // Generate random profile image URL
+            let gender = if rng.gen_bool(0.5) { "men" } else { "women" };
+            let image_index = rng.gen_range(1..100);
+            let profile_picture = Some(format!(
+                "https://randomuser.me/api/portraits/{}/{}.jpg",
+                gender, image_index
+            ));
+
             let doctor = Doctor {
                 name,
                 email,
                 specialty: specialities.choose(&mut rng).unwrap().to_string(),
-                phone_number: PhoneNumber().fake(),
+                phone: PhoneNumber().fake(),
                 address: StreetName().fake(),
                 password_hash,
                 is_verified: rng.gen_bool(0.5),
-                profile_image: None,
+                profile_picture,
             };
 
             batch.push(doc! {
                 "name": doctor.name,
                 "email": doctor.email,
                 "specialty": doctor.specialty,
-                "phone_number": doctor.phone_number,
+                "phone": doctor.phone,
                 "address": doctor.address,
                 "password_hash": doctor.password_hash,
                 "is_verified": doctor.is_verified,
-                "profile_image": doctor.profile_image,
+                "profile_picture": doctor.profile_picture,
             });
         }
 

@@ -53,8 +53,8 @@ class ChestXRayGeneratorTool(BaseTool):
 
     def __init__(
         self,
-        model_path: str = "/model-weights/roentgen",
-        cache_dir: str = "/model-weights",
+        model_path: str = "./model-weights/roentgen",
+        cache_dir: str = "./model-weights",
         temp_dir: Optional[str] = None,
         device: Optional[str] = "cuda",
     ):

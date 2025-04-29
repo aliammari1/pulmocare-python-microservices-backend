@@ -26,9 +26,9 @@ class RadiologueBase(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
     is_verified: Optional[bool] = False
     verification_details: Optional[Dict[str, Any]] = None
 
@@ -47,9 +47,9 @@ class RadiologueCreate(RadiologueBase):
 class RadiologueUpdate(BaseModel):
     name: Optional[str] = None
     specialty: Optional[str] = None
-    phone_number: Optional[str] = None
+    phone: Optional[str] = None
     address: Optional[str] = None
-    profile_image: Optional[str] = None
+    profile_picture: Optional[str] = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -74,7 +74,7 @@ class Radiologue:
         name,
         email,
         specialty,
-        phone_number=None,
+        phone=None,
         address=None,
         password=None,
         _id=None,
@@ -83,12 +83,12 @@ class Radiologue:
         self.name = name
         self.email = email
         self.specialty = specialty
-        self.phone_number = phone_number
+        self.phone = phone
         self.address = address
         self.password_hash = None
         self.is_verified = False
         self.verification_details = None
-        self.profile_image = None
+        self.profile_picture = None
         self.created_at = datetime.utcnow()
         if password:
             self.set_password(password)
@@ -108,9 +108,9 @@ class Radiologue:
             "name": self.name,
             "email": self.email,
             "specialty": self.specialty,
-            "phone_number": self.phone_number,
+            "phone": self.phone,
             "address": self.address,
-            "profile_image": getattr(self, "profile_image", None),
+            "profile_picture": getattr(self, "profile_picture", None),
             "is_verified": getattr(self, "is_verified", False),
             "verification_details": getattr(self, "verification_details", None),
             "created_at": getattr(self, "created_at", datetime.utcnow()),
@@ -122,13 +122,13 @@ class Radiologue:
             name=data["name"],
             email=data["email"],
             specialty=data["specialty"],
-            phone_number=data.get("phone_number"),
+            phone=data.get("phone"),
             address=data.get("address"),
         )
         radiologue._id = data["_id"]
 
         # Copy additional fields
-        for field in ["profile_image", "is_verified", "verification_details"]:
+        for field in ["profile_picture", "is_verified", "verification_details"]:
             if field in data:
                 setattr(radiologue, field, data[field])
 
@@ -144,7 +144,7 @@ class Radiologue:
             name=radiologue_model.name,
             email=radiologue_model.email,
             specialty=radiologue_model.specialty,
-            phone_number=radiologue_model.phone_number,
+            phone=radiologue_model.phone,
             address=radiologue_model.address,
             password=radiologue_model.password,
         )
@@ -156,9 +156,9 @@ class Radiologue:
             name=self.name,
             email=self.email,
             specialty=self.specialty,
-            phone_number=self.phone_number,
+            phone=self.phone,
             address=self.address,
-            profile_image=getattr(self, "profile_image", None),
+            profile_picture=getattr(self, "profile_picture", None),
             is_verified=getattr(self, "is_verified", False),
             verification_details=getattr(self, "verification_details", None),
             created_at=getattr(self, "created_at", None),

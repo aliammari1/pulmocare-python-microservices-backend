@@ -4,8 +4,7 @@ from auth.keycloak_auth import get_current_user
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from models.api_models import *
-from models.api_models import (ErrorResponse, MessageResponse,
-                               RadiologyRequestModel)
+from models.api_models import ErrorResponse, MessageResponse, RadiologyRequestModel
 from services.appointment_service import AppointmentService
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
@@ -347,14 +346,13 @@ async def get_doctor_appointments(
     status: Optional[str] = None,
     page: int = Query(1, ge=1),
     limit: int = Query(10, ge=1, le=100),
+    doctor_id: Optional[str] = None,
     user_info: Dict = Depends(get_current_user),
 ):
     """
     Get appointments for the current doctor
     """
     try:
-        doctor_id = user_info.get("user_id")
-
         # Create appointment service
         appointment_service = AppointmentService()
 
@@ -370,6 +368,9 @@ async def get_doctor_appointments(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving appointments: {str(e)}",
         )
+    finally:
+        if appointment_service:
+            appointment_service.close()
 
 
 @router.get(
@@ -758,3 +759,368 @@ async def request_radiology_examination(
     finally:
         if radiology_service:
             radiology_service.close()
+
+
+@router.post(
+    "/appointments/{appointment_id}/cancel",
+    response_model=AppointmentResponse,
+    responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def cancel_appointment(
+    appointment_id: str,
+    reason: Optional[str] = None,
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Cancel an existing appointment
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Cancel the appointment
+        updated_appointment = await appointment_service.cancel_appointment(
+            appointment_id=appointment_id, doctor_id=doctor_id, reason=reason
+        )
+
+        if not updated_appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or cannot be cancelled",
+            )
+
+        return updated_appointment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error cancelling appointment: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error cancelling appointment: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+@router.post(
+    "/appointments/{appointment_id}/reschedule",
+    response_model=AppointmentResponse,
+    responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def reschedule_appointment(
+    appointment_id: str,
+    new_time: str,
+    reason: Optional[str] = None,
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Reschedule an appointment to a new time
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Reschedule the appointment
+        updated_appointment = await appointment_service.reschedule_appointment(
+            appointment_id=appointment_id,
+            doctor_id=doctor_id,
+            new_time=new_time,
+            reason=reason,
+        )
+
+        if not updated_appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or cannot be rescheduled",
+            )
+
+        return updated_appointment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error rescheduling appointment: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error rescheduling appointment: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+@router.post(
+    "/appointments/{appointment_id}/notes",
+    response_model=AppointmentResponse,
+    responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def add_appointment_notes(
+    appointment_id: str,
+    notes: str,
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Add notes to an existing appointment
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Add notes to the appointment
+        updated_appointment = await appointment_service.add_appointment_notes(
+            appointment_id=appointment_id, doctor_id=doctor_id, notes=notes
+        )
+
+        if not updated_appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or notes cannot be added",
+            )
+
+        return updated_appointment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error adding appointment notes: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error adding appointment notes: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+@router.post(
+    "/appointments/{appointment_id}/complete",
+    response_model=AppointmentResponse,
+    responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def complete_appointment(
+    appointment_id: str,
+    notes: Optional[str] = None,
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Mark an appointment as completed
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Complete the appointment
+        updated_appointment = await appointment_service.complete_appointment(
+            appointment_id=appointment_id, doctor_id=doctor_id, notes=notes
+        )
+
+        if not updated_appointment:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Appointment not found or cannot be completed",
+            )
+
+        return updated_appointment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error completing appointment: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error completing appointment: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+@router.get(
+    "/patient/{patient_id}/appointments",
+    response_model=AppointmentListResponse,
+    responses={500: {"model": MessageResponse}},
+)
+async def get_patient_appointments(
+    patient_id: str,
+    status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Get appointments between the current doctor and a specific patient
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Get patient appointments
+        appointments = await appointment_service.get_patient_appointments(
+            doctor_id=doctor_id,
+            patient_id=patient_id,
+            status=status,
+            page=page,
+            limit=limit,
+        )
+
+        return appointments
+    except Exception as e:
+        logger_service.error(f"Error retrieving patient appointments: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving patient appointments: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+@router.post(
+    "/create-appointment",
+    response_model=AppointmentResponse,
+    responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def create_appointment(
+    patient_id: str,
+    patient_name: str,
+    requested_time: str,
+    reason: Optional[str] = None,
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Create a new appointment for a patient with this doctor
+    """
+    try:
+        doctor_id = user_info.get("user_id")
+
+        # Create appointment service
+        appointment_service = AppointmentService()
+
+        # Create the appointment
+        new_appointment = await appointment_service.create_appointment(
+            doctor_id=doctor_id,
+            patient_id=patient_id,
+            patient_name=patient_name,
+            requested_time=requested_time,
+            reason=reason,
+        )
+
+        if not new_appointment:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create appointment",
+            )
+
+        return new_appointment
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error creating appointment: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating appointment: {str(e)}",
+        )
+    finally:
+        if appointment_service:
+            appointment_service.close()
+
+
+# New direct API endpoint to serve appointments for AppointmentService
+@router.get(
+    "/appointments/doctor/{doctor_id}",
+    response_model=AppointmentListResponse,
+    responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
+)
+async def get_doctor_appointments_direct(
+    doctor_id: str,
+    status: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: Dict = Depends(get_current_user),
+):
+    """
+    Get appointments for a specific doctor (direct API endpoint for service-to-service calls)
+    """
+    try:
+        # Verify the requesting user is authorized (either the doctor themselves or an admin)
+        # print()
+        # if user_info.get("user_id") != doctor_id and "admin" not in user_info.get(
+        #     "roles", []
+        # ):
+        #     raise HTTPException(
+        #         status_code=status.HTTP_403_FORBIDDEN,
+        #         detail="You don't have permission to view these appointments",
+        #     )
+
+        # Verify doctor exists
+        doctor = doctors_collection.find_one({"_id": ObjectId(doctor_id)})
+        if not doctor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found"
+            )
+
+        # Query parameters
+        skip = (page - 1) * limit
+        query = {"doctor_id": doctor_id}
+
+        if status:
+            query["status"] = status
+
+        # Get appointments from the database
+        appointments_cursor = (
+            mongodb_client.db.appointment_requests.find(query)
+            .sort("requested_time", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        appointments = list(appointments_cursor)
+
+        # Count total for pagination
+        total_appointments = mongodb_client.db.appointment_requests.count_documents(
+            query
+        )
+        total_pages = (total_appointments + limit - 1) // limit  # ceiling division
+
+        # Format the response
+        formatted_appointments = []
+        for appointment in appointments:
+            formatted_appointments.append(
+                {
+                    "id": appointment.get(
+                        "appointment_id", str(appointment.get("_id", ""))
+                    ),
+                    "doctor_id": appointment.get("doctor_id"),
+                    "patient_id": appointment.get("patient_id"),
+                    "patient_name": appointment.get("patient_name", "Unknown Patient"),
+                    "requested_time": appointment.get("requested_time"),
+                    "status": appointment.get("status"),
+                    "reason": appointment.get("reason"),
+                    "notes": appointment.get("notes"),
+                    "created_at": appointment.get("created_at"),
+                    "updated_at": appointment.get("updated_at"),
+                }
+            )
+
+        return {
+            "items": formatted_appointments,
+            "total": total_appointments,
+            "page": page,
+            "pages": total_pages,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Error retrieving doctor appointments: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving appointments: {str(e)}",
+        )

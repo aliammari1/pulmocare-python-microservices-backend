@@ -2,12 +2,11 @@ import os
 import warnings
 from typing import *
 from dotenv import load_dotenv
+from openai import azure_endpoint
 from transformers import logging
 
 from langgraph.checkpoint.memory import MemorySaver
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.memory import MemorySaver
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 
 from interface import create_demo
 from medrax.agent import *
@@ -22,7 +21,7 @@ _ = load_dotenv()
 def initialize_agent(
     prompt_file,
     tools_to_use=None,
-    model_dir="/model-weights",
+    model_dir="./model-weights",
     temp_dir="temp",
     device="cuda",
     model="chatgpt-4o-latest",
@@ -35,7 +34,7 @@ def initialize_agent(
     Args:
         prompt_file (str): Path to file containing system prompts
         tools_to_use (List[str], optional): List of tool names to initialize. If None, all tools are initialized.
-        model_dir (str, optional): Directory containing model weights. Defaults to "/model-weights".
+        model_dir (str, optional): Directory containing model weights. Defaults to "./model-weights".
         temp_dir (str, optional): Directory for temporary files. Defaults to "temp".
         device (str, optional): Device to run models on. Defaults to "cuda".
         model (str, optional): Model to use. Defaults to "chatgpt-4o-latest".
@@ -75,7 +74,16 @@ def initialize_agent(
             tools_dict[tool_name] = all_tools[tool_name]()
 
     checkpointer = MemorySaver()
-    model = ChatOpenAI(model=model, temperature=temperature, top_p=top_p, **openai_kwargs)
+    model = AzureChatOpenAI(
+        azure_endpoint=os.getenv("AZURE_ENDPOINT"),
+        azure_deployment=os.getenv("AZURE_DEPLOYMENT"),
+        api_version=os.getenv("AZURE_API_VERSION"),
+        api_key=os.getenv("AZURE_API_KEY"),
+        model=model,
+        temperature=temperature,
+        top_p=top_p,
+        **openai_kwargs
+    )
     agent = Agent(
         model,
         tools=list(tools_dict.values()),
@@ -105,8 +113,8 @@ if __name__ == "__main__":
         "ChestXRaySegmentationTool",
         "ChestXRayReportGeneratorTool",
         "XRayVQATool",
-        # "LlavaMedTool",
-        # "XRayPhraseGroundingTool",
+        "LlavaMedTool",
+        "XRayPhraseGroundingTool",
         # "ChestXRayGeneratorTool",
     ]
 
@@ -121,7 +129,7 @@ if __name__ == "__main__":
     agent, tools_dict = initialize_agent(
         "medrax/docs/system_prompts.txt",
         tools_to_use=selected_tools,
-        model_dir="/model-weights",  # Change this to the path of the model weights
+        model_dir="./model-weights",  # Change this to the path of the model weights
         temp_dir="temp",  # Change this to the path of the temporary directory
         device="cuda",  # Change this to the device you want to use
         model="gpt-4o",  # Change this to the model you want to use, e.g. gpt-4o-mini

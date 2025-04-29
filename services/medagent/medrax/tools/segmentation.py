@@ -76,7 +76,7 @@ class ChestXRaySegmentationTool(BaseTool):
     args_schema: Type[BaseModel] = ChestXRaySegmentationInput
 
     model: Any = None
-    device: Optional[str] = "cuda"
+    device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
     transform: Any = None
     pixel_spacing_mm: float = 0.2
     temp_dir: Path = Path("temp")
@@ -86,7 +86,7 @@ class ChestXRaySegmentationTool(BaseTool):
         """Initialize the segmentation tool with model and temporary directory."""
         super().__init__()
         self.model = xrv.baseline_models.chestx_det.PSPNet()
-        self.device = torch.device(device) if device else "cuda"
+        self.device = torch.device(device) if device and torch.cuda.is_available() else "cpu"
         self.model = self.model.to(self.device)
         self.model.eval()
 
