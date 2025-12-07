@@ -220,7 +220,7 @@ PyPDF2>=2.0.0
 
 # Security
 PyJWT==2.6.0
-cryptography==44.0.0
+cryptography==44.0.1
 
 # Utils
 python-dotenv==1.0.1
