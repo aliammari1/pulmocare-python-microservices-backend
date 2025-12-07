@@ -20,4 +20,4 @@ storage:
       queue_depth: 10000
 
 overrides:
-  metrics_generator_processors: [service-graphs, span-metrics]
+  metrics_generator_processors: [ service-graphs, span-metrics ]

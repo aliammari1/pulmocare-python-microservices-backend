@@ -1,7 +1,8 @@
+import json
+import time
+
 import requests
 from bs4 import BeautifulSoup
-import time
-import json
 from tqdm import tqdm
 
 
@@ -10,6 +11,7 @@ def get_response(url):
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36 Edg/108.0.1462.54"
     }
     return requests.get(url, headers=headers)
+
 
 def get_case_numbers_from_page(page):
     url = f"https://www.eurorad.org/advanced-search?sort_by=published_at&sort_order=ASC&page={page}&filter%5B0%5D=section%3A40"
@@ -41,7 +43,7 @@ def main():
         time.sleep(1)
         break
 
-    with open('case_numbers.json', 'w') as f:
+    with open("case_numbers.json", "w") as f:
         json.dump(all_numbers, f)
 
     print(f"Saved {len(all_numbers)} case numbers to case_numbers.json")

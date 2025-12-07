@@ -4,8 +4,7 @@ import socket
 from logging.handlers import RotatingFileHandler
 
 from opentelemetry._logs import set_logger_provider
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import \
-    OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
@@ -22,7 +21,7 @@ class LoggerService:
 
             # Create logs directory if it doesn't exist
             os.makedirs(Config.LOG_DIR, exist_ok=True)
-            
+
             # Ensure the log file path exists
             log_file_dir = os.path.dirname(Config.LOG_FILE)
             if log_file_dir:
@@ -46,8 +45,10 @@ class LoggerService:
                 file_handler.setLevel(Config.LOG_LEVEL)
                 cls._instance.logger.addHandler(file_handler)
             except Exception as e:
-                print(f"Failed to create file handler: {str(e)}. Using console logging only.")
-            
+                print(
+                    f"Failed to create file handler: {str(e)}. Using console logging only."
+                )
+
             # Console Handler
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
@@ -80,7 +81,7 @@ class LoggerService:
 
             # Create the exporter and processor
             exporter = OTLPLogExporter(
-                endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
+                endpoint=f"http://{'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
                 insecure=True,
             )
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))

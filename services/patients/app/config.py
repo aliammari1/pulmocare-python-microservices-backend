@@ -1,5 +1,4 @@
 import os
-import urllib.parse
 from datetime import timedelta
 
 from dotenv import load_dotenv
@@ -28,19 +27,11 @@ class Config:
     CONSUL_PORT = int(os.getenv("CONSUL_PORT"))
     CONSUL_TOKEN = os.getenv("CONSUL_HTTP_TOKEN")
 
-    # MongoDB settings
-    MONGODB_HOST = os.getenv("MONGODB_HOST")
-    MONGODB_PORT = int(os.getenv("MONGODB_PORT"))
-    MONGODB_USERNAME = os.getenv("MONGODB_USERNAME")
-    MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD")
-    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE")
-    MONGODB_POOL_SIZE = int(os.getenv("MONGODB_POOL_SIZE"))
-    MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE"))
-    MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS"))
-    MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS"))
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
-        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS")
-    )
+    # Auth service settings
+    AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8086")
+    AUTH_SERVICE_CLIENT_ID = os.getenv("AUTH_SERVICE_CLIENT_ID", "patients-service")
+    AUTH_SERVICE_CLIENT_SECRET = os.getenv("AUTH_SERVICE_CLIENT_SECRET", "secret")
+    AUTH_SERVICE_REALM = os.getenv("AUTH_SERVICE_REALM", "pulmocare")
 
     # Redis settings
     REDIS_HOST = os.getenv("REDIS_HOST")
@@ -122,97 +113,9 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
 
     @classmethod
-    def get_mongodb_uri(cls):
-        """Get MongoDB connection URI with proper handling of special characters in password"""
-        username = urllib.parse.quote_plus(cls.MONGODB_USERNAME)
-        password = urllib.parse.quote_plus(cls.MONGODB_PASSWORD)
-        return (
-            f"mongodb://{username}:{password}@" f"{cls.MONGODB_HOST}:{cls.MONGODB_PORT}"
-        )
-
-    @classmethod
-    def get_mongodb_validation_schema(cls):
-        """Get MongoDB validation schema for reports collection"""
-        return {
-            "$jsonSchema": {
-                "bsonType": "object",
-                "required": ["title", "content", "created_at", "updated_at"],
-                "properties": {
-                    "title": {"bsonType": "string"},
-                    "content": {"bsonType": "string"},
-                    "patient_id": {"bsonType": "string"},
-                    "doctor_id": {"bsonType": "string"},
-                    "analysis": {
-                        "bsonType": ["object", "null"],
-                        "properties": {
-                            "findings": {
-                                "bsonType": "array",
-                                "items": {
-                                    "bsonType": "object",
-                                    "required": [
-                                        "condition",
-                                        "severity",
-                                        "description",
-                                    ],
-                                    "properties": {
-                                        "condition": {"bsonType": "string"},
-                                        "severity": {
-                                            "enum": ["mild", "moderate", "severe"]
-                                        },
-                                        "description": {"bsonType": "string"},
-                                        "confidence_score": {"bsonType": "double"},
-                                        "probability": {"bsonType": "double"},
-                                    },
-                                },
-                            },
-                            "technical_details": {
-                                "bsonType": "object",
-                                "properties": {
-                                    "quality_metrics": {"bsonType": "object"},
-                                    "image_stats": {"bsonType": "object"},
-                                },
-                            },
-                        },
-                    },
-                    "annotations": {
-                        "bsonType": "array",
-                        "items": {
-                            "bsonType": "object",
-                            "required": ["type", "timestamp"],
-                            "properties": {
-                                "type": {"enum": ["drawing", "text"]},
-                                "points": {
-                                    "bsonType": "array",
-                                    "items": {
-                                        "bsonType": "object",
-                                        "required": ["x", "y", "color", "strokeWidth"],
-                                        "properties": {
-                                            "x": {"bsonType": "double"},
-                                            "y": {"bsonType": "double"},
-                                            "color": {"bsonType": "int"},
-                                            "strokeWidth": {"bsonType": "double"},
-                                        },
-                                    },
-                                },
-                                "text": {"bsonType": "string"},
-                                "timestamp": {"bsonType": "string"},
-                            },
-                        },
-                    },
-                    "created_at": {"bsonType": "date"},
-                    "updated_at": {"bsonType": "date"},
-                    "tags": {"bsonType": "array", "items": {"bsonType": "string"}},
-                },
-            }
-        }
-
-    @classmethod
     def validate(cls):
         """Validate required configuration settings"""
         required_settings = [
-            "MONGODB_USERNAME",
-            "MONGODB_PASSWORD",
-            "MONGODB_HOST",
             "CONSUL_HOST",
             "RABBITMQ_HOST",
         ]

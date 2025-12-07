@@ -1,14 +1,14 @@
 import json
 import operator
-from pathlib import Path
-from dotenv import load_dotenv
 from datetime import datetime
+from pathlib import Path
 from typing import List, Dict, Any, TypedDict, Annotated, Optional
 
-from langgraph.graph import StateGraph, END
-from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
+from dotenv import load_dotenv
 from langchain_core.language_models import BaseLanguageModel
+from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.graph import StateGraph, END
 
 _ = load_dotenv()
 
@@ -61,13 +61,13 @@ class Agent:
     """
 
     def __init__(
-        self,
-        model: BaseLanguageModel,
-        tools: List[BaseTool],
-        checkpointer: Any = None,
-        system_prompt: str = "",
-        log_tools: bool = True,
-        log_dir: Optional[str] = "logs",
+            self,
+            model: BaseLanguageModel,
+            tools: List[BaseTool],
+            checkpointer: Any = None,
+            system_prompt: str = "",
+            log_tools: bool = True,
+            log_dir: Optional[str] = "logs",
     ):
         """
         Initialize the Agent.

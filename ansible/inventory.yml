@@ -1,0 +1,26 @@
+all:
+  hosts:
+    localhost:
+      ansible_connection: local
+      ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  vars:
+    # Project configuration
+    project_name: medapp
+    project_root: "{{ playbook_dir }}/.."
+    services_dir: "{{ project_root }}/services"
+    k8s_dir: "{{ project_root }}/k8s"
+    consul_config_dir: "{{ project_root }}/config/consul"
+
+    # Docker configuration
+    docker_registry: "your-registry"
+    docker_image_tag: "latest"
+
+    # Service defaults
+    python_version: "3.12"
+    fastapi_version: "0.104.1"
+    uvicorn_version: "0.24.0"
+
+    # Infrastructure defaults
+    default_port_range_start: 8000
+    default_metrics_port_range_start: 9000
+    default_replicas: 2

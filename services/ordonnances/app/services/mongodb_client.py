@@ -44,7 +44,7 @@ class MongoDBClient:
                 break
             except Exception as e:
                 logger_service.error(
-                    f"MongoDB connection attempt {attempt+1} failed: {str(e)}"
+                    f"MongoDB connection attempt {attempt + 1} failed: {str(e)}"
                 )
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)

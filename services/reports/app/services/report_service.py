@@ -155,10 +155,10 @@ class ReportService:
             return False
 
     def queue_summary_generation(
-        self,
-        report_ids: List[str],
-        summary_type: str,
-        requester_id: Optional[str] = None,
+            self,
+            report_ids: List[str],
+            summary_type: str,
+            requester_id: Optional[str] = None,
     ) -> str:
         """Queue a summary generation job"""
         try:

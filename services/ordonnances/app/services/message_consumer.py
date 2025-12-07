@@ -15,7 +15,7 @@ class MessageConsumer:
     """Consumer for processing messages from RabbitMQ queues"""
 
     def __init__(
-        self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient
+            self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient
     ):
         """Initialize the message consumer with dependencies"""
         self.config = config
@@ -138,7 +138,7 @@ class MessageConsumer:
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
     def _process_prescription_creation(
-        self, prescription_id: str, message: Dict[str, Any]
+            self, prescription_id: str, message: Dict[str, Any]
     ):
         """Process a prescription creation event"""
         try:
@@ -207,7 +207,7 @@ class MessageConsumer:
             logger_service.error(f"Error in _process_prescription_creation: {str(e)}")
 
     def _process_prescription_notification(
-        self, prescription_id: str, event: str, message: Dict[str, Any]
+            self, prescription_id: str, event: str, message: Dict[str, Any]
     ):
         """Process a prescription notification"""
         try:
@@ -263,11 +263,11 @@ class MessageConsumer:
             )
 
     def _process_patient_prescription(
-        self,
-        prescription_id: str,
-        patient_id: str,
-        action: str,
-        message: Dict[str, Any],
+            self,
+            prescription_id: str,
+            patient_id: str,
+            action: str,
+            message: Dict[str, Any],
     ):
         """Process a patient prescription action"""
         try:
@@ -317,7 +317,7 @@ class MessageConsumer:
             )
 
     def _process_doctor_prescription(
-        self, prescription_id: str, doctor_id: str, action: str, message: Dict[str, Any]
+            self, prescription_id: str, doctor_id: str, action: str, message: Dict[str, Any]
     ):
         """Process a doctor prescription action"""
         try:

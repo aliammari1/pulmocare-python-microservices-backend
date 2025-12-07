@@ -22,11 +22,11 @@ class CircuitBreaker:
     """
 
     def __init__(
-        self,
-        name: str,
-        failure_threshold: int = 5,
-        recovery_timeout: int = 30,
-        half_open_max_calls: int = 1,
+            self,
+            name: str,
+            failure_threshold: int = 5,
+            recovery_timeout: int = 30,
+            half_open_max_calls: int = 1,
     ):
         """
         Initialize the circuit breaker.
@@ -98,8 +98,8 @@ class CircuitBreaker:
 
         # Check if threshold is exceeded
         if (
-            self.failure_count >= self.failure_threshold
-            and self.state == CircuitState.CLOSED
+                self.failure_count >= self.failure_threshold
+                and self.state == CircuitState.CLOSED
         ):
             self._open()
 

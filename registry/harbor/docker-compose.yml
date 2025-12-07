@@ -1,0 +1,288 @@
+# Harbor Enterprise Registry
+# Production-ready container registry with advanced features
+
+version: "3.8"
+
+services:
+  # Harbor Core Services
+  harbor-log:
+    image: goharbor/harbor-log:v2.10.0
+    container_name: harbor-log
+    restart: always
+    dns_search: .
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - /var/log/harbor/:/var/log/docker/:z
+      - type: bind
+        source: ./harbor/common/config/log/logrotate.conf
+        target: /etc/logrotate.d/logrotate.conf
+      - type: bind
+        source: ./harbor/common/config/log/rsyslog_docker.conf
+        target: /etc/rsyslog.d/rsyslog_docker.conf
+    ports:
+      - 127.0.0.1:1514:10514
+    networks:
+      - harbor
+
+  harbor-registry:
+    image: goharbor/registry-photon:v2.10.0
+    container_name: harbor-registry
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/registry:/storage:z
+      - ./harbor/common/config/registry/:/etc/registry/:z
+      - type: bind
+        source: ./harbor/data/secret/registry/root.crt
+        target: /etc/registry/root.crt
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "registry"
+
+  harbor-registryctl:
+    image: goharbor/harbor-registryctl:v2.10.0
+    container_name: harbor-registryctl
+    env_file:
+      - ./harbor/common/config/registryctl/env
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/registry:/storage:z
+      - ./harbor/common/config/registry/:/etc/registry/:z
+      - type: bind
+        source: ./harbor/common/config/registryctl/config.yml
+        target: /etc/registryctl/config.yml
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "registryctl"
+
+  harbor-postgresql:
+    image: goharbor/harbor-db:v2.10.0
+    container_name: harbor-db
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/database:/var/lib/postgresql/data:z
+    networks:
+      harbor:
+    env_file:
+      - ./harbor/common/config/db/env
+    depends_on:
+      - harbor-log
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "postgresql"
+    shm_size: "1gb"
+
+  harbor-core:
+    image: goharbor/harbor-core:v2.10.0
+    container_name: harbor-core
+    env_file:
+      - ./harbor/common/config/core/env
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/ca_download/:/etc/core/ca/:z
+      - ./harbor/data/:/data/:z
+      - ./harbor/common/config/core/certificates/:/etc/core/certificates/:z
+      - type: bind
+        source: ./harbor/common/config/core/app.conf
+        target: /etc/core/app.conf
+      - type: bind
+        source: ./harbor/data/secret/core/private_key.pem
+        target: /etc/core/private_key.pem
+      - type: bind
+        source: ./harbor/data/secret/keys/secretkey
+        target: /etc/core/key
+    networks:
+      harbor:
+        aliases:
+          - harbor-core
+    depends_on:
+      - harbor-log
+      - harbor-registry
+      - harbor-postgresql
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "core"
+
+  harbor-portal:
+    image: goharbor/harbor-portal:v2.10.0
+    container_name: harbor-portal
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - type: bind
+        source: ./harbor/common/config/portal/nginx.conf
+        target: /etc/nginx/nginx.conf
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "portal"
+
+  harbor-jobservice:
+    image: goharbor/harbor-jobservice:v2.10.0
+    container_name: harbor-jobservice
+    env_file:
+      - ./harbor/common/config/jobservice/env
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/job_logs:/var/log/jobs:z
+      - type: bind
+        source: ./harbor/common/config/jobservice/config.yml
+        target: /etc/jobservice/config.yml
+    networks:
+      - harbor
+    depends_on:
+      - harbor-log
+      - harbor-core
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "jobservice"
+
+  harbor-proxy:
+    image: goharbor/nginx-photon:v2.10.0
+    container_name: harbor-proxy
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/common/config/nginx:/etc/nginx:z
+      - ./harbor/data/secret/cert:/etc/cert:z
+      - type: bind
+        source: ./harbor/common/config/shared/trust-certificates
+        target: /harbor_cust_cert
+    networks:
+      - harbor
+    ports:
+      - 80:8080
+      - 443:8443
+    depends_on:
+      - harbor-log
+      - harbor-registry
+      - harbor-core
+      - harbor-portal
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "proxy"
+
+  # Redis for Harbor caching
+  harbor-redis:
+    image: goharbor/redis-photon:v2.10.0
+    container_name: harbor-redis
+    restart: always
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    volumes:
+      - ./harbor/data/redis:/var/lib/redis
+    networks:
+      harbor:
+    depends_on:
+      - harbor-log
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "redis"
+
+  # Trivy for vulnerability scanning
+  harbor-trivy:
+    image: goharbor/trivy-adapter-photon:v2.10.0
+    container_name: harbor-trivy
+    restart: always
+    cap_drop:
+      - ALL
+    depends_on:
+      - harbor-log
+    networks:
+      - harbor
+    volumes:
+      - type: bind
+        source: ./harbor/common/config/shared/trust-certificates
+        target: /harbor_cust_cert
+      - ./harbor/data/trivy-adapter/trivy:/home/scanner/.cache/trivy
+      - ./harbor/data/trivy-adapter/reports:/home/scanner/.cache/reports
+    logging:
+      driver: "syslog"
+      options:
+        syslog-address: "tcp://localhost:1514"
+        tag: "trivy-adapter"
+    env_file: ./harbor/common/config/trivy-adapter/env
+
+networks:
+  harbor:
+    external: false
+
+volumes:
+  harbor-data:
+    driver: local

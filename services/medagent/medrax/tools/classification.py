@@ -1,23 +1,23 @@
 from typing import Dict, Optional, Tuple, Type
-from pydantic import BaseModel, Field
 
 import skimage.io
 import torch
 import torchvision
 import torchxrayvision as xrv
-
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 
 class ChestXRayInput(BaseModel):
     """Input for chest X-ray analysis tools. Only supports JPG or PNG images."""
 
     image_path: str = Field(
-        ..., description="Path to the radiology image file, only supports JPG or PNG images"
+        ...,
+        description="Path to the radiology image file, only supports JPG or PNG images",
     )
 
 
@@ -50,11 +50,15 @@ class ChestXRayClassifierTool(BaseTool):
     device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
     transform: torchvision.transforms.Compose = None
 
-    def __init__(self, model_name: str = "densenet121-res224-all", device: Optional[str] = "cuda"):
+    def __init__(
+            self, model_name: str = "densenet121-res224-all", device: Optional[str] = "cuda"
+    ):
         super().__init__()
         self.model = xrv.models.DenseNet(weights=model_name)
         self.model.eval()
-        self.device = torch.device(device) if device and torch.cuda.is_available() else "cpu"
+        self.device = (
+            torch.device(device) if device and torch.cuda.is_available() else "cpu"
+        )
         self.model = self.model.to(self.device)
         self.transform = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop()])
 
@@ -90,9 +94,9 @@ class ChestXRayClassifierTool(BaseTool):
         return img
 
     def _run(
-        self,
-        image_path: str,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, float], Dict]:
         """Classify the chest X-ray image for multiple pathologies.
 
@@ -128,9 +132,9 @@ class ChestXRayClassifierTool(BaseTool):
             }
 
     async def _arun(
-        self,
-        image_path: str,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, float], Dict]:
         """Asynchronously classify the chest X-ray image for multiple pathologies.
 

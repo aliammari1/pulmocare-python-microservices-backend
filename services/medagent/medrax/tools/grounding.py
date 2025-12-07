@@ -1,18 +1,18 @@
-from typing import Dict, List, Optional, Tuple, Type, Any
-from pathlib import Path
-import uuid
 import tempfile
+import uuid
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Type, Any
+
 import matplotlib.pyplot as plt
 import torch
 from PIL import Image
-from pydantic import BaseModel, Field
-
-from transformers import AutoModelForCausalLM, AutoProcessor, BitsAndBytesConfig
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+from transformers import AutoModelForCausalLM, AutoProcessor, BitsAndBytesConfig
 
 
 class XRayPhraseGroundingInput(BaseModel):
@@ -26,7 +26,9 @@ class XRayPhraseGroundingInput(BaseModel):
         ...,
         description="Medical finding or condition to locate in the image (e.g., 'Pleural effusion')",
     )
-    max_new_tokens: int = Field(default=300, description="Maximum number of new tokens to generate")
+    max_new_tokens: int = Field(
+        default=300, description="Maximum number of new tokens to generate"
+    )
 
 
 class XRayPhraseGroundingTool(BaseTool):
@@ -54,13 +56,13 @@ class XRayPhraseGroundingTool(BaseTool):
     temp_dir: Path = None
 
     def __init__(
-        self,
-        model_path: str = "microsoft/maira-2",
-        cache_dir: Optional[str] = None,
-        temp_dir: Optional[str] = None,
-        load_in_4bit: bool = False,
-        load_in_8bit: bool = False,
-        device: Optional[str] = "cuda",
+            self,
+            model_path: str = "microsoft/maira-2",
+            cache_dir: Optional[str] = None,
+            temp_dir: Optional[str] = None,
+            load_in_4bit: bool = False,
+            load_in_8bit: bool = False,
+            device: Optional[str] = "cuda",
     ):
         """Initialize the XRay Phrase Grounding Tool."""
         super().__init__()
@@ -93,14 +95,16 @@ class XRayPhraseGroundingTool(BaseTool):
             model_path, cache_dir=cache_dir, trust_remote_code=True
         )
 
-        
         self.model = self.model.eval()
 
         self.temp_dir = Path(temp_dir if temp_dir else tempfile.mkdtemp())
         self.temp_dir.mkdir(exist_ok=True)
 
     def _visualize_bboxes(
-        self, image: Image.Image, bboxes: List[Tuple[float, float, float, float]], phrase: str
+            self,
+            image: Image.Image,
+            bboxes: List[Tuple[float, float, float, float]],
+            phrase: str,
     ) -> str:
         """Create and save visualization of multiple bounding boxes on the image."""
         plt.figure(figsize=(12, 12))
@@ -132,11 +136,11 @@ class XRayPhraseGroundingTool(BaseTool):
         return str(viz_path)
 
     def _run(
-        self,
-        image_path: str,
-        phrase: str,
-        max_new_tokens: int = 300,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            phrase: str,
+            max_new_tokens: int = 300,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Ground a medical finding phrase in an X-ray image.
 
@@ -170,8 +174,10 @@ class XRayPhraseGroundingTool(BaseTool):
             decoded_text = self.processor.decode(
                 output[0][prompt_length:], skip_special_tokens=True
             )
-            predictions = self.processor.convert_output_to_plaintext_or_grounded_sequence(
-                decoded_text
+            predictions = (
+                self.processor.convert_output_to_plaintext_or_grounded_sequence(
+                    decoded_text
+                )
             )
 
             metadata = {
@@ -242,10 +248,10 @@ class XRayPhraseGroundingTool(BaseTool):
             return output, metadata
 
     async def _arun(
-        self,
-        image_path: str,
-        phrase: str,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            phrase: str,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Asynchronous version of _run."""
         return self._run(image_path, phrase, run_manager)

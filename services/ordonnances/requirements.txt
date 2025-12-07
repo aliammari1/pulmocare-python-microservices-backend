@@ -1,12 +1,12 @@
 fastapi[standard]==0.115.12
-pymongo==4.5.0
+pymongo==4.6.3
 python-dotenv==1.0.1
 bcrypt==4.0.1
 PyJWT==2.6.0
 beautifulsoup4==4.9.3
 schedule==1.1.0
-requests==2.26.0
-pillow==10.2.0
+requests==2.32.4
+pillow==10.3.0
 pytesseract==0.3.8
 reportlab
 redis

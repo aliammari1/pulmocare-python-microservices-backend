@@ -1,13 +1,17 @@
-from typing import Dict, Optional, Tuple, Type
-from pathlib import Path
-import uuid
 import tempfile
+import uuid
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Type
+
 import numpy as np
 import pydicom
 from PIL import Image
-from pydantic import BaseModel, Field
-from langchain_core.callbacks import AsyncCallbackManagerForToolRun, CallbackManagerForToolRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForToolRun,
+    CallbackManagerForToolRun,
+)
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 
 class DicomProcessorInput(BaseModel):
@@ -17,7 +21,9 @@ class DicomProcessorInput(BaseModel):
     window_center: Optional[float] = Field(
         None, description="Window center for contrast adjustment"
     )
-    window_width: Optional[float] = Field(None, description="Window width for contrast adjustment")
+    window_width: Optional[float] = Field(
+        None, description="Window width for contrast adjustment"
+    )
 
 
 class DicomProcessorTool(BaseTool):
@@ -40,7 +46,9 @@ class DicomProcessorTool(BaseTool):
         self.temp_dir = Path(temp_dir if temp_dir else tempfile.mkdtemp())
         self.temp_dir.mkdir(exist_ok=True)
 
-    def _apply_windowing(self, img: np.ndarray, center: float, width: float) -> np.ndarray:
+    def _apply_windowing(
+            self, img: np.ndarray, center: float, width: float
+    ) -> np.ndarray:
         """Apply window/level adjustment to the image."""
         img_min = center - width // 2
         img_max = center + width // 2
@@ -49,10 +57,10 @@ class DicomProcessorTool(BaseTool):
         return img
 
     def _process_dicom(
-        self,
-        dicom_path: str,
-        window_center: Optional[float] = None,
-        window_width: Optional[float] = None,
+            self,
+            dicom_path: str,
+            window_center: Optional[float] = None,
+            window_width: Optional[float] = None,
     ) -> Tuple[np.ndarray, Dict]:
         """Process DICOM file and extract metadata."""
         dcm = pydicom.dcmread(dicom_path)
@@ -94,11 +102,11 @@ class DicomProcessorTool(BaseTool):
         return img, metadata
 
     def _run(
-        self,
-        dicom_path: str,
-        window_center: Optional[float] = None,
-        window_width: Optional[float] = None,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            dicom_path: str,
+            window_center: Optional[float] = None,
+            window_width: Optional[float] = None,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, str], Dict]:
         """Process DICOM file and save as viewable image.
 
@@ -113,7 +121,9 @@ class DicomProcessorTool(BaseTool):
         """
         try:
             # Process DICOM and save as PNG
-            img_array, metadata = self._process_dicom(dicom_path, window_center, window_width)
+            img_array, metadata = self._process_dicom(
+                dicom_path, window_center, window_width
+            )
             output_path = self.temp_dir / f"processed_dicom_{uuid.uuid4().hex[:8]}.png"
             Image.fromarray(img_array).save(output_path)
 
@@ -142,11 +152,11 @@ class DicomProcessorTool(BaseTool):
             )
 
     async def _arun(
-        self,
-        dicom_path: str,
-        window_center: Optional[float] = None,
-        window_width: Optional[float] = None,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            dicom_path: str,
+            window_center: Optional[float] = None,
+            window_width: Optional[float] = None,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, str], Dict]:
         """Async version of _run."""
         return self._run(dicom_path, window_center, window_width)

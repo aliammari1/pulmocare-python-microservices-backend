@@ -1,6 +1,9 @@
-from typing import Any, Dict, List, Optional
+# Additional imports at the top of the file
+import uuid
+from datetime import datetime
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
@@ -8,10 +11,6 @@ from services.rabbitmq_client import RabbitMQClient
 from services.report_service import ReportService
 
 from config import Config
-
-# Additional imports at the top of the file
-import uuid
-from datetime import datetime
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
 
@@ -32,8 +31,8 @@ class AnalysisSummaryRequest(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def analyze_report(
-    report_id: str = Query(..., description="ID of the report to analyze"),
-    request: Request = None
+        report_id: str = Query(..., description="ID of the report to analyze"),
+        request: Request = None,
 ):
     """Queue a report for analysis"""
     try:
@@ -46,13 +45,13 @@ async def analyze_report(
                 "report_id": report_id,
                 "status": "pending",
                 "created_at": str(datetime.now()),
-                "data": {"test": True}
+                "data": {"test": True},
             }
             mongodb_client.db.reports.insert_one(dummy_report)
 
         # Queue for analysis - modify this to avoid actual analysis for testing
         result = True  # Assume success for testing
-        
+
         if result:
             return {"message": "Report queued for analysis", "report_id": report_id}
         else:
@@ -82,7 +81,7 @@ async def get_report_analysis(report_id: str, request: Request = None):
                 "report_id": report_id,
                 "status": "completed",
                 "findings": ["Test finding 1", "Test finding 2"],
-                "summary": "This is a test analysis summary"
+                "summary": "This is a test analysis summary",
             }
             return dummy_analysis
 
@@ -103,7 +102,9 @@ async def get_report_analysis(report_id: str, request: Request = None):
     "/create-analysis-summary",
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def create_analysis_summary(data: AnalysisSummaryRequest, request: Request = None):
+async def create_analysis_summary(
+        data: AnalysisSummaryRequest, request: Request = None
+):
     """Create a summary of analysis reports"""
     try:
         if not data.report_ids:
@@ -111,7 +112,7 @@ async def create_analysis_summary(data: AnalysisSummaryRequest, request: Request
 
         # For testing, just return a mock job ID
         job_id = "test-job-" + str(uuid.uuid4())[:8]
-        
+
         return {"message": "Summary generation queued", "job_id": job_id}
 
     except HTTPException:
@@ -119,6 +120,7 @@ async def create_analysis_summary(data: AnalysisSummaryRequest, request: Request
     except Exception as e:
         logger_service.error(f"Error queueing summary generation: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 async def health_check():
     @router.get("/health")

@@ -6,10 +6,12 @@ from typing import Any, Callable, Dict, Optional
 
 import pika
 from services.logger_service import logger_service
-from services.metrics import (RABBITMQ_MESSAGES_PUBLISHED,
-                              RABBITMQ_PUBLISH_LATENCY,
-                              track_circuit_breaker_failure,
-                              track_dependency_status)
+from services.metrics import (
+    RABBITMQ_MESSAGES_PUBLISHED,
+    RABBITMQ_PUBLISH_LATENCY,
+    track_circuit_breaker_failure,
+    track_dependency_status,
+)
 
 from config import Config
 
@@ -174,7 +176,7 @@ class RabbitMQClient:
         logger_service.info(f"Started consuming messages from {queue_name}")
 
     def notify_appointment_response(
-        self, appointment_id: str, doctor_id: str, status: str, message: str = None
+            self, appointment_id: str, doctor_id: str, status: str, message: str = None
     ):
         """Notify about appointment response"""
         payload = {
@@ -192,7 +194,7 @@ class RabbitMQClient:
         )
 
     def notify_prescription_created(
-        self, prescription_id: str, doctor_id: str, patient_id: str
+            self, prescription_id: str, doctor_id: str, patient_id: str
     ):
         """Notify when a new prescription has been created"""
         payload = {
@@ -210,14 +212,14 @@ class RabbitMQClient:
         )
 
     def request_radiology_examination(
-        self,
-        request_id: str,
-        doctor_id: str,
-        patient_id: str,
-        patient_name: str,
-        exam_type: str,
-        reason: Optional[str] = None,
-        urgency: str = "normal",
+            self,
+            request_id: str,
+            doctor_id: str,
+            patient_id: str,
+            patient_name: str,
+            exam_type: str,
+            reason: Optional[str] = None,
+            urgency: str = "normal",
     ):
         """Request a radiology examination for a patient"""
         payload = {
@@ -239,7 +241,7 @@ class RabbitMQClient:
         )
 
     def notify_patient_medical_update(
-        self, patient_id: str, update_type: str, data: Dict[str, Any]
+            self, patient_id: str, update_type: str, data: Dict[str, Any]
     ):
         """Send a medical update for a patient"""
         payload = {

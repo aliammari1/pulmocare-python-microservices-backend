@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "portainer",
-    "tags": ["container-management", "docker", "ui"],
+    "tags": [
+      "container-management",
+      "docker",
+      "ui"
+    ],
     "address": "portainer",
     "port": 9000,
     "check": {

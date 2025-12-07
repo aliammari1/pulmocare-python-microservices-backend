@@ -79,7 +79,7 @@ class Config:
     OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     OTEL_SERVICE_NAME = SERVICE_NAME
     OTEL_DISABLE_ON_ERROR = (
-        ENV == "development"
+            ENV == "development"
     )  # Disable tracing if collector is unavailable in dev
 
     # Circuit Breaker settings

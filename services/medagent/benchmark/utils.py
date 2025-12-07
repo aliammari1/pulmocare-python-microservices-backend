@@ -1,22 +1,21 @@
-import os
 import json
 from typing import Dict, List
 
 
 def load_eurorad_dataset(
-    dataset_path: str,
-    section: str = "any",
-    as_dict: bool = False,
-    filter_by_caption: List[str] = [
-        "xray",
-        "x-ray",
-        "x ray",
-        "ray",
-        "xr",
-        "radiograph",
-        "radiogram",
-        "plain film",
-    ],
+        dataset_path: str,
+        section: str = "any",
+        as_dict: bool = False,
+        filter_by_caption: List[str] = [
+            "xray",
+            "x-ray",
+            "x ray",
+            "ray",
+            "xr",
+            "radiograph",
+            "radiogram",
+            "plain film",
+        ],
 ) -> List[Dict] | Dict[str, Dict]:
     """
     Load a dataset from a JSON file.
@@ -42,9 +41,9 @@ def load_eurorad_dataset(
         filtered_data = {}
         for case_id, case in data.items():
             if any(
-                any(x in subfig["caption"].lower() for x in filter_by_caption)
-                for figure in case["figures"]
-                for subfig in figure["subfigures"]
+                    any(x in subfig["caption"].lower() for x in filter_by_caption)
+                    for figure in case["figures"]
+                    for subfig in figure["subfigures"]
             ) or any(x in case["image_finding"].lower() for x in filter_by_caption):
                 filtered_data[case_id] = case
         data = filtered_data
@@ -53,11 +52,15 @@ def load_eurorad_dataset(
         section = section.strip().lower()
         if not as_dict:
             data = [
-                item for item in data.values() if item.get("section", "").strip().lower() == section
+                item
+                for item in data.values()
+                if item.get("section", "").strip().lower() == section
             ]
         else:
             data = {
-                k: v for k, v in data.items() if v.get("section", "").strip().lower() == section
+                k: v
+                for k, v in data.items()
+                if v.get("section", "").strip().lower() == section
             }
 
     elif not as_dict:

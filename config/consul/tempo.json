@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "tempo",
-    "tags": ["tracing", "observability", "monitoring"],
+    "tags": [
+      "tracing",
+      "observability",
+      "monitoring"
+    ],
     "address": "tempo",
     "port": 3200,
     "meta": {

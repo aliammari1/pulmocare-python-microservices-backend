@@ -1,18 +1,17 @@
 import argparse
-import json
-import requests
-import base64
-from PIL import Image
-from io import BytesIO
-from llava.conversation import conv_templates
-import time
-import os
 import glob
+import json
 import logging
-from datetime import datetime
-from tqdm import tqdm
+import os
 import re
+import time
+from datetime import datetime
 from typing import Dict, List, Optional, Union, Any, Tuple
+
+import requests
+from PIL import Image
+from llava.conversation import conv_templates
+from tqdm import tqdm
 
 
 def process_image(image_path: str, target_size: int = 640) -> Image.Image:
@@ -129,13 +128,13 @@ def count_total_questions() -> Tuple[int, int]:
 
 
 def create_inference_request(
-    question_data: Dict[str, Any],
-    case_details: Dict[str, Any],
-    case_id: str,
-    question_id: str,
-    worker_addr: str,
-    model_name: str,
-    raw_output: bool = False,
+        question_data: Dict[str, Any],
+        case_details: Dict[str, Any],
+        case_id: str,
+        question_id: str,
+        worker_addr: str,
+        model_name: str,
+        raw_output: bool = False,
 ) -> Union[Tuple[Optional[str], Optional[float]], Dict[str, Any]]:
     """Create and send inference request to worker.
 
@@ -176,7 +175,8 @@ Base your answer only on the provided images and case information. Respond with 
         required_figures = []
 
     required_figures = [
-        fig if fig.startswith("Figure ") else f"Figure {fig}" for fig in required_figures
+        fig if fig.startswith("Figure ") else f"Figure {fig}"
+        for fig in required_figures
     ]
 
     # Get image paths
@@ -198,7 +198,7 @@ Base your answer only on the provided images and case information. Respond with 
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                    or subfig.get("label", "").lower() == figure_letter.lower()
+                       or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
@@ -226,7 +226,11 @@ Base your answer only on the provided images and case information. Respond with 
         else:
             text = prompt
 
-        message = (text, processed_images[0], "Default")  # Currently handling first image
+        message = (
+            text,
+            processed_images[0],
+            "Default",
+        )  # Currently handling first image
         conv.append_message(conv.roles[0], message)
         conv.append_message(conv.roles[1], None)
 
@@ -260,7 +264,7 @@ Base your answer only on the provided images and case information. Respond with 
 
                 complete_output = ""
                 for chunk in response.iter_lines(
-                    chunk_size=8192, decode_unicode=False, delimiter=b"\0"
+                        chunk_size=8192, decode_unicode=False, delimiter=b"\0"
                 ):
                     if chunk:
                         data = json.loads(chunk.decode("utf-8"))
@@ -268,7 +272,9 @@ Base your answer only on the provided images and case information. Respond with 
                             output = data["text"].split("[/INST]")[-1]
                             complete_output = output
                         else:
-                            print(f"\nError: {data['text']} (error_code: {data['error_code']})")
+                            print(
+                                f"\nError: {data['text']} (error_code: {data['error_code']})"
+                            )
                             if attempt < max_retries - 1:
                                 time.sleep(retry_delay)
                                 break
@@ -280,7 +286,9 @@ Base your answer only on the provided images and case information. Respond with 
 
             except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
                 if attempt < max_retries - 1:
-                    print(f"\nNetwork error: {str(e)}. Retrying in {retry_delay} seconds...")
+                    print(
+                        f"\nNetwork error: {str(e)}. Retrying in {retry_delay} seconds..."
+                    )
                     time.sleep(retry_delay)
                 else:
                     print(f"\nFailed after {max_retries} attempts: {str(e)}")
@@ -331,12 +339,16 @@ def clean_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--controller-address", type=str, default="http://localhost:21001")
+    parser.add_argument(
+        "--controller-address", type=str, default="http://localhost:21001"
+    )
     parser.add_argument("--worker-address", type=str)
     parser.add_argument("--model-name", type=str, default="llava-med-v1.5-mistral-7b")
     parser.add_argument("--output-dir", type=str, default="benchmark_results")
     parser.add_argument(
-        "--raw-output", action="store_true", help="Return raw model output without validation"
+        "--raw-output",
+        action="store_true",
+        help="Return raw model output without validation",
     )
     parser.add_argument(
         "--num-cases",
@@ -351,8 +363,12 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     # Setup live logging files
-    live_log_filename = os.path.join(args.output_dir, f"live_benchmark_log_{timestamp}.json")
-    final_results_filename = os.path.join(args.output_dir, f"final_results_{timestamp}.json")
+    live_log_filename = os.path.join(
+        args.output_dir, f"live_benchmark_log_{timestamp}.json"
+    )
+    final_results_filename = os.path.join(
+        args.output_dir, f"final_results_{timestamp}.json"
+    )
 
     # Initialize live log file
     with open(live_log_filename, "w") as live_log_file:
@@ -374,7 +390,8 @@ def main():
             ret = requests.post(args.controller_address + "/list_models")
             models = ret.json()["models"]
             ret = requests.post(
-                args.controller_address + "/get_worker_address", json={"model": args.model_name}
+                args.controller_address + "/get_worker_address",
+                json={"model": args.model_name},
             )
             worker_addr = ret.json()["address"]
             print(f"Worker address: {worker_addr}")
@@ -416,7 +433,7 @@ def main():
 
         cases_processed += 1
         for question_file in tqdm(
-            question_files, desc=f"Processing questions for case {case_id}", leave=False
+                question_files, desc=f"Processing questions for case {case_id}", leave=False
         ):
             with open(question_file, "r") as file:
                 question_data = json.load(file)
@@ -504,7 +521,9 @@ def main():
     # Close live log file
     with open(live_log_filename, "a") as live_log_file:
         # Remove trailing comma and close JSON array
-        live_log_file.seek(live_log_file.tell() - 2, 0)  # Go back 2 chars to remove ',\n'
+        live_log_file.seek(
+            live_log_file.tell() - 2, 0
+        )  # Go back 2 chars to remove ',\n'
         live_log_file.write("\n]")
 
     # Calculate final statistics
@@ -531,7 +550,9 @@ def main():
     print(f"Total Processed Entries: {total_processed_entries}")
     print(f"Correct Answers: {correct_answers}")
     print(f"Skipped Questions: {skipped_questions}")
-    print(f"Accuracy: {(correct_answers / (questions_processed - skipped_questions) * 100):.2f}%")
+    print(
+        f"Accuracy: {(correct_answers / (questions_processed - skipped_questions) * 100):.2f}%"
+    )
     print(f"\nResults saved to {args.output_dir}")
     print(f"Live log: {live_log_filename}")
     print(f"Final results: {final_results_filename}")

@@ -1,0 +1,252 @@
+import pytest
+from fastapi import status
+from fastapi.testclient import TestClient
+
+from app import app
+from routes.main import _{{ service_name }}_storage
+
+
+class Test{{ service_name.title() }}API:
+    """Test cases for {{ service_name.title() }} API endpoints."""
+
+    def setup_method(self):
+        """Set up test data before each test method."""
+        # Clear the storage before each test
+        _{{ service_name }}_storage.clear()
+
+    def test_service_info(self, client: TestClient):
+        """Test service info endpoint."""
+        response = client.get("/info")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["name"] == "{{ service_name }}-service"
+        assert data["version"] == "1.0.0"
+        assert data["port"] == {{ service_port }}
+        assert data["metrics_port"] == {{ metrics_port }}
+
+    def test_health_check(self, client: TestClient):
+        """Test health check endpoint."""
+        response = client.get("/api/v1/health")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["status"] in ["healthy", "degraded"]
+        assert data["service"] == "{{ service_name }}-service"
+        assert "timestamp" in data
+
+    def test_liveness_check(self, client: TestClient):
+        """Test liveness probe endpoint."""
+        response = client.get("/api/v1/health/live")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["status"] == "alive"
+        assert data["service"] == "{{ service_name }}-service"
+
+    def test_readiness_check(self, client: TestClient):
+        """Test readiness probe endpoint."""
+        response = client.get("/api/v1/health/ready")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["status"] == "ready"
+        assert data["service"] == "{{ service_name }}-service"
+
+    def test_list_{{ service_name }}_empty(self, client: TestClient):
+        """Test listing {{ service_name }} when storage is empty."""
+        response = client.get("/api/v1/{{ service_name }}")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"] == []
+        assert data["meta"]["total"] == 0
+        assert data["meta"]["page"] == 1
+        assert data["meta"]["per_page"] == 10
+
+    def test_create_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test creating a new {{ service_name }}."""
+        response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        assert response.status_code == status.HTTP_201_CREATED
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "{{ service_name.title() }} created successfully"
+        assert data["data"]["name"] == sample_{{ service_name }}_data["name"]
+        assert data["data"]["description"] == sample_{{ service_name }}_data["description"]
+        assert data["data"]["id"] is not None
+        assert data["data"]["is_active"] is True
+
+    def test_create_{{ service_name }}_invalid_data(self, client: TestClient):
+        """Test creating {{ service_name }} with invalid data."""
+        invalid_data = {"description": "Missing name field"}
+        response = client.post("/api/v1/{{ service_name }}", json=invalid_data)
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+
+    def test_get_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test getting a specific {{ service_name }}."""
+        # First create a {{ service_name }}
+        create_response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        created_{{ service_name }} = create_response.json()["data"]
+        {{ service_name }}_id = created_{{ service_name }}["id"]
+        
+        # Get the {{ service_name }}
+        response = client.get(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["id"] == {{ service_name }}_id
+        assert data["data"]["name"] == sample_{{ service_name }}_data["name"]
+
+    def test_get_{{ service_name }}_not_found(self, client: TestClient):
+        """Test getting a non-existent {{ service_name }}."""
+        response = client.get("/api/v1/{{ service_name }}/non-existent-id")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_update_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test updating an existing {{ service_name }}."""
+        # First create a {{ service_name }}
+        create_response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        created_{{ service_name }} = create_response.json()["data"]
+        {{ service_name }}_id = created_{{ service_name }}["id"]
+        
+        # Update the {{ service_name }}
+        update_data = {"name": "Updated {{ service_name.title() }}", "description": "Updated description"}
+        response = client.put(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}", json=update_data)
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["name"] == update_data["name"]
+        assert data["data"]["description"] == update_data["description"]
+
+    def test_update_{{ service_name }}_not_found(self, client: TestClient):
+        """Test updating a non-existent {{ service_name }}."""
+        update_data = {"name": "Updated Name"}
+        response = client.put("/api/v1/{{ service_name }}/non-existent-id", json=update_data)
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_delete_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test deleting an existing {{ service_name }}."""
+        # First create a {{ service_name }}
+        create_response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        created_{{ service_name }} = create_response.json()["data"]
+        {{ service_name }}_id = created_{{ service_name }}["id"]
+        
+        # Delete the {{ service_name }}
+        response = client.delete(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"] == "{{ service_name.title() }} deleted successfully"
+        
+        # Verify it's deleted
+        get_response = client.get(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}")
+        assert get_response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_delete_{{ service_name }}_not_found(self, client: TestClient):
+        """Test deleting a non-existent {{ service_name }}."""
+        response = client.delete("/api/v1/{{ service_name }}/non-existent-id")
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_activate_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test activating a {{ service_name }}."""
+        # First create a {{ service_name }}
+        create_response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        created_{{ service_name }} = create_response.json()["data"]
+        {{ service_name }}_id = created_{{ service_name }}["id"]
+        
+        # Activate the {{ service_name }}
+        response = client.post(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}/activate")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["is_active"] is True
+
+    def test_deactivate_{{ service_name }}(self, client: TestClient, sample_{{ service_name }}_data):
+        """Test deactivating a {{ service_name }}."""
+        # First create a {{ service_name }}
+        create_response = client.post("/api/v1/{{ service_name }}", json=sample_{{ service_name }}_data)
+        created_{{ service_name }} = create_response.json()["data"]
+        {{ service_name }}_id = created_{{ service_name }}["id"]
+        
+        # Deactivate the {{ service_name }}
+        response = client.post(f"/api/v1/{{ service_name }}/{{{ service_name }}_id}/deactivate")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert data["success"] is True
+        assert data["data"]["is_active"] is False
+
+    def test_list_{{ service_name }}_pagination(self, client: TestClient):
+        """Test {{ service_name }} list pagination."""
+        # Create multiple {{ service_name }} items
+        for i in range(15):
+            sample_data = {
+                "name": f"Test {{ service_name.title() }} {i}",
+                "description": f"Description {i}"
+            }
+            client.post("/api/v1/{{ service_name }}", json=sample_data)
+        
+        # Test first page
+        response = client.get("/api/v1/{{ service_name }}?page=1&per_page=10")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["data"]) == 10
+        assert data["meta"]["total"] == 15
+        assert data["meta"]["page"] == 1
+        assert data["meta"]["pages"] == 2
+        assert data["meta"]["has_next"] is True
+        assert data["meta"]["has_prev"] is False
+        
+        # Test second page
+        response = client.get("/api/v1/{{ service_name }}?page=2&per_page=10")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["data"]) == 5
+        assert data["meta"]["page"] == 2
+        assert data["meta"]["has_next"] is False
+        assert data["meta"]["has_prev"] is True
+
+    def test_list_{{ service_name }}_search(self, client: TestClient):
+        """Test {{ service_name }} list search functionality."""
+        # Create test data
+        test_items = [
+            {"name": "Apple {{ service_name.title() }}", "description": "Fruit related"},
+            {"name": "Banana {{ service_name.title() }}", "description": "Another fruit"},
+            {"name": "Car {{ service_name.title() }}", "description": "Vehicle related"}
+        ]
+        
+        for item in test_items:
+            client.post("/api/v1/{{ service_name }}", json=item)
+        
+        # Search by name
+        response = client.get("/api/v1/{{ service_name }}?search=Apple")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["data"]) == 1
+        assert "Apple" in data["data"][0]["name"]
+        
+        # Search by description
+        response = client.get("/api/v1/{{ service_name }}?search=fruit")
+        assert response.status_code == status.HTTP_200_OK
+        
+        data = response.json()
+        assert len(data["data"]) == 2
+
+    def test_metrics_endpoint(self, client: TestClient):
+        """Test Prometheus metrics endpoint."""
+        response = client.get("/metrics")
+        assert response.status_code == status.HTTP_200_OK
+        
+        # Check that it returns Prometheus metrics format
+        content = response.text
+        assert "http_requests_total" in content
+        assert "http_request_duration_seconds" in content

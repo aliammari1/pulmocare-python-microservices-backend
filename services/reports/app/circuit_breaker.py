@@ -3,10 +3,12 @@ import time
 from enum import Enum, auto
 from typing import Any, Callable, Type
 
-from services.metrics import (track_circuit_breaker_failure,
-                              track_circuit_breaker_rejection,
-                              track_circuit_breaker_state,
-                              track_circuit_breaker_success)
+from services.metrics import (
+    track_circuit_breaker_failure,
+    track_circuit_breaker_rejection,
+    track_circuit_breaker_state,
+    track_circuit_breaker_success,
+)
 
 
 class CircuitState(Enum):
@@ -21,11 +23,11 @@ class CircuitBreaker:
     _instances = {}  # Class variable to store instances
 
     def __init__(
-        self,
-        name: str = "default",
-        failure_threshold: int = 5,
-        recovery_timeout: int = 60,
-        expected_exception: Type[Exception] = Exception,
+            self,
+            name: str = "default",
+            failure_threshold: int = 5,
+            recovery_timeout: int = 60,
+            expected_exception: Type[Exception] = Exception,
     ):
         self.name = name
         self.failure_threshold = failure_threshold

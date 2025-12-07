@@ -1,0 +1,107 @@
+# Keycloak Identity and Access Management
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  namespace: medapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:latest
+          ports:
+            - containerPort: 8080
+            - containerPort: 9000
+          env:
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              value: "admin"
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              value: "admin"
+            - name: KC_DB
+              value: "postgres"
+            - name: KC_DB_URL
+              value: "jdbc:postgresql://keycloak-db-service:5432/keycloak"
+            - name: KC_DB_USERNAME
+              value: "keycloak"
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: medapp-secrets
+                  key: POSTGRES_PASSWORD
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            - name: KC_HTTP_RELATIVE_PATH
+              value: "/"
+            - name: KC_METRICS_ENABLED
+              value: "true"
+          command:
+            - /opt/keycloak/bin/kc.sh
+            - start-dev
+            - --import-realm
+            - --health-enabled=true
+            - --metrics-enabled=true
+          volumeMounts:
+            - name: keycloak-realm-config
+              mountPath: /opt/keycloak/data/import
+          livenessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: keycloak-realm-config
+          configMap:
+            name: keycloak-realm-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak-service
+  namespace: medapp
+spec:
+  selector:
+    app: keycloak
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: health
+      port: 9000
+      targetPort: 9000
+---
+# Keycloak Realm Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keycloak-realm-config
+  namespace: medapp
+data:
+  # Add your realm configuration file here
+  pulmocare-realm.json: |
+    {
+      "realm": "pulmocare",
+      "enabled": true,
+      "clients": [
+        {
+          "clientId": "pulmocare-api",
+          "enabled": true,
+          "secret": "pulmocare-secret",
+          "serviceAccountsEnabled": true
+        }
+      ]
+    }

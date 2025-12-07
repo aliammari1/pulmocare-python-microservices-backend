@@ -28,7 +28,7 @@ def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
+        credentials: HTTPAuthorizationCredentials = Security(security),
 ) -> Dict:
     """Validate JWT token and extract user information"""
     try:

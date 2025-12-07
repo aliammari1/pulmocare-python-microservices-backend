@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "apisix",
-    "tags": ["gateway", "api", "proxy"],
+    "tags": [
+      "gateway",
+      "api",
+      "proxy"
+    ],
     "address": "apisix",
     "port": 9080,
     "meta": {
@@ -12,7 +16,11 @@
       "id": "apisix",
       "name": "APISIX health check",
       "http": "http://apisix:9180/apisix/admin/server_info",
-      "header": { "X-API-KEY": ["edd1c9f034335f136f87ad84b625c8f1"] },
+      "header": {
+        "X-API-KEY": [
+          "edd1c9f034335f136f87ad84b625c8f1"
+        ]
+      },
       "interval": "10s",
       "timeout": "5s"
     }

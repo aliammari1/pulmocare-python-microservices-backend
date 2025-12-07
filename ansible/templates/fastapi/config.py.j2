@@ -1,0 +1,125 @@
+import os
+from typing import List
+from dotenv import load_dotenv
+
+
+class Config:
+    """Configuration for {{ service_description }}"""
+    
+    # Load environment-specific configuration
+    env = os.getenv("ENV", "development")
+    dotenv_file = f".env.{env}"
+    if not os.path.exists(dotenv_file):
+        dotenv_file = ".env"
+    load_dotenv(dotenv_path=dotenv_file)
+    
+    # Service information
+    SERVICE_NAME = "{{ service_name }}-service"
+    VERSION = "1.0.0"
+    ENV = os.getenv("ENV", "development")
+    DEBUG = ENV == "development"
+    
+    # Server settings
+    HOST = os.getenv("HOST", "0.0.0.0")
+    PORT = int(os.getenv("PORT", {{ service_port }}))
+    METRICS_PORT = int(os.getenv("METRICS_PORT", {{ metrics_port }}))
+    
+    # CORS settings
+    CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+    
+    # Security
+    SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-change-in-production")
+    ALGORITHM = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+    
+    # Service Discovery - Consul
+    CONSUL_HOST = os.getenv("CONSUL_HOST", "localhost")
+    CONSUL_PORT = int(os.getenv("CONSUL_PORT", 8500))
+    CONSUL_TOKEN = os.getenv("CONSUL_HTTP_TOKEN", "")
+    
+    # Database - MongoDB
+    MONGODB_HOST = os.getenv("MONGODB_HOST", "localhost")
+    MONGODB_PORT = int(os.getenv("MONGODB_PORT", 27017))
+    MONGODB_USERNAME = os.getenv("MONGODB_USERNAME", "admin")
+    MONGODB_PASSWORD = os.getenv("MONGODB_PASSWORD", "admin")
+    MONGODB_DATABASE = os.getenv("MONGODB_DATABASE", "pulmocare")
+    MONGODB_POOL_SIZE = int(os.getenv("MONGODB_POOL_SIZE", 50))
+    MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE", 10))
+    MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS", 60000))
+    MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", 5000))
+    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
+        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", 5000)
+    )
+    
+    @property
+    def MONGODB_URL(self) -> str:
+        """Get MongoDB connection URL."""
+        if self.MONGODB_USERNAME and self.MONGODB_PASSWORD:
+            return (
+                f"mongodb://{self.MONGODB_USERNAME}:{self.MONGODB_PASSWORD}@"
+                f"{self.MONGODB_HOST}:{self.MONGODB_PORT}/{self.MONGODB_DATABASE}"
+            )
+        return f"mongodb://{self.MONGODB_HOST}:{self.MONGODB_PORT}/{self.MONGODB_DATABASE}"
+    
+    # Cache - Redis
+    REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+    REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+    REDIS_DB = int(os.getenv("REDIS_DB", 0))
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "redispass")
+    REDIS_MAX_CONNECTIONS = int(os.getenv("REDIS_MAX_CONNECTIONS", 50))
+    REDIS_RETRY_ON_TIMEOUT = os.getenv("REDIS_RETRY_ON_TIMEOUT", "true").lower() == "true"
+    
+    @property
+    def REDIS_URL(self) -> str:
+        """Get Redis connection URL."""
+        if self.REDIS_PASSWORD:
+            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    # Message Queue - RabbitMQ
+    RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "localhost")
+    RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", 5672))
+    RABBITMQ_USERNAME = os.getenv("RABBITMQ_USERNAME", "guest")
+    RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "guest")
+    RABBITMQ_VHOST = os.getenv("RABBITMQ_VHOST", "/")
+    
+    @property
+    def RABBITMQ_URL(self) -> str:
+        """Get RabbitMQ connection URL."""
+        return (
+            f"amqp://{self.RABBITMQ_USERNAME}:{self.RABBITMQ_PASSWORD}@"
+            f"{self.RABBITMQ_HOST}:{self.RABBITMQ_PORT}{self.RABBITMQ_VHOST}"
+        )
+    
+    # OpenTelemetry
+    OTEL_SERVICE_NAME = os.getenv("OTEL_SERVICE_NAME", SERVICE_NAME)
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", 
+        "http://localhost:4318"
+    )
+    OTEL_RESOURCE_ATTRIBUTES = os.getenv(
+        "OTEL_RESOURCE_ATTRIBUTES", 
+        f"service.name={OTEL_SERVICE_NAME}"
+    )
+    
+    # Logging
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_FORMAT = os.getenv(
+        "LOG_FORMAT", 
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
+    
+    # Authentication Service (if needed)
+    AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8086")
+    
+    # Keycloak (if authentication is required)
+    KEYCLOAK_SERVER_URL = os.getenv("KEYCLOAK_SERVER_URL", "http://localhost:8080")
+    KEYCLOAK_REALM = os.getenv("KEYCLOAK_REALM", "pulmocare")
+    KEYCLOAK_CLIENT_ID = os.getenv("KEYCLOAK_CLIENT_ID", "medapp-client")
+    KEYCLOAK_CLIENT_SECRET = os.getenv("KEYCLOAK_CLIENT_SECRET", "")
+    
+    # Feature flags
+    ENABLE_AUTHENTICATION = os.getenv("ENABLE_AUTHENTICATION", "false").lower() == "true"
+    ENABLE_METRICS = os.getenv("ENABLE_METRICS", "true").lower() == "true"
+    ENABLE_TRACING = os.getenv("ENABLE_TRACING", "true").lower() == "true"
+    ENABLE_CACHING = os.getenv("ENABLE_CACHING", "true").lower() == "true"

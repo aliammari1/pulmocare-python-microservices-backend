@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "etcd",
-    "tags": ["key-value-store", "configuration", "apisix-dependency"],
+    "tags": [
+      "key-value-store",
+      "configuration",
+      "apisix-dependency"
+    ],
     "address": "etcd",
     "port": 2379,
     "check": {

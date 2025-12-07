@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+
 import requests
 from tqdm import tqdm
 
@@ -35,9 +36,10 @@ def download_eurorad_figures(metadata_path: str, output_dir: str) -> None:
         # Process all figures and their subfigures
         for figure in case["figures"]:
             for subfig in figure["subfigures"]:
-
                 # Remove leading and trailing whitespace and convert to lowercase
-                subfig_name = f"{subfig['number'].strip().replace(' ', '_').lower()}.jpg"
+                subfig_name = (
+                    f"{subfig['number'].strip().replace(' ', '_').lower()}.jpg"
+                )
                 subfig_path = Path(case_dir) / subfig_name
 
                 save_figure(

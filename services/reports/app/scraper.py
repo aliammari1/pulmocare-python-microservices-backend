@@ -5,7 +5,9 @@ from typing import List
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 from pydantic import BaseModel, Field
+
 from services.logger_service import logger_service
+
 
 # Get logger for the scraper module
 

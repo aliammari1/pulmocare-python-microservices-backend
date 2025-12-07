@@ -117,7 +117,7 @@ class XRayAnalyzer:
         }
 
         quality_score = (
-            quality_scores[contrast_quality] + quality_scores[sharpness_quality]
+                quality_scores[contrast_quality] + quality_scores[sharpness_quality]
         )
         if exposure_quality == "good":
             quality_score += 2

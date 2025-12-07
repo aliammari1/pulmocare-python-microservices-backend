@@ -1,17 +1,24 @@
 import argparse
 import datetime
+import hashlib
 import json
 import os
 import time
 
 import gradio as gr
 import requests
-
-from medrax.llava.conversation import default_conversation, conv_templates, SeparatorStyle
 from medrax.llava.constants import LOGDIR
-from medrax.llava.utils import build_logger, server_error_msg, violates_moderation, moderation_msg
-import hashlib
-
+from medrax.llava.conversation import (
+    default_conversation,
+    conv_templates,
+    SeparatorStyle,
+)
+from medrax.llava.utils import (
+    build_logger,
+    server_error_msg,
+    violates_moderation,
+    moderation_msg,
+)
 
 logger = build_logger("gradio_web_server", "gradio_web_server.log")
 
@@ -70,7 +77,9 @@ def load_demo_refresh_model_list(request: gr.Request):
     logger.info(f"load_demo. ip: {request.client.host}")
     models = get_model_list()
     state = default_conversation.copy()
-    dropdown_update = gr.Dropdown.update(choices=models, value=models[0] if len(models) > 0 else "")
+    dropdown_update = gr.Dropdown.update(
+        choices=models, value=models[0] if len(models) > 0 else ""
+    )
     return state, dropdown_update
 
 
@@ -129,7 +138,9 @@ def add_text(state, text, image, image_process_mode, request: gr.Request):
         flagged = violates_moderation(text)
         if flagged:
             state.skip_next = True
-            return (state, state.to_gradio_chatbot(), moderation_msg, None) + (no_change_btn,) * 5
+            return (state, state.to_gradio_chatbot(), moderation_msg, None) + (
+                no_change_btn,
+            ) * 5
 
     text = text[:1536]  # Hard cut-off
     if image is not None:
@@ -146,7 +157,9 @@ def add_text(state, text, image, image_process_mode, request: gr.Request):
     return (state, state.to_gradio_chatbot(), "", None) + (disable_btn,) * 5
 
 
-def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request: gr.Request):
+def http_bot(
+        state, model_selector, temperature, top_p, max_new_tokens, request: gr.Request
+):
     logger.info(f"http_bot. ip: {request.client.host}")
     start_tstamp = time.time()
     model_name = model_selector
@@ -164,7 +177,10 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
             elif "v1" in model_name.lower():
                 if "mmtag" in model_name.lower():
                     template_name = "v1_mmtag"
-                elif "plain" in model_name.lower() and "finetune" not in model_name.lower():
+                elif (
+                        "plain" in model_name.lower()
+                        and "finetune" not in model_name.lower()
+                ):
                     template_name = "v1_mmtag"
                 else:
                     template_name = "llava_v1"
@@ -173,7 +189,10 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
             else:
                 if "mmtag" in model_name.lower():
                     template_name = "v0_mmtag"
-                elif "plain" in model_name.lower() and "finetune" not in model_name.lower():
+                elif (
+                        "plain" in model_name.lower()
+                        and "finetune" not in model_name.lower()
+                ):
                     template_name = "v0_mmtag"
                 else:
                     template_name = "llava_v0"
@@ -191,7 +210,9 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
 
     # Query worker address
     controller_url = args.controller_url
-    ret = requests.post(controller_url + "/get_worker_address", json={"model": model_name})
+    ret = requests.post(
+        controller_url + "/get_worker_address", json={"model": model_name}
+    )
     worker_addr = ret.json()["address"]
     logger.info(f"model_name: {model_name}, worker_addr: {worker_addr}")
 
@@ -230,9 +251,11 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
         "temperature": float(temperature),
         "top_p": float(top_p),
         "max_new_tokens": min(int(max_new_tokens), 1536),
-        "stop": state.sep
-        if state.sep_style in [SeparatorStyle.SINGLE, SeparatorStyle.MPT]
-        else state.sep2,
+        "stop": (
+            state.sep
+            if state.sep_style in [SeparatorStyle.SINGLE, SeparatorStyle.MPT]
+            else state.sep2
+        ),
         "images": f"List of {len(state.get_images())} images: {all_image_hash}",
     }
     logger.info(f"==== request ====\n{pload}")
@@ -255,7 +278,7 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, request:
             if chunk:
                 data = json.loads(chunk.decode())
                 if data["error_code"] == 0:
-                    output = data["text"][len(prompt) :].strip()
+                    output = data["text"][len(prompt):].strip()
                     state.messages[-1][-1] = output + "▌"
                     yield (state, state.to_gradio_chatbot()) + (disable_btn,) * 5
                 else:
@@ -314,7 +337,6 @@ Please click the "Flag" button if you get any inappropriate answer! We will coll
 For an optimal experience, please use desktop computers for this demo, as mobile devices may compromise its quality.
 """
 
-
 learn_more_markdown = """
 ### License
 The service is a research preview intended for non-commercial use only, subject to the model [License](https://github.com/facebookresearch/llama/blob/main/MODEL_CARD.md) of LLaMA, [Terms of Use](https://openai.com/policies/terms-of-use) of the data generated by OpenAI, and [Privacy Practices](https://chrome.google.com/webstore/detail/sharegpt-share-your-chatg/daiacboceoaocpibfodeljbdfacokfjb) of ShareGPT. Please contact us if you find any potential violation.
@@ -361,7 +383,10 @@ def build_demo(embed_mode):
                 cur_dir = os.path.dirname(os.path.abspath(__file__))
                 gr.Examples(
                     examples=[
-                        [f"{cur_dir}/examples/bio_patch.png", "What is this image about?"],
+                        [
+                            f"{cur_dir}/examples/bio_patch.png",
+                            "What is this image about?",
+                        ],
                         [
                             f"{cur_dir}/examples/med_img_1.png",
                             "Can you describe the image in details?",
@@ -417,7 +442,9 @@ def build_demo(embed_mode):
                     )
 
             with gr.Column(scale=8):
-                chatbot = gr.Chatbot(elem_id="chatbot", label="LLaVA-Med Chatbot", height=550)
+                chatbot = gr.Chatbot(
+                    elem_id="chatbot", label="LLaVA-Med Chatbot", height=550
+                )
                 with gr.Row():
                     with gr.Column(scale=8):
                         textbox.render()
@@ -428,7 +455,9 @@ def build_demo(embed_mode):
                     downvote_btn = gr.Button(value="👎  Downvote", interactive=False)
                     flag_btn = gr.Button(value="⚠️  Flag", interactive=False)
                     # stop_btn = gr.Button(value="⏹️  Stop Generation", interactive=False)
-                    regenerate_btn = gr.Button(value="🔄  Regenerate", interactive=False)
+                    regenerate_btn = gr.Button(
+                        value="🔄  Regenerate", interactive=False
+                    )
                     clear_btn = gr.Button(value="🗑️  Clear", interactive=False)
 
         if not embed_mode:
@@ -469,7 +498,10 @@ def build_demo(embed_mode):
         )
 
         clear_btn.click(
-            clear_history, None, [state, chatbot, textbox, imagebox] + btn_list, queue=False
+            clear_history,
+            None,
+            [state, chatbot, textbox, imagebox] + btn_list,
+            queue=False,
         )
 
         textbox.submit(
@@ -503,7 +535,9 @@ def build_demo(embed_mode):
                 queue=False,
             )
         elif args.model_list_mode == "reload":
-            demo.load(load_demo_refresh_model_list, None, [state, model_selector], queue=False)
+            demo.load(
+                load_demo_refresh_model_list, None, [state, model_selector], queue=False
+            )
         else:
             raise ValueError(f"Unknown model list mode: {args.model_list_mode}")
 
@@ -516,7 +550,9 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int)
     parser.add_argument("--controller-url", type=str, default="http://localhost:21001")
     parser.add_argument("--concurrency-count", type=int, default=10)
-    parser.add_argument("--model-list-mode", type=str, default="once", choices=["once", "reload"])
+    parser.add_argument(
+        "--model-list-mode", type=str, default="once", choices=["once", "reload"]
+    )
     parser.add_argument("--share", action="store_true")
     parser.add_argument("--moderate", action="store_true")
     parser.add_argument("--embed", action="store_true")

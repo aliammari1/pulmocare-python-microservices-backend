@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "sonarqube",
-    "tags": ["code-quality", "analysis", "metrics"],
+    "tags": [
+      "code-quality",
+      "analysis",
+      "metrics"
+    ],
     "address": "sonarqube",
     "port": 9000,
     "check": {

@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "rabbitmq",
-    "tags": ["message-broker", "queue", "messaging"],
+    "tags": [
+      "message-broker",
+      "queue",
+      "messaging"
+    ],
     "address": "rabbitmq",
     "port": 5672,
     "meta": {

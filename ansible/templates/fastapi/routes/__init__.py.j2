@@ -1,0 +1,5 @@
+# {{ service_description }} Routes
+from .health import router as health_router
+from .main import router as main_router
+
+__all__ = ["health_router", "main_router"]

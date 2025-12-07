@@ -7,3 +7,5 @@ venv
 .vscode/mcp.json
 *.pyc
 .pytest_cache
+.vscode/*
+node_modules

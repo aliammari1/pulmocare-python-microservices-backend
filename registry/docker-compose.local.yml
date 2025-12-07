@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  registry:
+    image: registry:2
+    container_name: medapp-registry
+    ports:
+      - "5000:5000"
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/domain.crt
+      REGISTRY_HTTP_TLS_KEY: /certs/domain.key
+      REGISTRY_AUTH_HTPASSWD_REALM: "Registry Realm"
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_LOG_LEVEL: info
+      REGISTRY_STORAGE_DELETE_ENABLED: "true"
+    volumes:
+      - ./data:/var/lib/registry
+      - ./certs:/certs:ro
+      - ./auth:/auth:ro
+      - ./config/registry-config.yml:/etc/docker/registry/config.yml:ro
+    restart: unless-stopped
+    networks:
+      - registry-network
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget --no-check-certificate --quiet --tries=1 --spider https://localhost:5000/v2/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # Optional: Add a simple registry UI
+  registry-ui:
+    image: joxit/docker-registry-ui:static
+    container_name: medapp-registry-ui
+    ports:
+      - "8080:80"
+    environment:
+      REGISTRY_TITLE: "MedApp Registry"
+      REGISTRY_URL: "https://registry:5000"
+      DELETE_IMAGES: "true"
+      SHOW_CONTENT_DIGEST: "true"
+      NGINX_PROXY_PASS_URL: "https://registry:5000"
+      SINGLE_REGISTRY: "true"
+    depends_on:
+      - registry
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+networks:
+  registry-network:
+    driver: bridge

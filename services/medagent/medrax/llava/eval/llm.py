@@ -1,15 +1,14 @@
 import abc
 import asyncio
-from abc import abstractmethod
 import math
+from abc import abstractmethod
 
-import tiktoken
-import openai
 import backoff
+import openai
+import tiktoken
 
 
 class LLM(abc.ABC):
-
     prompt_percent = 0.9
 
     @abstractmethod
@@ -22,13 +21,17 @@ class LLM(abc.ABC):
 
     @abstractmethod
     def split_input(
-        self, fixed_instruction, few_shot_examples, splittable_input, input_header, output_header
+            self,
+            fixed_instruction,
+            few_shot_examples,
+            splittable_input,
+            input_header,
+            output_header,
     ):
         raise NotImplementedError("Subclasses should implement this!")
 
 
 class GPT(LLM):
-
     prompt_percent = 0.8
 
     openai_cxn_dict = {
@@ -62,7 +65,7 @@ class GPT(LLM):
         )
 
     def gen_messages(
-        self, fixed_instruction, few_shot_examples, input, input_header, output_header
+            self, fixed_instruction, few_shot_examples, input, input_header, output_header
     ):
         messages = [
             {
@@ -75,7 +78,11 @@ class GPT(LLM):
                 [
                     {
                         "role": "user",
-                        "content": input_header + "\n" + example["user"] + "\n\n" + output_header,
+                        "content": input_header
+                                   + "\n"
+                                   + example["user"]
+                                   + "\n\n"
+                                   + output_header,
                     },
                     {
                         "role": "assistant",
@@ -104,8 +111,8 @@ class GPT(LLM):
         return response.choices[0].message.content
 
     async def dispatch_openai_requests(
-        self,
-        messages_list,
+            self,
+            messages_list,
     ):
         # Asynchronously call the function for each prompt
         tasks = [self.make_api_call_to_gpt(messages) for messages in messages_list]
@@ -115,13 +122,18 @@ class GPT(LLM):
         return results
 
     def infer(
-        self,
-        messages_list,
+            self,
+            messages_list,
     ):
         return asyncio.run(self.dispatch_openai_requests(messages_list))
 
     def split_input(
-        self, fixed_instruction, few_shot_examples, splittable_input, input_header, output_header
+            self,
+            fixed_instruction,
+            few_shot_examples,
+            splittable_input,
+            input_header,
+            output_header,
     ):
         # Tokenize fixed_prompt
         fixed_token_ids = self.encoding.encode(
@@ -138,17 +150,22 @@ class GPT(LLM):
 
         # Split tokenized split_prompt into list of individual inputs strings. Uses tokens to calculate length
         split_token_ids_list = [
-            split_token_ids[i : i + remaining_token_len + 10]
+            split_token_ids[i: i + remaining_token_len + 10]
             for i in range(0, len(split_token_ids), remaining_token_len)
         ]
         split_input_list = [
-            self.encoding.decode(split_token_ids) for split_token_ids in split_token_ids_list
+            self.encoding.decode(split_token_ids)
+            for split_token_ids in split_token_ids_list
         ]
 
         # Take the fixed_prompt, few_shot_examples, splitted inputs, and input/output headers and generate list of prompt strings.
         return [
             self.gen_messages(
-                fixed_instruction, few_shot_examples, split_input, input_header, output_header
+                fixed_instruction,
+                few_shot_examples,
+                split_input,
+                input_header,
+                output_header,
             )
             for split_input in split_input_list
         ]

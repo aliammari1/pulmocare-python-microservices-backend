@@ -150,7 +150,9 @@
       },
       "id": 5,
       "options": {
-        "displayLabels": ["percent"],
+        "displayLabels": [
+          "percent"
+        ],
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -158,7 +160,9 @@
         },
         "pieType": "pie",
         "reduceOptions": {
-          "calcs": ["sum"],
+          "calcs": [
+            "sum"
+          ],
           "fields": "",
           "values": false
         },
@@ -216,7 +220,9 @@
       },
       "id": 10,
       "options": {
-        "displayLabels": ["percent"],
+        "displayLabels": [
+          "percent"
+        ],
         "legend": {
           "displayMode": "list",
           "placement": "bottom",
@@ -224,7 +230,9 @@
         },
         "pieType": "pie",
         "reduceOptions": {
-          "calcs": ["sum"],
+          "calcs": [
+            "sum"
+          ],
           "fields": "",
           "values": false
         },
@@ -655,7 +663,9 @@
         "footer": {
           "countRows": false,
           "fields": "",
-          "reducer": ["sum"],
+          "reducer": [
+            "sum"
+          ],
           "show": false
         },
         "showHeader": true,
@@ -794,39 +804,57 @@
                 "aggregations": []
               },
               "Value #A": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #B": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #C": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #D": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #E": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #F": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "aggregate"
               },
               "Value #G": {
-                "aggregations": ["mean"],
+                "aggregations": [
+                  "mean"
+                ],
                 "operation": "aggregate"
               },
               "Value #H": {
-                "aggregations": ["allValues"],
+                "aggregations": [
+                  "allValues"
+                ],
                 "operation": "aggregate"
               },
               "Value #I": {
-                "aggregations": ["allValues"],
+                "aggregations": [
+                  "allValues"
+                ],
                 "operation": "aggregate"
               },
               "agent": {
@@ -834,7 +862,9 @@
                 "operation": "groupby"
               },
               "http_method": {
-                "aggregations": ["sum"],
+                "aggregations": [
+                  "sum"
+                ],
                 "operation": "groupby"
               },
               "http_route": {
@@ -897,7 +927,10 @@
             },
             "mode": "reduceRow",
             "reduce": {
-              "include": ["4xx", "5xx"],
+              "include": [
+                "4xx",
+                "5xx"
+              ],
               "reducer": "sum"
             },
             "replaceFields": false
@@ -1028,8 +1061,12 @@
       {
         "current": {
           "selected": true,
-          "text": ["All"],
-          "value": ["$__all"]
+          "text": [
+            "All"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
         "datasource": {
           "type": "prometheus",

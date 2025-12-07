@@ -7,9 +7,9 @@ name = "medrax"
 version = "0.1.0"
 description = "medical reasoning agent for chest x-ray"
 authors = [
-    {name = "Adibvafa Fallahpour", email = "adibvafa.fallahpour@mail.utoronto.ca"},
+    { name = "Adibvafa Fallahpour", email = "adibvafa.fallahpour@mail.utoronto.ca" },
 ]
-license = {file = "LICENSE"}
+license = { file = "LICENSE" }
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.25.0",
@@ -45,7 +45,7 @@ dependencies = [
     "tiktoken>=0.3.0",
     "openai>=0.27.0",
     "backoff>=1.10.0",
-    "torch==2.6.0",
+    "torch==2.8.0",
     "torchvision==0.21.0",
     "scikit-image>=0.18.0",
     "gradio>=5.0.0",

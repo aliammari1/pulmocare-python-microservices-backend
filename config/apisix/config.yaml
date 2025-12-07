@@ -69,5 +69,5 @@ nginx_config:
 
 discovery:
   consul:
-    servers:                      # make sure service name is unique in these consul servers
+    servers: # make sure service name is unique in these consul servers
       - "http://consul:8500"   # `http://consul:8500` and `http://consul:8600` are different clusters

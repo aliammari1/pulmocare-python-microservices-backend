@@ -1,0 +1,19 @@
+{
+  "auths": {
+    "registry.medapp.local:5000": {
+      "auth": "bWVkYXBwOm1lZGFwcDEyMyE="
+    },
+    "harbor.medapp.local": {
+      "auth": "YWRtaW46SGFyYm9yQWRtaW4xMjMh"
+    },
+    "docker.io": {
+      "auth": ""
+    }
+  },
+  "HttpHeaders": {
+    "User-Agent": "Docker-Client/20.10.0 (linux)"
+  },
+  "credsStore": "desktop",
+  "experimental": "disabled",
+  "stackOrchestrator": "swarm"
+}

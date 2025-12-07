@@ -1,36 +1,33 @@
-from typing import Dict, Optional, Tuple, Type
-from pathlib import Path
-import uuid
 import tempfile
+import uuid
+from pathlib import Path
+from typing import Dict, Optional, Tuple, Type
+
 import torch
-from pydantic import BaseModel, Field
 from diffusers import StableDiffusionPipeline
-from langchain_core.callbacks import AsyncCallbackManagerForToolRun, CallbackManagerForToolRun
+from langchain_core.callbacks import (
+    AsyncCallbackManagerForToolRun,
+    CallbackManagerForToolRun,
+)
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 
 class ChestXRayGeneratorInput(BaseModel):
     """Input schema for the Chest X-Ray Generator Tool."""
-    
+
     prompt: str = Field(
-        ..., 
-        description="Description of the medical condition to generate (e.g., 'big left-sided pleural effusion')"
+        ...,
+        description="Description of the medical condition to generate (e.g., 'big left-sided pleural effusion')",
     )
-    height: int = Field(
-        512,
-        description="Height of generated image in pixels"
-    )
-    width: int = Field(
-        512,
-        description="Width of generated image in pixels"
-    )
+    height: int = Field(512, description="Height of generated image in pixels")
+    width: int = Field(512, description="Width of generated image in pixels")
     num_inference_steps: int = Field(
-        75,
-        description="Number of denoising steps (higher = better quality but slower)"
+        75, description="Number of denoising steps (higher = better quality but slower)"
     )
     guidance_scale: float = Field(
         4.0,
-        description="How closely to follow the prompt (higher = more faithful but less diverse)"
+        description="How closely to follow the prompt (higher = more faithful but less diverse)",
     )
 
 
@@ -52,30 +49,32 @@ class ChestXRayGeneratorTool(BaseTool):
     temp_dir: Path = None
 
     def __init__(
-        self,
-        model_path: str = "./model-weights/roentgen",
-        cache_dir: str = "./model-weights",
-        temp_dir: Optional[str] = None,
-        device: Optional[str] = "cuda",
+            self,
+            model_path: str = "./model-weights/roentgen",
+            cache_dir: str = "./model-weights",
+            temp_dir: Optional[str] = None,
+            device: Optional[str] = "cuda",
     ):
         """Initialize the chest X-ray generator tool."""
         super().__init__()
-        
+
         self.device = torch.device(device) if device else "cuda"
-        self.model = StableDiffusionPipeline.from_pretrained(model_path, cache_dir=cache_dir)
+        self.model = StableDiffusionPipeline.from_pretrained(
+            model_path, cache_dir=cache_dir
+        )
         self.model = self.model.to(torch.float32).to(self.device)
-        
+
         self.temp_dir = Path(temp_dir if temp_dir else tempfile.mkdtemp())
         self.temp_dir.mkdir(exist_ok=True)
 
     def _run(
-        self,
-        prompt: str,
-        num_inference_steps: int = 75,
-        guidance_scale: float = 4.0,
-        height: int = 512,
-        width: int = 512,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            prompt: str,
+            num_inference_steps: int = 75,
+            guidance_scale: float = 4.0,
+            height: int = 512,
+            width: int = 512,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, str], Dict]:
         """Generate a chest X-ray image from a text description.
 
@@ -97,7 +96,7 @@ class ChestXRayGeneratorTool(BaseTool):
                 num_inference_steps=num_inference_steps,
                 height=height,
                 width=width,
-                guidance_scale=guidance_scale
+                guidance_scale=guidance_scale,
             )
 
             # Save generated image
@@ -107,7 +106,7 @@ class ChestXRayGeneratorTool(BaseTool):
             output = {
                 "image_path": str(image_path),
             }
-            
+
             metadata = {
                 "prompt": prompt,
                 "num_inference_steps": num_inference_steps,
@@ -126,17 +125,17 @@ class ChestXRayGeneratorTool(BaseTool):
                     "prompt": prompt,
                     "analysis_status": "failed",
                     "error_details": str(e),
-                }
+                },
             )
 
     async def _arun(
-        self,
-        prompt: str,
-        num_inference_steps: int = 75,
-        guidance_scale: float = 4.0,
-        height: int = 512,
-        width: int = 512,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            prompt: str,
+            num_inference_steps: int = 75,
+            guidance_scale: float = 4.0,
+            height: int = 512,
+            width: int = 512,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, str], Dict]:
         """Async version of _run."""
         return self._run(prompt, num_inference_steps, guidance_scale, height, width)

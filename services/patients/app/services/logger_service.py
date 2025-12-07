@@ -4,8 +4,7 @@ import socket
 from logging.handlers import RotatingFileHandler
 
 from opentelemetry._logs import set_logger_provider
-from opentelemetry.exporter.otlp.proto.grpc._log_exporter import \
-    OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.resources import Resource
@@ -22,7 +21,7 @@ class LoggerService:
 
             # Create logs directory if it doesn't exist
             os.makedirs(Config.LOG_DIR, exist_ok=True)
-            
+
             # Ensure the log file path exists
             log_file_dir = os.path.dirname(Config.LOG_FILE)
             if log_file_dir:
@@ -46,8 +45,10 @@ class LoggerService:
                 file_handler.setLevel(Config.LOG_LEVEL)
                 cls._instance.logger.addHandler(file_handler)
             except Exception as e:
-                print(f"Failed to create file handler: {str(e)}. Using console logging only.")
-            
+                print(
+                    f"Failed to create file handler: {str(e)}. Using console logging only."
+                )
+
             # Console Handler
             console_handler = logging.StreamHandler()
             console_handler.setFormatter(formatter)
@@ -58,6 +59,9 @@ class LoggerService:
 
             # Setup OpenTelemetry logging
             cls._instance._setup_otel_logging()
+
+            # Initialize file storage logging
+            cls._instance._initialize_file_storage_logging()
 
         return cls._instance
 
@@ -80,7 +84,7 @@ class LoggerService:
 
             # Create the exporter and processor
             exporter = OTLPLogExporter(
-                endpoint=f"http://{ 'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
+                endpoint=f"http://{'localhost' if Config.ENV == 'development' else 'otel-collector'}:4317",
                 insecure=True,
             )
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
@@ -97,6 +101,26 @@ class LoggerService:
         except Exception as e:
             # Log to standard handlers if OTEL setup fails
             self.logger.error(f"Failed to initialize OpenTelemetry logging: {str(e)}")
+
+    def _initialize_file_storage_logging(self):
+        """
+        Initialize logging for file storage operations
+        """
+        try:
+            # Create a separate logger for file storage operations
+            file_storage_logger = logging.getLogger("file_storage")
+            file_storage_logger.setLevel(Config.LOG_LEVEL)
+
+            # Ensure handlers aren't duplicated
+            if not file_storage_logger.handlers:
+                # Add console handler
+                handler = logging.StreamHandler()
+                handler.setFormatter(self.logger.handlers[0].formatter)
+                file_storage_logger.addHandler(handler)
+
+                self.logger.debug("Initialized file storage logging")
+        except Exception as e:
+            self.logger.warning(f"Failed to initialize file storage logging: {str(e)}")
 
     @classmethod
     def get_instance(cls):

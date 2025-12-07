@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "ordonnances-service",
-    "tags": ["python", "api", "metrics"],
+    "tags": [
+      "python",
+      "api",
+      "metrics"
+    ],
     "address": "ordonnances-service",
     "port": 8082,
     "meta": {

@@ -1,9 +1,7 @@
-from typing import Optional, List
 import argparse
 import json
-import glob
 from pathlib import Path
-from datetime import datetime
+from typing import Optional
 
 
 def get_latest_log() -> str:
@@ -126,9 +124,9 @@ def determine_model_type(entry: dict) -> str:
 
 
 def print_log_entry(
-    log_file: Optional[str] = None,
-    num_entries: Optional[int] = None,
-    model_filter: Optional[str] = None,
+        log_file: Optional[str] = None,
+        num_entries: Optional[int] = None,
+        model_filter: Optional[str] = None,
 ) -> None:
     """Print log entries from the specified log file or the latest log file.
 
@@ -188,8 +186,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Parse and display log entries from API usage logs."
     )
-    parser.add_argument("-l", "--log_file", nargs="?", help="Path to the log file (optional)")
-    parser.add_argument("-n", "--num_entries", type=int, help="Number of entries to display")
+    parser.add_argument(
+        "-l", "--log_file", nargs="?", help="Path to the log file (optional)"
+    )
+    parser.add_argument(
+        "-n", "--num_entries", type=int, help="Number of entries to display"
+    )
     parser.add_argument(
         "-m",
         "--model",

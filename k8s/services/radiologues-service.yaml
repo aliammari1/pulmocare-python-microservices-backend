@@ -1,0 +1,70 @@
+# Radiologues Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radiologues-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: radiologues-service
+  template:
+    metadata:
+      labels:
+        app: radiologues-service
+    spec:
+      containers:
+        - name: radiologues-service
+          image: your-registry/medapp-radiologues:latest
+          ports:
+            - containerPort: 8084
+          env:
+            - name: PORT
+              value: "8084"
+            - name: OTEL_SERVICE_NAME
+              value: "radiologues-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=radiologues-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: radiologues-service
+  namespace: medapp
+spec:
+  selector:
+    app: radiologues-service
+  ports:
+    - port: 8084
+      targetPort: 8084

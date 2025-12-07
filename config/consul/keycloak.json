@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "keycloak",
-    "tags": ["authentication", "authorization", "identity"],
+    "tags": [
+      "authentication",
+      "authorization",
+      "identity"
+    ],
     "address": "keycloak",
     "port": 8080,
     "meta": {

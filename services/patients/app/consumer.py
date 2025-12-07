@@ -1,11 +1,9 @@
 import json
 from datetime import datetime
 
-from services.logger_service import logger_service
-from services.mongodb_client import MongoDBClient
-from services.rabbitmq_client import RabbitMQClient
-
 from config import Config
+from services.logger_service import logger_service
+from services.rabbitmq_client import RabbitMQClient
 
 
 def handle_medical_update(ch, method, properties, body):
@@ -15,16 +13,25 @@ def handle_medical_update(ch, method, properties, body):
         message = json.loads(body)
         logger_service.info(f"Received medical update: {message}")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.medical_updates.insert_one(
-            {
-                "update_type": method.routing_key.split(".")[-1],
-                "patient_id": message.get("patient_id"),
-                "timestamp": datetime.utcnow().isoformat(),
-                "data": message.get("data", {}),
-                "raw_update": message,
-            }
+        # Extract patient ID and update type from message
+        patient_id = message.get("patient_id")
+        update_type = method.routing_key.split(".")[-1]
+
+        # Log that we've processed it
+        logger_service.info(
+            f"Processed {update_type} medical update for patient {patient_id}"
+        )
+
+        # Here we'll just forward to a notification stream using RabbitMQ
+        rabbitmq_client = RabbitMQClient(Config)
+        rabbitmq_client.publish_patient_update(
+            patient_id=patient_id,
+            update_type=f"medical_update_processed",
+            data={
+                "original_update_type": update_type,
+                "processed_at": datetime.utcnow().isoformat(),
+                "status": "received",
+            },
         )
 
         # Acknowledge message
@@ -43,29 +50,29 @@ def handle_appointment_response(ch, method, properties, body):
         message = json.loads(body)
         logger_service.info(f"Received appointment response: {message}")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.appointment_responses.insert_one(
-            {
-                "appointment_id": message.get("appointment_id"),
-                "patient_id": message.get("patient_id"),
-                "doctor_id": message.get("doctor_id"),
-                "status": message.get("status"),
-                "message": message.get("message"),
-                "received_at": datetime.utcnow().isoformat(),
-                "raw_response": message,
-            }
+        # Extract key data
+        appointment_id = message.get("appointment_id")
+        patient_id = message.get("patient_id")
+        doctor_id = message.get("doctor_id")
+        status = message.get("status")
+
+        # Log the appointment response
+        logger_service.info(
+            f"Appointment {appointment_id} for patient {patient_id} with doctor {doctor_id} status: {status}"
         )
 
-        # Also update the appointment request in the database
-        mongodb_client.db.appointment_requests.update_one(
-            {"appointment_id": message.get("appointment_id")},
-            {
-                "$set": {
-                    "status": message.get("status"),
-                    "response_message": message.get("message"),
-                    "response_received_at": datetime.utcnow().isoformat(),
-                }
+        # Forward the response as a notification to the patient
+        rabbitmq_client = RabbitMQClient(Config)
+        rabbitmq_client.send_notification(
+            recipient_id=patient_id,
+            recipient_type="patient",
+            notification_type="appointment_update",
+            message=f"Your appointment request has been {status}.",
+            data={
+                "appointment_id": appointment_id,
+                "doctor_id": doctor_id,
+                "status": status,
+                "response_received_at": datetime.utcnow().isoformat(),
             },
         )
 
@@ -85,43 +92,39 @@ def handle_prescription_notification(ch, method, properties, body):
         message = json.loads(body)
         logger_service.info(f"Received prescription notification: {message}")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.prescription_notifications.insert_one(
-            {
-                "prescription_id": message.get("prescription_id"),
-                "patient_id": message.get("patient_id"),
-                "action": message.get("action"),
-                "received_at": datetime.utcnow().isoformat(),
-                "raw_notification": message,
-            }
+        # Extract key information
+        prescription_id = message.get("prescription_id")
+        patient_id = message.get("patient_id")
+        action = message.get("action")
+
+        # Log that we've processed the notification
+        logger_service.info(
+            f"Processed prescription {prescription_id} {action} notification for patient {patient_id}"
         )
 
-        # Also update the prescription in the database if it exists
-        if mongodb_client.db.prescriptions.find_one(
-            {"prescription_id": message.get("prescription_id")}
-        ):
-            mongodb_client.db.prescriptions.update_one(
-                {"prescription_id": message.get("prescription_id")},
-                {
-                    "$set": {
-                        "status": message.get("action"),
-                        "updated_at": datetime.utcnow().isoformat(),
-                    }
-                },
-            )
-        else:
-            # Create a new prescription record
-            mongodb_client.db.prescriptions.insert_one(
-                {
-                    "prescription_id": message.get("prescription_id"),
-                    "patient_id": message.get("patient_id"),
-                    "doctor_id": message.get("doctor_id", "unknown"),
-                    "status": message.get("action"),
-                    "created_at": datetime.utcnow().isoformat(),
-                    "updated_at": datetime.utcnow().isoformat(),
-                }
-            )
+        # Send a patient notification via RabbitMQ
+        rabbitmq_client = RabbitMQClient(Config)
+
+        # Send a notification message to the patient
+        notification_message = f"Your prescription has been {action}."
+        if action == "created":
+            notification_message = "A new prescription has been created for you."
+        elif action == "filled":
+            notification_message = "Your prescription is ready to be picked up."
+        elif action == "dispensed":
+            notification_message = "Your prescription has been dispensed."
+
+        rabbitmq_client.send_notification(
+            recipient_id=patient_id,
+            recipient_type="patient",
+            notification_type="prescription_update",
+            message=notification_message,
+            data={
+                "prescription_id": prescription_id,
+                "action": action,
+                "notification_time": datetime.utcnow().isoformat(),
+            },
+        )
 
         # Acknowledge message
         ch.basic_ack(delivery_tag=method.delivery_tag)

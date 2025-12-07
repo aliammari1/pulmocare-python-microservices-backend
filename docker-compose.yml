@@ -20,6 +20,16 @@ x-service-env: &service-env
   KEYCLOAK_CLIENT_ID: "pulmocare-api"
   KEYCLOAK_CLIENT_SECRET: "${KEYCLOAK_CLIENT_SECRET:-pulmocare-secret}"
   AUTH_SERVICE_URL: "http://auth-service:8086"
+  # Add MinIO configuration
+  MINIO_HOST: "minio"
+  MINIO_PORT: "9000"
+  MINIO_ACCESS_KEY: "${MINIO_ACCESS_KEY:-minioadmin}"
+  MINIO_SECRET_KEY: "${MINIO_SECRET_KEY:-minioadmin}"
+  MINIO_REGION: "us-east-1"
+  MINIO_SECURE: "false"
+  # Add Vault configuration
+  VAULT_ADDR: "http://vault:8200"
+  VAULT_TOKEN: "${VAULT_TOKEN:-dev-only-token}"
 
 services:
   # Keycloak Service
@@ -218,6 +228,8 @@ services:
         condition: service_healthy
       reports-service:
         condition: service_healthy
+      appointments-service:
+        condition: service_healthy
     ports:
       - "9080:9080"
       - "9091:9091"
@@ -226,6 +238,7 @@ services:
       - "9180:9180"
     networks:
       - medapp-network
+
     # Health check for other services that depend on APISIX
     healthcheck:
       test:
@@ -597,6 +610,42 @@ services:
       timeout: 5s
       retries: 5
 
+  # Appointments Service
+  appointments-service:
+    build:
+      context: ./services/appointments
+      dockerfile: Dockerfile
+    container_name: medapp-appointments-service
+    ports:
+      - "8087:8087"
+    environment:
+      <<: *service-env
+      ENV: production
+      PORT: "8087"
+      OTEL_SERVICE_NAME: appointments-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=appointments-service
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      consul:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    volumes:
+      - ./services/appointments/app:/app
+      - ./services/appointments/app/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # SonarQube - Code Quality Analysis
   sonarqube:
     image: sonarqube:community
@@ -657,6 +706,89 @@ services:
       timeout: 5s
       retries: 3
 
+  # MinIO - S3 Compatible Object Storage for Medical Files
+  minio:
+    image: minio/minio:latest
+    container_name: medapp-minio
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-minioadmin}
+      - MINIO_REGION_NAME=${MINIO_REGION:-us-east-1}
+    volumes:
+      - minio_data:/data
+    networks:
+      - medapp-network
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # MinIO File Service - Python interface for medical file operations
+  medfiles-service:
+    build:
+      context: ./services/medfiles
+      dockerfile: Dockerfile
+    container_name: medapp-medfiles-service
+    ports:
+      - "8088:8088"
+    environment:
+      <<: *service-env
+      ENV: production
+      PORT: "8088"
+      OTEL_SERVICE_NAME: medfiles-service
+      OTEL_RESOURCE_ATTRIBUTES: service.name=medfiles-service
+    depends_on:
+      minio:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+      consul:
+        condition: service_healthy
+    networks:
+      - medapp-network
+    volumes:
+      - ./services/medfiles/app:/app
+      - ./services/medfiles/app/logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # HashiCorp Vault - Secret Management
+  vault:
+    image: hashicorp/vault:latest
+    container_name: medapp-vault
+    ports:
+      - "8200:8200"
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN:-dev-only-token}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200
+      - VAULT_ADDR=http://0.0.0.0:8200
+    cap_add:
+      - IPC_LOCK
+    volumes:
+      - vault_data:/vault/data
+      - vault_logs:/vault/logs
+      - vault_config:/vault/config
+    networks:
+      - medapp-network
+    command: ["vault", "server", "-dev"]
+    healthcheck:
+      test: ["CMD", "vault", "status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
 networks:
   medapp-network:
     driver: bridge
@@ -677,3 +809,7 @@ volumes:
   portainer_data:
   keycloak_db_data:
   apisix_dashboard_data:
+  minio_data:
+  vault_data:
+  vault_logs:
+  vault_config:

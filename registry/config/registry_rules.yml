@@ -1,0 +1,38 @@
+groups:
+- name: registry.rules
+  rules:
+  - alert: RegistryDown
+    expr: up{job="registry"} == 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Registry is down"
+      description: "Registry has been down for more than 5 minutes."
+
+  - alert: RegistryHighErrorRate
+    expr: rate(registry_http_requests_total{code=~"5.."}[5m]) > 0.1
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High error rate in registry"
+      description: "Registry error rate is {{ $value }} errors per second."
+
+  - alert: RegistryDiskSpaceLow
+    expr: (registry_storage_usage_bytes / registry_storage_capacity_bytes) > 0.8
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Registry disk space is low"
+      description: "Registry disk usage is {{ $value | humanizePercentage }}."
+
+  - alert: RegistryCertificateExpiring
+    expr: (registry_certificate_expiry_seconds - time()) / 86400 < 30
+    for: 1m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Registry certificate expiring soon"
+      description: "Registry certificate expires in {{ $value }} days."

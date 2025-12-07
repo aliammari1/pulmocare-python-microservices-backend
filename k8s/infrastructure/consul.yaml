@@ -1,0 +1,103 @@
+# Consul Service Discovery
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: consul
+  namespace: medapp
+spec:
+  serviceName: consul-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul
+  template:
+    metadata:
+      labels:
+        app: consul
+    spec:
+      containers:
+        - name: consul
+          image: hashicorp/consul:latest
+          ports:
+            - containerPort: 8500
+            - containerPort: 8600
+              protocol: UDP
+          env:
+            - name: CONSUL_LOCAL_CONFIG
+              value: '{"leave_on_terminate": true, "skip_leave_on_interrupt": true, "rejoin_after_leave": true}'
+            - name: CONSUL_BIND_INTERFACE
+              value: "eth0"
+            - name: CONSUL_CLIENT_INTERFACE
+              value: "eth0"
+            - name: CONSUL_ENABLE_SCRIPT_CHECKS
+              value: "true"
+          command:
+            - consul
+            - agent
+            - -server
+            - -ui
+            - -node=server-1
+            - -bootstrap-expect=1
+            - -client=0.0.0.0
+            - -dns-port=8600
+          volumeMounts:
+            - name: consul-storage
+              mountPath: /consul/data
+            - name: consul-config
+              mountPath: /consul/config
+          livenessProbe:
+            exec:
+              command:
+                - consul
+                - members
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - consul
+                - members
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: consul-config
+          configMap:
+            name: consul-config
+  volumeClaimTemplates:
+    - metadata:
+        name: consul-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consul-service
+  namespace: medapp
+spec:
+  selector:
+    app: consul
+  ports:
+    - name: http
+      port: 8500
+      targetPort: 8500
+    - name: dns
+      port: 8600
+      targetPort: 8600
+      protocol: UDP
+---
+# Consul configuration placeholder
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: consul-config
+  namespace: medapp
+data:
+  # Add your consul service definitions here
+  services.json: |
+    {
+      "services": []
+    }

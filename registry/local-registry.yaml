@@ -1,0 +1,174 @@
+# Local Docker Registry for Development
+# This sets up a local registry for fast development and testing
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docker-registry
+  namespace: medapp
+  labels:
+    app: docker-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docker-registry
+  template:
+    metadata:
+      labels:
+        app: docker-registry
+    spec:
+      containers:
+        - name: registry
+          image: registry:2
+          ports:
+            - containerPort: 5000
+          env:
+            - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+              value: /var/lib/registry
+            - name: REGISTRY_AUTH
+              value: "htpasswd"
+            - name: REGISTRY_AUTH_HTPASSWD_REALM
+              value: "Registry Realm"
+            - name: REGISTRY_AUTH_HTPASSWD_PATH
+              value: /auth/htpasswd
+            - name: REGISTRY_HTTP_TLS_CERTIFICATE
+              value: /certs/tls.crt
+            - name: REGISTRY_HTTP_TLS_KEY
+              value: /certs/tls.key
+          volumeMounts:
+            - name: registry-storage
+              mountPath: /var/lib/registry
+            - name: registry-auth
+              mountPath: /auth
+              readOnly: true
+            - name: registry-certs
+              mountPath: /certs
+              readOnly: true
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: registry-storage
+          persistentVolumeClaim:
+            claimName: registry-pvc
+        - name: registry-auth
+          secret:
+            secretName: registry-auth
+        - name: registry-certs
+          secret:
+            secretName: registry-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry
+  namespace: medapp
+  labels:
+    app: docker-registry
+spec:
+  selector:
+    app: docker-registry
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: 5000
+  type: ClusterIP
+---
+# NodePort service for external access during development
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-nodeport
+  namespace: medapp
+  labels:
+    app: docker-registry
+spec:
+  selector:
+    app: docker-registry
+  ports:
+    - name: registry
+      port: 5000
+      targetPort: 5000
+      nodePort: 32000
+  type: NodePort
+---
+# Persistent Volume Claim for registry storage
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: registry-pvc
+  namespace: medapp
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+---
+# Secret for registry authentication
+apiVersion: v1
+kind: Secret
+metadata:
+  name: registry-auth
+  namespace: medapp
+type: Opaque
+data:
+  # htpasswd file with user:admin password:admin123
+  # Generated with: htpasswd -Bbn admin admin123 | base64 -w 0
+  htpasswd: YWRtaW46JDJ5JDA1JE4xLkM3QnU4M3ZkUUdIZzR4R1VhZHVHTFo3ZDZmeG5jSnhNQ1AueFkuUjJsUDl4aDZUV3Ey
+---
+# Secret for TLS certificates (self-signed for development)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: registry-certs
+  namespace: medapp
+type: kubernetes.io/tls
+data:
+  # Self-signed certificate for development
+  # Generate with: openssl req -x509 -newkey rsa:4096 -keyout tls.key -out tls.crt -days 365 -nodes -subj "/CN=registry.medapp.local"
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCi4uLlNFTEYtU0lHTkVEIENFUlRJRklDQVRFLi4uCi0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0=
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCi4uLlBSSVZBVEUgS0VZLi4uCi0tLS0tRU5EIFBSSVZBVEUgS0VZLS0tLS0=
+---
+# Ingress for external access
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: registry-ingress
+  namespace: medapp
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+spec:
+  rules:
+    - host: registry.medapp.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: docker-registry
+                port:
+                  number: 5000

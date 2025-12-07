@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from typing import Dict, List
 
 
@@ -75,10 +75,10 @@ def load_tool_prompts(tools: List[str], tools_json_path: str) -> str:
 
 
 def load_system_prompt(
-    system_prompts_file: str,
-    system_prompt_type: str,
-    tools: List[str],
-    tools_json_path: str,
+        system_prompts_file: str,
+        system_prompt_type: str,
+        tools: List[str],
+        tools_json_path: str,
 ) -> str:
     """
     Load the system prompt by combining the system prompt and tool information.

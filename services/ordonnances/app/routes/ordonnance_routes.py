@@ -200,9 +200,9 @@ async def verify_ordonnance(id: str):
 
         # Basic verification
         is_valid = (
-            ordonnance.get("patient_id")
-            and ordonnance.get("medecin_id")
-            and ordonnance.get("medicaments")
+                ordonnance.get("patient_id")
+                and ordonnance.get("medecin_id")
+                and ordonnance.get("medicaments")
         )
 
         return {

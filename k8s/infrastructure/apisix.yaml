@@ -1,0 +1,266 @@
+# APISIX API Gateway
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apisix
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: apisix
+  template:
+    metadata:
+      labels:
+        app: apisix
+    spec:
+      initContainers:
+        # Wait for etcd to be ready
+        - name: wait-for-etcd
+          image: busybox:1.35
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z etcd-service 2379; do
+                echo "Waiting for etcd..."
+                sleep 2
+              done
+              echo "etcd is ready!"
+      containers:
+        - name: apisix
+          image: apache/apisix:latest
+          ports:
+            - containerPort: 9080
+            - containerPort: 9091
+            - containerPort: 9443
+            - containerPort: 9180
+          env:
+            - name: APISIX_STAND_ALONE
+              value: "false"
+            - name: ETCD_HOST
+              value: "http://etcd-service:2379"
+            - name: KEYCLOAK_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: medapp-secrets
+                  key: KEYCLOAK_CLIENT_SECRET
+            - name: APISIX_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: medapp-secrets
+                  key: APISIX_ADMIN_KEY
+          volumeMounts:
+            - name: apisix-config
+              mountPath: /usr/local/apisix/conf/config.yaml
+              subPath: config.yaml
+            - name: apisix-routes
+              mountPath: /usr/local/apisix/conf/apisix.yaml
+              subPath: apisix.yaml
+          livenessProbe:
+            httpGet:
+              path: /apisix/admin/server_info
+              port: 9180
+              httpHeaders:
+                - name: X-API-KEY
+                  value: "edd1c9f034335f136f87ad84b625c8f1"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /apisix/admin/server_info
+              port: 9180
+              httpHeaders:
+                - name: X-API-KEY
+                  value: "edd1c9f034335f136f87ad84b625c8f1"
+            initialDelaySeconds: 30
+            periodSeconds: 10
+      volumes:
+        - name: apisix-config
+          configMap:
+            name: apisix-config
+        - name: apisix-routes
+          configMap:
+            name: apisix-routes
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix-service
+  namespace: medapp
+spec:
+  selector:
+    app: apisix
+  ports:
+    - name: http
+      port: 9080
+      targetPort: 9080
+    - name: https
+      port: 9443
+      targetPort: 9443
+    - name: admin
+      port: 9180
+      targetPort: 9180
+    - name: control
+      port: 9091
+      targetPort: 9091
+---
+# APISIX Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-config
+  namespace: medapp
+data:
+  config.yaml: |
+    apisix:
+      node_listen: 9080
+      enable_admin: true
+      enable_admin_cors: true
+      enable_debug: false
+      enable_dev_mode: false
+      enable_reuseport: true
+      enable_ipv6: false
+      admin_key:
+        - name: "admin"
+          key: edd1c9f034335f136f87ad84b625c8f1
+          role: admin
+
+    etcd:
+      host:
+        - "http://etcd-service:2379"
+      prefix: "/apisix"
+      timeout: 30
+
+    nginx_config:
+      error_log: "/dev/stderr"
+      access_log: "/dev/stdout"
+      access_log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" $request_time'
+
+    plugins:
+      - real-ip
+      - server-info
+      - ext-plugin-pre-req
+      - batch-requests
+      - cors
+      - echo
+      - gzip
+      - real-ip
+      - server-info
+      - ext-plugin-pre-req
+      - batch-requests
+      - cors
+      - echo
+      - gzip
+      - key-auth
+      - jwt-auth
+      - basic-auth
+      - authz-keycloak
+      - wolf-rbac
+      - openid-connect
+      - authz-casbin
+      - authz-casdoor
+      - hmac-auth
+      - apache-dubbo
+      - mqtt-proxy
+      - http-logger
+      - skywalking
+      - opentelemetry
+      - prometheus
+      - node-status
+      - datadog
+      - loki-logger
+---
+# APISIX Routes Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apisix-routes
+  namespace: medapp
+data:
+  apisix.yaml: |
+    routes:
+      - id: auth-service
+        uri: "/api/auth/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "auth-service:8086": 1
+        plugins:
+          cors:
+            allow_origins: "*"
+            allow_methods: "GET,POST,PUT,DELETE,OPTIONS"
+            allow_headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization"
+            
+      - id: medecins-service
+        uri: "/api/medecins/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "medecins-service:8081": 1
+        plugins:
+          key-auth: {}
+          
+      - id: patients-service
+        uri: "/api/patients/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "patients-service:8083": 1
+        plugins:
+          key-auth: {}
+          
+      - id: ordonnances-service
+        uri: "/api/ordonnances/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "ordonnances-service:8082": 1
+        plugins:
+          key-auth: {}
+          
+      - id: radiologues-service
+        uri: "/api/radiologues/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "radiologues-service:8084": 1
+        plugins:
+          key-auth: {}
+          
+      - id: reports-service
+        uri: "/api/reports/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "reports-service:8085": 1
+        plugins:
+          key-auth: {}
+          
+      - id: appointments-service
+        uri: "/api/appointments/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "appointments-service:8087": 1
+        plugins:
+          key-auth: {}
+          
+      - id: medfiles-service
+        uri: "/api/medfiles/*"
+        upstream:
+          type: roundrobin
+          nodes:
+            "medfiles-service:8088": 1
+        plugins:
+          key-auth: {}
+
+    consumers:
+      - username: medapp-api
+        plugins:
+          key-auth:
+            key: medapp-api-key-2023
+
+    global_plugins:
+      prometheus:
+        prefer_name: true

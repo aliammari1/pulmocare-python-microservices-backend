@@ -1,17 +1,18 @@
-from typing import Dict, List, Optional, Any, Union
-import re
-import json
-import os
 import glob
-import time
+import json
 import logging
+import os
+import re
 import socket
-import requests
-import httpx
-import backoff
+import time
 from datetime import datetime
-from tenacity import retry, wait_exponential, stop_after_attempt
+from typing import Dict, List, Optional, Any
+
+import backoff
+import httpx
+import requests
 from openai import OpenAI
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 # Configure model settings
 MODEL_NAME = "meta-llama/llama-3.2-90b-vision-instruct"
@@ -77,7 +78,9 @@ def initialize_client() -> OpenAI:
 
     # Verify DNS and connection
     if not verify_dns():
-        raise ConnectionError("DNS verification failed. Please check your network settings.")
+        raise ConnectionError(
+            "DNS verification failed. Please check your network settings."
+        )
 
     if not verify_connection():
         raise ConnectionError(
@@ -102,11 +105,11 @@ def initialize_client() -> OpenAI:
     max_time=300,  # Maximum total time to try in seconds
 )
 def create_multimodal_request(
-    question_data: Dict[str, Any],
-    case_details: Dict[str, Any],
-    case_id: str,
-    question_id: str,
-    client: OpenAI,
+        question_data: Dict[str, Any],
+        case_details: Dict[str, Any],
+        case_id: str,
+        question_id: str,
+        client: OpenAI,
 ) -> Optional[Any]:
     """Create and send a multimodal request to the model.
 
@@ -167,7 +170,8 @@ Base your answer only on the provided images and case information."""
         required_figures = []
 
     required_figures = [
-        fig if fig.startswith("Figure ") else f"Figure {fig}" for fig in required_figures
+        fig if fig.startswith("Figure ") else f"Figure {fig}"
+        for fig in required_figures
     ]
 
     # Process subfigures and prepare content
@@ -192,14 +196,16 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                    or subfig.get("label", "").lower() == figure_letter.lower()
+                       or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
 
             for subfig in subfigures:
                 if "url" in subfig:
-                    content.append({"type": "image_url", "image_url": {"url": subfig["url"]}})
+                    content.append(
+                        {"type": "image_url", "image_url": {"url": subfig["url"]}}
+                    )
                     image_urls.append(subfig["url"])
                     image_captions.append(subfig.get("caption", ""))
 
@@ -246,7 +252,9 @@ Base your answer only on the provided images and case information."""
         clean_answer = validate_answer(raw_answer)
 
         if not clean_answer:
-            print(f"Warning: Invalid response format for case {case_id}, question {question_id}")
+            print(
+                f"Warning: Invalid response format for case {case_id}, question {question_id}"
+            )
             print(f"Raw response: {raw_answer}")
 
         # Update response object with cleaned answer
@@ -402,7 +410,9 @@ def main():
     questions_processed = 0
     skipped_questions = 0
 
-    print(f"Beginning benchmark evaluation for {MODEL_NAME} with temperature {temperature}")
+    print(
+        f"Beginning benchmark evaluation for {MODEL_NAME} with temperature {temperature}"
+    )
 
     for case_id, case_details in data.items():
         question_files = load_benchmark_questions(case_id)

@@ -3,32 +3,13 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, EmailStr
 
 
-class LoginRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class LoginResponse(BaseModel):
-    token: str
-    id: str
-    name: str
-    email: EmailStr
-    specialty: str
-    phone: Optional[str] = ""
-    address: Optional[str] = ""
-    profile_picture: Optional[str] = None
-    is_verified: Optional[bool] = False
-    verification_details: Optional[Dict] = None
-    signature: Optional[str] = None
-
-
 class SignupRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    specialty: str
-    phone: str
-    address: str
+    specialty: Optional[str] = ""
+    phone: Optional[str] = ""
+    address: Optional[str] = ""
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -36,14 +17,13 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class VerifyOTPRequest(BaseModel):
-    email: EmailStr
+    user_id: str
     otp: str
 
 
 class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-    otp: str
-    newPassword: str
+    reset_token: str
+    new_password: str
 
 
 class MessageResponse(BaseModel):
@@ -51,22 +31,40 @@ class MessageResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
-    error: str
+    detail: str
 
 
 class UpdateSignatureRequest(BaseModel):
-    signature: str
+    signature_data: str
+
+
+class DoctorVerificationInfoResponse(BaseModel):
+    status: str
+    submitted_at: Optional[str] = None
+    verified_at: Optional[str] = None
+    license_number: Optional[str] = None
+    license_authority: Optional[str] = None
+    license_expiry: Optional[str] = None
+    rejected_reason: Optional[str] = None
+
+
+class UpdateProfileResponse(BaseModel):
+    message: str
+    profile: Dict
 
 
 class VerifyDoctorRequest(BaseModel):
-    image: str  # Base64 encoded image
+    license_number: str
+    license_authority: str
+    license_expiry: str
+    submitted_at: str
+    documents: List[str] = []
 
 
 class VerifyDoctorResponse(BaseModel):
-    verified: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
-    debug_info: Optional[Dict] = None
+    message: str
+    status: str
+    submitted_at: str
 
 
 class ScanVisitCardRequest(BaseModel):
@@ -74,10 +72,32 @@ class ScanVisitCardRequest(BaseModel):
 
 
 class ScanVisitCardResponse(BaseModel):
-    name: Optional[str] = ""
-    email: Optional[str] = ""
-    specialty: Optional[str] = ""
-    phone: Optional[str] = ""
+    extracted_info: Dict
+    raw_text: str
+
+
+# Doctor list response model
+class DoctorListItem(BaseModel):
+    id: str
+    name: str
+    email: str
+    specialty: str
+    phone: Optional[str] = None
+    address: Optional[str] = None
+    profile_picture: Optional[str] = None
+    is_verified: Optional[bool] = False
+    bio: Optional[str] = None
+    license_number: Optional[str] = None
+    hospital: Optional[str] = None
+    education: Optional[str] = None
+    experience: Optional[str] = None
+
+
+class DoctorListResponse(BaseModel):
+    items: List[DoctorListItem]
+    total: int
+    page: int
+    pages: int
 
 
 # Models for prescriptions

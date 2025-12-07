@@ -1,6 +1,9 @@
 import argparse
-import torch
+from io import BytesIO
 
+import requests
+import torch
+from PIL import Image
 from medrax.llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
@@ -8,19 +11,14 @@ from medrax.llava.constants import (
     DEFAULT_IM_END_TOKEN,
 )
 from medrax.llava.conversation import conv_templates, SeparatorStyle
-from medrax.llava.model.builder import load_pretrained_model
-from medrax.llava.utils import disable_torch_init
 from medrax.llava.mm_utils import (
     process_images,
     tokenizer_image_token,
     get_model_name_from_path,
     KeywordsStoppingCriteria,
 )
-
-from PIL import Image
-
-import requests
-from io import BytesIO
+from medrax.llava.model.builder import load_pretrained_model
+from medrax.llava.utils import disable_torch_init
 from transformers import TextStreamer
 
 
@@ -76,7 +74,9 @@ def main(args):
     # Similar operation in model_worker.py
     image_tensor = process_images([image], image_processor, model.config)
     if type(image_tensor) is list:
-        image_tensor = [image.to(model.device, dtype=torch.float16) for image in image_tensor]
+        image_tensor = [
+            image.to(model.device, dtype=torch.float16) for image in image_tensor
+        ]
     else:
         image_tensor = image_tensor.to(model.device, dtype=torch.float16)
 
@@ -95,7 +95,11 @@ def main(args):
             # first message
             if model.config.mm_use_im_start_end:
                 inp = (
-                    DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + inp
+                        DEFAULT_IM_START_TOKEN
+                        + DEFAULT_IMAGE_TOKEN
+                        + DEFAULT_IM_END_TOKEN
+                        + "\n"
+                        + inp
                 )
             else:
                 inp = DEFAULT_IMAGE_TOKEN + "\n" + inp
@@ -108,7 +112,9 @@ def main(args):
         prompt = conv.get_prompt()
 
         input_ids = (
-            tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+            tokenizer_image_token(
+                prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+            )
             .unsqueeze(0)
             .to(model.device)
         )
@@ -129,7 +135,7 @@ def main(args):
                 stopping_criteria=[stopping_criteria],
             )
 
-        outputs = tokenizer.decode(output_ids[0, input_ids.shape[1] :]).strip()
+        outputs = tokenizer.decode(output_ids[0, input_ids.shape[1]:]).strip()
         conv.messages[-1][-1] = outputs
 
         if args.debug:

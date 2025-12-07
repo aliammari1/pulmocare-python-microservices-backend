@@ -1,0 +1,37 @@
+version: 0.1
+log:
+  level: info
+  formatter: text
+  fields:
+    service: registry
+    environment: development
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+  delete:
+    enabled: true
+  maintenance:
+    uploadpurging:
+      enabled: true
+      age: 168h
+      interval: 24h
+      dryrun: false
+auth:
+  htpasswd:
+    realm: "Registry Realm"
+    path: /auth/htpasswd
+http:
+  addr: :5000
+  headers:
+    X-Content-Type-Options: [nosniff]
+    X-Frame-Options: [deny]
+    X-XSS-Protection: ["1; mode=block"]
+  tls:
+    certificate: /certs/domain.crt
+    key: /certs/domain.key
+  secret: b6eb86d5dad2634ca25566e8ceb98ff7f9c3072b4da6f5f0817b8e7277fd7fa5
+health:
+  storagedriver:
+    enabled: true
+    interval: 10s
+    threshold: 3

@@ -1,0 +1,70 @@
+# Appointments Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: appointments-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: appointments-service
+  template:
+    metadata:
+      labels:
+        app: appointments-service
+    spec:
+      containers:
+        - name: appointments-service
+          image: your-registry/medapp-appointments:latest
+          ports:
+            - containerPort: 8087
+          env:
+            - name: PORT
+              value: "8087"
+            - name: OTEL_SERVICE_NAME
+              value: "appointments-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=appointments-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: appointments-service
+  namespace: medapp
+spec:
+  selector:
+    app: appointments-service
+  ports:
+    - port: 8087
+      targetPort: 8087

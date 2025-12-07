@@ -1,0 +1,107 @@
+# Tempo - Distributed Tracing
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: tempo
+  namespace: medapp-monitoring
+spec:
+  serviceName: tempo-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tempo
+  template:
+    metadata:
+      labels:
+        app: tempo
+    spec:
+      containers:
+        - name: tempo
+          image: grafana/tempo:latest
+          ports:
+            - containerPort: 3200
+            - containerPort: 9411
+          command:
+            - -config.file=/etc/tempo/tempo.yaml
+          volumeMounts:
+            - name: tempo-config
+              mountPath: /etc/tempo
+            - name: tempo-storage
+              mountPath: /tmp/tempo
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 3200
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3200
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: tempo-config
+          configMap:
+            name: tempo-config
+  volumeClaimTemplates:
+    - metadata:
+        name: tempo-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tempo-service
+  namespace: medapp-monitoring
+spec:
+  selector:
+    app: tempo
+  ports:
+    - name: http
+      port: 3200
+      targetPort: 3200
+    - name: zipkin
+      port: 9411
+      targetPort: 9411
+---
+# Tempo Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tempo-config
+  namespace: medapp-monitoring
+data:
+  tempo.yaml: |
+    server:
+      http_listen_port: 3200
+
+    distributor:
+      receivers:
+        zipkin:
+        otlp:
+          protocols:
+            grpc:
+            http:
+
+    ingester:
+      trace_idle_period: 10s
+      max_block_bytes: 1_000_000
+      max_block_duration: 5m
+
+    compactor:
+      compaction:
+        compaction_window: 1h
+        max_compaction_objects: 1000000
+        block_retention: 1h
+        compacted_block_retention: 10m
+
+    storage:
+      trace:
+        backend: local
+        local:
+          path: /tmp/tempo/blocks

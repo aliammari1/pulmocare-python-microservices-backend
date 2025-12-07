@@ -1,0 +1,70 @@
+# Medical Files Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: medfiles-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: medfiles-service
+  template:
+    metadata:
+      labels:
+        app: medfiles-service
+    spec:
+      containers:
+        - name: medfiles-service
+          image: your-registry/medapp-medfiles:latest
+          ports:
+            - containerPort: 8088
+          env:
+            - name: PORT
+              value: "8088"
+            - name: OTEL_SERVICE_NAME
+              value: "medfiles-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=medfiles-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8088
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: medfiles-service
+  namespace: medapp
+spec:
+  selector:
+    app: medfiles-service
+  ports:
+    - port: 8088
+      targetPort: 8088

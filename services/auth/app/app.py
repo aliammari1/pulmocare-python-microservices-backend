@@ -1,15 +1,10 @@
-import os
-import datetime
-
-import requests
-from fastapi import Depends, FastAPI, HTTPException, Path, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from middleware.keycloak_auth import get_current_user, keycloak_middleware
-from routes.integration_routes import router as integration_router, diagnostics_router
-from routes.auth_routes import router as auth_router
 
 from config import Config
 from models.auth import *
+from routes.auth_routes import router as auth_router
+from routes.integration_routes import router as integration_router
 from services.keycloak_service import KeycloakService
 
 # Initialize FastAPI app
@@ -27,15 +22,16 @@ app.add_middleware(
 # Initialize Keycloak service
 keycloak_service = KeycloakService()
 
+
 # Health check endpoint
 @app.get("/health", response_model=HealthCheckResponse)
 def health_check():
     return {"status": "healthy", "service": "auth-service"}
 
+
 # Include the routers
 app.include_router(auth_router)
 app.include_router(integration_router)
-app.include_router(diagnostics_router)
 
 if __name__ == "__main__":
     import uvicorn

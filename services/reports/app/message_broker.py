@@ -4,10 +4,14 @@ import time
 from typing import Any, Dict
 
 import pika
+
 from circuit_breaker import CircuitBreaker
 from services.logger_service import logger_service
-from services.metrics import (track_dependency_status, track_rabbitmq_metrics,
-                              update_queue_metrics)
+from services.metrics import (
+    track_dependency_status,
+    track_rabbitmq_metrics,
+    update_queue_metrics,
+)
 
 
 class MessageBroker:

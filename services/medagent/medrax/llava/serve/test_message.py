@@ -2,7 +2,6 @@ import argparse
 import json
 
 import requests
-
 from medrax.llava.conversation import conv_templates
 
 
@@ -39,11 +38,16 @@ def main():
         "stop": conv.sep2,
     }
     response = requests.post(
-        worker_addr + "/worker_generate_stream", headers=headers, json=pload, stream=True
+        worker_addr + "/worker_generate_stream",
+        headers=headers,
+        json=pload,
+        stream=True,
     )
 
     print(prompt, end="")
-    for chunk in response.iter_lines(chunk_size=8192, decode_unicode=False, delimiter=b"\0"):
+    for chunk in response.iter_lines(
+            chunk_size=8192, decode_unicode=False, delimiter=b"\0"
+    ):
         if chunk:
             data = json.loads(chunk.decode("utf-8"))
             output = data["text"].split("[/INST]")[-1]
@@ -53,11 +57,15 @@ def main():
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--controller-address", type=str, default="http://localhost:21001")
+    parser.add_argument(
+        "--controller-address", type=str, default="http://localhost:21001"
+    )
     parser.add_argument("--worker-address", type=str)
     parser.add_argument("--model-name", type=str, default="facebook/opt-350m")
     parser.add_argument("--max-new-tokens", type=int, default=256)
-    parser.add_argument("--message", type=str, default="Tell me a story with more than 1000 words.")
+    parser.add_argument(
+        "--message", type=str, default="Tell me a story with more than 1000 words."
+    )
     args = parser.parse_args()
 
     main()

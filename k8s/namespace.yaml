@@ -1,0 +1,18 @@
+# Namespace isolates resources in a Kubernetes cluster
+# Think of it as a "virtual cluster" within your physical cluster
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: medapp
+  labels:
+    app: medapp
+    environment: production
+---
+# Create a separate namespace for monitoring components
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: medapp-monitoring
+  labels:
+    app: medapp
+    component: monitoring

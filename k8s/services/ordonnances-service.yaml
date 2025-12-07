@@ -1,0 +1,70 @@
+# Ordonnances (Prescriptions) Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ordonnances-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ordonnances-service
+  template:
+    metadata:
+      labels:
+        app: ordonnances-service
+    spec:
+      containers:
+        - name: ordonnances-service
+          image: your-registry/medapp-ordonnances:latest
+          ports:
+            - containerPort: 8082
+          env:
+            - name: PORT
+              value: "8082"
+            - name: OTEL_SERVICE_NAME
+              value: "ordonnances-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=ordonnances-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ordonnances-service
+  namespace: medapp
+spec:
+  selector:
+    app: ordonnances-service
+  ports:
+    - port: 8082
+      targetPort: 8082

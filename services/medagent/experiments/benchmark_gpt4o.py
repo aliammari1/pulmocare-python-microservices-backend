@@ -1,10 +1,11 @@
-import json
-import openai
-import os
 import glob
-import time
+import json
 import logging
+import os
+import time
 from datetime import datetime
+
+import openai
 from tenacity import retry, wait_exponential, stop_after_attempt
 
 model_name = "chatgpt-4o-latest"
@@ -14,7 +15,7 @@ logging.basicConfig(filename=log_filename, level=logging.INFO, format="%(message
 
 
 def calculate_cost(
-    prompt_tokens: int, completion_tokens: int, model: str = "chatgpt-4o-latest"
+        prompt_tokens: int, completion_tokens: int, model: str = "chatgpt-4o-latest"
 ) -> float:
     """Calculate the cost of API usage based on token counts.
 
@@ -28,12 +29,18 @@ def calculate_cost(
     """
     pricing = {"chatgpt-4o-latest": {"prompt": 5.0, "completion": 15.0}}
     rates = pricing.get(model, {"prompt": 5.0, "completion": 15.0})
-    return (prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]) / 1000000
+    return (
+            prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]
+    ) / 1000000
 
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(3))
 def create_multimodal_request(
-    question_data: dict, case_details: dict, case_id: str, question_id: str, client: openai.OpenAI
+        question_data: dict,
+        case_details: dict,
+        case_id: str,
+        question_id: str,
+        client: openai.OpenAI,
 ) -> openai.types.chat.ChatCompletion:
     """Create and send a multimodal request to the OpenAI API.
 
@@ -72,7 +79,8 @@ Base your answer only on the provided images and case information."""
 
     # Ensure each figure starts with "Figure "
     required_figures = [
-        fig if fig.startswith("Figure ") else f"Figure {fig}" for fig in required_figures
+        fig if fig.startswith("Figure ") else f"Figure {fig}"
+        for fig in required_figures
     ]
 
     subfigures = []
@@ -99,7 +107,7 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                    or subfig.get("label", "").lower() == figure_letter.lower()
+                       or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
                 subfigures.extend(matching_subfigures)
             else:
@@ -145,7 +153,9 @@ Base your answer only on the provided images and case information."""
                     "metadata": question_data.get("metadata", {}),
                     "figures": question_data["figures"],
                 },
-                "image_urls": [subfig["url"] for subfig in subfigures if "url" in subfig],
+                "image_urls": [
+                    subfig["url"] for subfig in subfigures if "url" in subfig
+                ],
                 "image_captions": [subfig.get("caption", "") for subfig in subfigures],
             },
         }
@@ -172,7 +182,9 @@ Base your answer only on the provided images and case information."""
                 "completion_tokens": response.usage.completion_tokens,
                 "total_tokens": response.usage.total_tokens,
             },
-            "cost": calculate_cost(response.usage.prompt_tokens, response.usage.completion_tokens),
+            "cost": calculate_cost(
+                response.usage.prompt_tokens, response.usage.completion_tokens
+            ),
             "model_answer": response.choices[0].message.content,
             "correct_answer": question_data["answer"],
             "input": {
@@ -183,7 +195,9 @@ Base your answer only on the provided images and case information."""
                     "metadata": question_data.get("metadata", {}),
                     "figures": question_data["figures"],
                 },
-                "image_urls": [subfig["url"] for subfig in subfigures if "url" in subfig],
+                "image_urls": [
+                    subfig["url"] for subfig in subfigures if "url" in subfig
+                ],
                 "image_captions": [subfig.get("caption", "") for subfig in subfigures],
             },
         }
@@ -208,7 +222,9 @@ Base your answer only on the provided images and case information."""
                     "metadata": question_data.get("metadata", {}),
                     "figures": question_data["figures"],
                 },
-                "image_urls": [subfig["url"] for subfig in subfigures if "url" in subfig],
+                "image_urls": [
+                    subfig["url"] for subfig in subfigures if "url" in subfig
+                ],
                 "image_captions": [subfig.get("caption", "") for subfig in subfigures],
             },
         }
@@ -237,7 +253,9 @@ Base your answer only on the provided images and case information."""
                     "metadata": question_data.get("metadata", {}),
                     "figures": question_data["figures"],
                 },
-                "image_urls": [subfig["url"] for subfig in subfigures if "url" in subfig],
+                "image_urls": [
+                    subfig["url"] for subfig in subfigures if "url" in subfig
+                ],
                 "image_captions": [subfig.get("caption", "") for subfig in subfigures],
             },
         }
@@ -289,7 +307,9 @@ def main() -> None:
     questions_processed = 0
     skipped_questions = 0
 
-    print(f"Beginning benchmark evaluation for model {model_name} with temperature {temperature}")
+    print(
+        f"Beginning benchmark evaluation for model {model_name} with temperature {temperature}"
+    )
 
     for case_id, case_details in data.items():
         question_files = load_benchmark_questions(case_id)

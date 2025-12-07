@@ -20,7 +20,9 @@ class CLIPVisionTower(nn.Module):
             self.cfg_only = CLIPVisionConfig.from_pretrained(self.vision_tower_name)
 
     def load_model(self):
-        self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_name)
+        self.image_processor = CLIPImageProcessor.from_pretrained(
+            self.vision_tower_name
+        )
         self.vision_tower = CLIPVisionModel.from_pretrained(self.vision_tower_name)
         self.vision_tower.requires_grad_(False)
 
@@ -49,7 +51,8 @@ class CLIPVisionTower(nn.Module):
                 image_features.append(image_feature)
         else:
             image_forward_outs = self.vision_tower(
-                images.to(device=self.device, dtype=self.dtype), output_hidden_states=True
+                images.to(device=self.device, dtype=self.dtype),
+                output_hidden_states=True,
             )
             image_features = self.feature_select(image_forward_outs).to(images.dtype)
 

@@ -1,18 +1,19 @@
-from typing import Dict, Optional
 import time
+from typing import Dict, Optional
+
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.routing import APIRouter
+
+from config import Config
 from report_generator import ReportGenerator
 from routes.integration_routes import router as integration_router
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 from services.redis_client import RedisClient
 from services.report_service import ReportService
-
-from config import Config
 
 # Initialize API router
 api = APIRouter()
@@ -41,8 +42,8 @@ report_service = ReportService(mongodb_client, redis_client, rabbitmq_client)
 # API Routes
 @api.get("/")
 async def get_reports(
-    search: Optional[str] = None,
-    request: Request = None,
+        search: Optional[str] = None,
+        request: Request = None,
 ):
     """Get all reports with optional filtering"""
     reports = report_service.get_all_reports(search)
@@ -51,8 +52,8 @@ async def get_reports(
 
 @api.get("/{report_id}")
 async def get_report(
-    report_id: str,
-    request: Request = None,
+        report_id: str,
+        request: Request = None,
 ):
     """Get a specific report by ID"""
     report = report_service.get_report_by_id(report_id)
@@ -63,8 +64,8 @@ async def get_report(
 
 @api.post("/", status_code=201)
 async def create_report(
-    data: Dict,
-    request: Request = None,
+        data: Dict,
+        request: Request = None,
 ):
     """Create a new report"""
     if not data:
@@ -76,9 +77,9 @@ async def create_report(
 
 @api.put("/{report_id}")
 async def update_report(
-    report_id: str,
-    data: Dict,
-    request: Request = None,
+        report_id: str,
+        data: Dict,
+        request: Request = None,
 ):
     """Update an existing report"""
     if not data:
@@ -92,8 +93,8 @@ async def update_report(
 
 @api.delete("/{report_id}", status_code=204)
 async def delete_report(
-    report_id: str,
-    request: Request = None,
+        report_id: str,
+        request: Request = None,
 ):
     """Delete a report"""
     success = report_service.delete_report(report_id)
@@ -104,8 +105,8 @@ async def delete_report(
 
 @api.get("/{report_id}/export")
 async def export_report(
-    report_id: str,
-    request: Request = None,
+        report_id: str,
+        request: Request = None,
 ):
     """Generate and download PDF report"""
     report = report_service.get_raw_report(report_id)
@@ -125,6 +126,7 @@ async def export_report(
 
 # Add this endpoint to the app.py file after the existing routes
 
+
 @app.get("/health", tags=["Health"])
 async def health():
     """Health check endpoint for the reports service"""
@@ -133,10 +135,7 @@ async def health():
         "service": "reports-service",
         "version": "1.0.0",
         "timestamp": int(time.time()),
-        "checks": {
-            "database": {"status": "up"},
-            "system": {"status": "up"}
-        }
+        "checks": {"database": {"status": "up"}, "system": {"status": "up"}},
     }
     return status
 
@@ -153,6 +152,6 @@ if __name__ == "__main__":
     # Start the consumer in a separate thread
     consumer_thread = threading.Thread(target=consumer_main, daemon=True)
     consumer_thread.start()
-    
+
     # Run the FastAPI app with uvicorn in the main thread
     uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True)

@@ -1,10 +1,11 @@
-import re
 import base64
-import gradio as gr
-from pathlib import Path
-import time
+import re
 import shutil
+import time
+from pathlib import Path
 from typing import AsyncGenerator, List, Optional, Tuple
+
+import gradio as gr
 from gradio import ChatMessage
 
 
@@ -65,7 +66,7 @@ class ChatInterface:
         return self.display_file_path
 
     def add_message(
-        self, message: str, display_image: str, history: List[dict]
+            self, message: str, display_image: str, history: List[dict]
     ) -> Tuple[List[dict], gr.Textbox]:
         """
         Add a new message to the chat history.
@@ -86,7 +87,10 @@ class ChatInterface:
         return history, gr.Textbox(value=message, interactive=False)
 
     async def process_message(
-        self, message: str, display_image: Optional[str], chat_history: List[ChatMessage]
+            self,
+            message: str,
+            display_image: Optional[str],
+            chat_history: List[ChatMessage],
     ) -> AsyncGenerator[Tuple[List[ChatMessage], Optional[str], str], None]:
         """
         Process a message and generate responses.
@@ -122,25 +126,32 @@ class ChatInterface:
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{img_base64}"},
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{img_base64}"
+                            },
                         }
                     ],
                 }
             )
 
         if message is not None:
-            messages.append({"role": "user", "content": [{"type": "text", "text": message}]})
+            messages.append(
+                {"role": "user", "content": [{"type": "text", "text": message}]}
+            )
 
         try:
             for event in self.agent.workflow.stream(
-                {"messages": messages}, {"configurable": {"thread_id": self.current_thread_id}}
+                    {"messages": messages},
+                    {"configurable": {"thread_id": self.current_thread_id}},
             ):
                 if isinstance(event, dict):
                     if "process" in event:
                         content = event["process"]["messages"][-1].content
                         if content:
                             content = re.sub(r"temp/[^\s]*", "", content)
-                            chat_history.append(ChatMessage(role="assistant", content=content))
+                            chat_history.append(
+                                ChatMessage(role="assistant", content=content)
+                            )
                             yield chat_history, self.display_file_path, ""
 
                     elif "execute" in event:
@@ -151,7 +162,8 @@ class ChatInterface:
                             if tool_result:
                                 metadata = {"title": f"🖼️ Image from tool: {tool_name}"}
                                 formatted_result = " ".join(
-                                    line.strip() for line in str(tool_result).splitlines()
+                                    line.strip()
+                                    for line in str(tool_result).splitlines()
                                 ).strip()
                                 metadata["description"] = formatted_result
                                 chat_history.append(
@@ -178,7 +190,9 @@ class ChatInterface:
         except Exception as e:
             chat_history.append(
                 ChatMessage(
-                    role="assistant", content=f"❌ Error: {str(e)}", metadata={"title": "Error"}
+                    role="assistant",
+                    content=f"❌ Error: {str(e)}",
+                    metadata={"title": "Error"},
                 )
             )
             yield chat_history, self.display_file_path
@@ -260,7 +274,9 @@ def create_demo(agent, tools_dict):
             return interface.handle_upload(file.name)
 
         chat_msg = txt.submit(
-            interface.add_message, inputs=[txt, image_display, chatbot], outputs=[chatbot, txt]
+            interface.add_message,
+            inputs=[txt, image_display, chatbot],
+            outputs=[chatbot, txt],
         )
         bot_msg = chat_msg.then(
             interface.process_message,
@@ -269,9 +285,13 @@ def create_demo(agent, tools_dict):
         )
         bot_msg.then(lambda: gr.Textbox(interactive=True), None, [txt])
 
-        upload_button.upload(handle_file_upload, inputs=upload_button, outputs=image_display)
+        upload_button.upload(
+            handle_file_upload, inputs=upload_button, outputs=image_display
+        )
 
-        dicom_upload.upload(handle_file_upload, inputs=dicom_upload, outputs=image_display)
+        dicom_upload.upload(
+            handle_file_upload, inputs=dicom_upload, outputs=image_display
+        )
 
         clear_btn.click(clear_chat, outputs=[chatbot, image_display])
         new_thread_btn.click(new_thread, outputs=[chatbot, image_display])

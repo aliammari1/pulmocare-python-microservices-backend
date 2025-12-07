@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "loki",
-    "tags": ["logging", "observability", "monitoring"],
+    "tags": [
+      "logging",
+      "observability",
+      "monitoring"
+    ],
     "address": "loki",
     "port": 3100,
     "check": {

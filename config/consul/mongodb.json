@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "mongodb",
-    "tags": ["database", "nosql", "persistence"],
+    "tags": [
+      "database",
+      "nosql",
+      "persistence"
+    ],
     "address": "mongodb",
     "port": 27017,
     "check": {

@@ -1,0 +1,49 @@
+# ConfigMap stores non-sensitive configuration data
+# This replaces environment variables from docker-compose
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: medapp-config
+  namespace: medapp
+data:
+  # Database configuration
+  MONGODB_URI: "mongodb://mongodb-service:27017"
+
+  # Cache configuration
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+
+  # Message Queue configuration
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+
+  # Service Discovery
+  CONSUL_HOST: "consul-service"
+  CONSUL_PORT: "8500"
+
+  # Observability
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector-service:4317"
+  OTEL_PYTHON_LOG_CORRELATION: "true"
+  OTEL_METRICS_EXPORTER: "otlp"
+  OTEL_TRACES_EXPORTER: "otlp"
+  OTEL_LOGS_EXPORTER: "otlp"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "DEBUG"
+
+  # Authentication
+  KEYCLOAK_URL: "http://keycloak-service:8080/auth"
+  KEYCLOAK_REALM: "pulmocare"
+  KEYCLOAK_CLIENT_ID: "pulmocare-api"
+  AUTH_SERVICE_URL: "http://auth-service:8086"
+
+  # Object Storage
+  MINIO_HOST: "minio-service"
+  MINIO_PORT: "9000"
+  MINIO_REGION: "us-east-1"
+  MINIO_SECURE: "false"
+
+  # Secret Management
+  VAULT_ADDR: "http://vault-service:8200"
+
+  # Environment
+  ENV: "production"

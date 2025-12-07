@@ -1,10 +1,11 @@
-from PIL import Image
-from io import BytesIO
 import base64
 import random
+from io import BytesIO
+
 import torch
-from transformers import StoppingCriteria
+from PIL import Image
 from medrax.llava.constants import IMAGE_TOKEN_INDEX
+from transformers import StoppingCriteria
 
 
 def load_image_from_base64(image):
@@ -36,12 +37,18 @@ def process_images(images, image_processor, model_cfg):
         if image_aspect_ratio == "pad":
             if image.mode == "L":
                 background_color = int(
-                    255 * sum(image_processor.image_mean) / len(image_processor.image_mean)
+                    255
+                    * sum(image_processor.image_mean)
+                    / len(image_processor.image_mean)
                 )
             else:
-                background_color = tuple(int(x * 255) for x in image_processor.image_mean)
+                background_color = tuple(
+                    int(x * 255) for x in image_processor.image_mean
+                )
             image = expand2square(image, background_color)
-        image = image_processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
+        image = image_processor.preprocess(image, return_tensors="pt")["pixel_values"][
+            0
+        ]
         new_images.append(image)
     if all(x.shape == new_images[0].shape for x in new_images):
         new_images = torch.stack(new_images, dim=0)
@@ -49,7 +56,7 @@ def process_images(images, image_processor, model_cfg):
 
 
 def tokenizer_image_token(
-    prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX, return_tensors=None
+        prompt, tokenizer, image_token_index=IMAGE_TOKEN_INDEX, return_tensors=None
 ):
     prompt_chunks = [tokenizer(chunk).input_ids for chunk in prompt.split("<image>")]
 
@@ -59,9 +66,9 @@ def tokenizer_image_token(
     input_ids = []
     offset = 0
     if (
-        len(prompt_chunks) > 0
-        and len(prompt_chunks[0]) > 0
-        and prompt_chunks[0][0] == tokenizer.bos_token_id
+            len(prompt_chunks) > 0
+            and len(prompt_chunks[0]) > 0
+            and prompt_chunks[0][0] == tokenizer.bos_token_id
     ):
         offset = 1
         input_ids.append(prompt_chunks[0][0])
@@ -92,7 +99,10 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         self.max_keyword_len = 0
         for keyword in keywords:
             cur_keyword_ids = tokenizer(keyword).input_ids
-            if len(cur_keyword_ids) > 1 and cur_keyword_ids[0] == tokenizer.bos_token_id:
+            if (
+                    len(cur_keyword_ids) > 1
+                    and cur_keyword_ids[0] == tokenizer.bos_token_id
+            ):
                 cur_keyword_ids = cur_keyword_ids[1:]
             if len(cur_keyword_ids) > self.max_keyword_len:
                 self.max_keyword_len = len(cur_keyword_ids)
@@ -101,20 +111,26 @@ class KeywordsStoppingCriteria(StoppingCriteria):
         self.start_len = input_ids.shape[1]
 
     def call_for_batch(
-        self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+            self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
     ) -> bool:
         offset = min(output_ids.shape[1] - self.start_len, self.max_keyword_len)
-        self.keyword_ids = [keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids]
+        self.keyword_ids = [
+            keyword_id.to(output_ids.device) for keyword_id in self.keyword_ids
+        ]
         for keyword_id in self.keyword_ids:
-            if (output_ids[0, -keyword_id.shape[0] :] == keyword_id).all():
+            if (output_ids[0, -keyword_id.shape[0]:] == keyword_id).all():
                 return True
-        outputs = self.tokenizer.batch_decode(output_ids[:, -offset:], skip_special_tokens=True)[0]
+        outputs = self.tokenizer.batch_decode(
+            output_ids[:, -offset:], skip_special_tokens=True
+        )[0]
         for keyword in self.keywords:
             if keyword in outputs:
                 return True
         return False
 
-    def __call__(self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    def __call__(
+            self, output_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+    ) -> bool:
         outputs = []
         for i in range(output_ids.shape[0]):
             outputs.append(self.call_for_batch(output_ids[i].unsqueeze(0), scores))

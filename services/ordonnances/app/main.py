@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from routes.ordonnance_routes import ordonnance_router
 
 app = FastAPI(

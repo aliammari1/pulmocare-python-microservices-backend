@@ -1,13 +1,14 @@
-import json
-import openai
-import os
-from datetime import datetime
 import base64
+import json
 import logging
-from pathlib import Path
+import os
 import time
+from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Any
+
+import openai
 from tqdm import tqdm
-from typing import Dict, List, Optional, Union, Any
 
 # Configuration constants
 DEBUG_MODE = False
@@ -18,7 +19,9 @@ SUBSET = "Visual Question Answering"
 
 # Set up logging configuration
 logging_level = logging.DEBUG if DEBUG_MODE else logging.INFO
-logging.basicConfig(level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging_level, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
@@ -101,7 +104,9 @@ def encode_image(image_path: str) -> str:
             if encoded_length == 0:
                 raise ValueError("Base64 encoding produced empty string")
             if not encoded.startswith("/9j/") and not encoded.startswith("iVBOR"):
-                logger.warning("Base64 string doesn't start with expected JPEG or PNG header")
+                logger.warning(
+                    "Base64 string doesn't start with expected JPEG or PNG header"
+                )
 
             return encoded
     except Exception as e:
@@ -110,7 +115,7 @@ def encode_image(image_path: str) -> str:
 
 
 def create_single_request(
-    image_path: str, question: str, options: Dict[str, str]
+        image_path: str, question: str, options: Dict[str, str]
 ) -> List[Dict[str, Any]]:
     """
     Create a single API request with image and question.
@@ -158,7 +163,9 @@ Base your answer only on the provided image and select either A or B."""
                     {"type": "text", "text": prompt},
                     {
                         "type": "image_url",
-                        "image_url": {"url": f"data:{mime_type};base64,{encoded_image}"},
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{encoded_image}"
+                        },
                     },
                 ],
             },
@@ -169,7 +176,9 @@ Base your answer only on the provided image and select either A or B."""
             log_messages[1]["content"][1]["image_url"][
                 "url"
             ] = f"data:{mime_type};base64,[BASE64_IMAGE_TRUNCATED]"
-            logger.debug(f"Complete API request payload:\n{json.dumps(log_messages, indent=2)}")
+            logger.debug(
+                f"Complete API request payload:\n{json.dumps(log_messages, indent=2)}"
+            )
 
         return messages
 
@@ -242,7 +251,9 @@ def calculate_accuracy(results: List[Dict[str, Any]]) -> tuple[float, int, int]:
     total = len(results)
     valid_results = [r for r in results if "output" in r]
     correct = sum(
-        1 for result in valid_results if result.get("output", {}).get("is_correct", False)
+        1
+        for result in valid_results
+        if result.get("output", {}).get("is_correct", False)
     )
 
     accuracy = (correct / total * 100) if total > 0 else 0
@@ -262,11 +273,18 @@ def calculate_batch_accuracy(results: List[Dict[str, Any]]) -> float:
     valid_results = [r for r in results if "output" in r]
     if not valid_results:
         return 0.0
-    return sum(1 for r in valid_results if r["output"]["is_correct"]) / len(valid_results) * 100
+    return (
+            sum(1 for r in valid_results if r["output"]["is_correct"])
+            / len(valid_results)
+            * 100
+    )
 
 
 def process_batch(
-    data: List[Dict[str, Any]], client: openai.OpenAI, start_idx: int = 0, batch_size: int = 50
+        data: List[Dict[str, Any]],
+        client: openai.OpenAI,
+        start_idx: int = 0,
+        batch_size: int = 50,
 ) -> List[Dict[str, Any]]:
     """
     Process a batch of examples and return results.
@@ -285,7 +303,7 @@ def process_batch(
 
     pbar = tqdm(
         range(start_idx, end_idx),
-        desc=f"Processing batch {start_idx//batch_size + 1}",
+        desc=f"Processing batch {start_idx // batch_size + 1}",
         unit="example",
     )
 
@@ -295,11 +313,16 @@ def process_batch(
 
         try:
             messages = create_single_request(
-                image_path=vqa_item["image_path"], question=vqa_item["question"], options=options
+                image_path=vqa_item["image_path"],
+                question=vqa_item["question"],
+                options=options,
             )
 
             response = client.chat.completions.create(
-                model=MODEL_NAME, messages=messages, max_tokens=50, temperature=TEMPERATURE
+                model=MODEL_NAME,
+                messages=messages,
+                max_tokens=50,
+                temperature=TEMPERATURE,
             )
 
             model_answer = response.choices[0].message.content.strip()
@@ -329,8 +352,8 @@ def process_batch(
             # Update progress bar with current accuracy
             current_accuracy = calculate_batch_accuracy(batch_results)
             pbar.set_description(
-                f"Batch {start_idx//batch_size + 1} - Accuracy: {current_accuracy:.2f}% "
-                f"({len(batch_results)}/{index-start_idx+1} examples)"
+                f"Batch {start_idx // batch_size + 1} - Accuracy: {current_accuracy:.2f}% "
+                f"({len(batch_results)}/{index - start_idx + 1} examples)"
             )
 
         except Exception as e:
@@ -390,8 +413,12 @@ def main() -> None:
 
             # Calculate and log overall progress
             overall_accuracy, correct, total = calculate_accuracy(all_results)
-            logger.info(f"Overall Progress: {len(all_results)}/{total_examples} examples processed")
-            logger.info(f"Current Accuracy: {overall_accuracy:.2f}% ({correct}/{total} correct)")
+            logger.info(
+                f"Overall Progress: {len(all_results)}/{total_examples} examples processed"
+            )
+            logger.info(
+                f"Current Accuracy: {overall_accuracy:.2f}% ({correct}/{total} correct)"
+            )
 
         logger.info("Processing completed!")
         logger.info(f"Final results saved to: {output_file}")

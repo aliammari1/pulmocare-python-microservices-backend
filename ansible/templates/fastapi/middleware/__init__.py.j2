@@ -1,0 +1,12 @@
+# {{ service_description }} Middleware
+from .logging import setup_logging
+from .tracing import setup_tracing, get_tracer, create_span, set_span_attributes, set_span_error
+
+__all__ = [
+    "setup_logging",
+    "setup_tracing", 
+    "get_tracer",
+    "create_span",
+    "set_span_attributes",
+    "set_span_error"
+]

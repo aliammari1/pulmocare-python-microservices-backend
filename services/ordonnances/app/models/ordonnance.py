@@ -94,17 +94,17 @@ class Ordonnance:
     """Class for handling ordonnance (prescription) documents"""
 
     def __init__(
-        self,
-        doctor_id: str,
-        patient_id: str,
-        patient_name: str,
-        doctor_name: str,
-        medications: List[Dict],
-        instructions: str,
-        diagnosis: str,
-        date: datetime = None,
-        signature: str = None,
-        _id: ObjectId = None,
+            self,
+            doctor_id: str,
+            patient_id: str,
+            patient_name: str,
+            doctor_name: str,
+            medications: List[Dict],
+            instructions: str,
+            diagnosis: str,
+            date: datetime = None,
+            signature: str = None,
+            _id: ObjectId = None,
     ):
         self._id = _id or ObjectId()
         self.doctor_id = doctor_id

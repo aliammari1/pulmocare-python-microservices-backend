@@ -1,36 +1,36 @@
-from typing import Dict, List, Optional, Tuple, Type, Any
-from pathlib import Path
+import traceback
 import uuid
-import tempfile
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Type, Any
 
-import numpy as np
-import torch
-import torchvision
-import torchxrayvision as xrv
 import matplotlib.pyplot as plt
+import numpy as np
 import skimage.io
 import skimage.measure
 import skimage.transform
-import traceback
-
-from pydantic import BaseModel, Field
+import torch
+import torchvision
+import torchxrayvision as xrv
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 
 class ChestXRaySegmentationInput(BaseModel):
     """Input schema for the Chest X-ray Segmentation Tool."""
 
-    image_path: str = Field(..., description="Path to the chest X-ray image file to be segmented")
+    image_path: str = Field(
+        ..., description="Path to the chest X-ray image file to be segmented"
+    )
     organs: Optional[List[str]] = Field(
         None,
         description="List of organs to segment. If None, all available organs will be segmented. "
-        "Available organs: Left/Right Clavicle, Left/Right Scapula, Left/Right Lung, "
-        "Left/Right Hilus Pulmonis, Heart, Aorta, Facies Diaphragmatica, "
-        "Mediastinum, Weasand, Spine",
+                    "Available organs: Left/Right Clavicle, Left/Right Scapula, Left/Right Lung, "
+                    "Left/Right Hilus Pulmonis, Heart, Aorta, Facies Diaphragmatica, "
+                    "Mediastinum, Weasand, Spine",
     )
 
 
@@ -40,7 +40,9 @@ class OrganMetrics(BaseModel):
     # Basic metrics
     area_pixels: int = Field(..., description="Area in pixels")
     area_cm2: float = Field(..., description="Approximate area in cm²")
-    centroid: Tuple[float, float] = Field(..., description="(y, x) coordinates of centroid")
+    centroid: Tuple[float, float] = Field(
+        ..., description="(y, x) coordinates of centroid"
+    )
     bbox: Tuple[int, int, int, int] = Field(
         ..., description="Bounding box coordinates (min_y, min_x, max_y, max_x)"
     )
@@ -56,9 +58,15 @@ class OrganMetrics(BaseModel):
     )
 
     # Analysis metrics
-    mean_intensity: float = Field(..., description="Mean pixel intensity in the organ region")
-    std_intensity: float = Field(..., description="Standard deviation of pixel intensity")
-    confidence_score: float = Field(..., description="Model confidence score for this organ")
+    mean_intensity: float = Field(
+        ..., description="Mean pixel intensity in the organ region"
+    )
+    std_intensity: float = Field(
+        ..., description="Standard deviation of pixel intensity"
+    )
+    confidence_score: float = Field(
+        ..., description="Model confidence score for this organ"
+    )
 
 
 class ChestXRaySegmentationTool(BaseTool):
@@ -82,11 +90,15 @@ class ChestXRaySegmentationTool(BaseTool):
     temp_dir: Path = Path("temp")
     organ_map: Dict[str, int] = None
 
-    def __init__(self, device: Optional[str] = "cuda", temp_dir: Optional[Path] = Path("temp")):
+    def __init__(
+            self, device: Optional[str] = "cuda", temp_dir: Optional[Path] = Path("temp")
+    ):
         """Initialize the segmentation tool with model and temporary directory."""
         super().__init__()
         self.model = xrv.baseline_models.chestx_det.PSPNet()
-        self.device = torch.device(device) if device and torch.cuda.is_available() else "cpu"
+        self.device = (
+            torch.device(device) if device and torch.cuda.is_available() else "cpu"
+        )
         self.model = self.model.to(self.device)
         self.model.eval()
 
@@ -116,7 +128,7 @@ class ChestXRaySegmentationTool(BaseTool):
         }
 
     def _align_mask_to_original(
-        self, mask: np.ndarray, original_shape: Tuple[int, int]
+            self, mask: np.ndarray, original_shape: Tuple[int, int]
     ) -> np.ndarray:
         """
         Align a mask from the transformed (cropped/resized) space back to the full original image.
@@ -130,14 +142,20 @@ class ChestXRaySegmentationTool(BaseTool):
 
         # Resize mask (from 512x512) to the cropped region size
         resized_mask = skimage.transform.resize(
-            mask, (crop_size, crop_size), order=0, preserve_range=True, anti_aliasing=False
+            mask,
+            (crop_size, crop_size),
+            order=0,
+            preserve_range=True,
+            anti_aliasing=False,
         )
         full_mask = np.zeros(original_shape)
-        full_mask[crop_top : crop_top + crop_size, crop_left : crop_left + crop_size] = resized_mask
+        full_mask[
+        crop_top: crop_top + crop_size, crop_left: crop_left + crop_size
+        ] = resized_mask
         return full_mask
 
     def _compute_organ_metrics(
-        self, mask: np.ndarray, original_img: np.ndarray, confidence: float
+            self, mask: np.ndarray, original_img: np.ndarray, confidence: float
     ) -> Optional[OrganMetrics]:
         """Compute comprehensive metrics for a single organ mask."""
         # Align mask to the original image coordinates if needed
@@ -156,7 +174,9 @@ class ChestXRaySegmentationTool(BaseTool):
         relative_pos = {
             "top": cy / img_height,
             "left": cx / img_width,
-            "center_dist": np.sqrt(((cy / img_height - 0.5) ** 2 + (cx / img_width - 0.5) ** 2)),
+            "center_dist": np.sqrt(
+                ((cy / img_height - 0.5) ** 2 + (cx / img_width - 0.5) ** 2)
+            ),
         }
 
         organ_pixels = original_img[mask > 0]
@@ -180,12 +200,17 @@ class ChestXRaySegmentationTool(BaseTool):
         )
 
     def _save_visualization(
-        self, original_img: np.ndarray, pred_masks: torch.Tensor, organ_indices: List[int]
+            self,
+            original_img: np.ndarray,
+            pred_masks: torch.Tensor,
+            organ_indices: List[int],
     ) -> str:
         """Save visualization of original image with segmentation masks overlaid."""
         plt.figure(figsize=(10, 10))
         plt.imshow(
-            original_img, cmap="gray", extent=[0, original_img.shape[1], original_img.shape[0], 0]
+            original_img,
+            cmap="gray",
+            extent=[0, original_img.shape[1], original_img.shape[0], 0],
         )
 
         # Generate color palette for organs
@@ -203,7 +228,8 @@ class ChestXRaySegmentationTool(BaseTool):
                 colored_mask = np.zeros((*original_img.shape, 4))
                 colored_mask[mask > 0] = (*color[:3], 0.3)
                 plt.imshow(
-                    colored_mask, extent=[0, original_img.shape[1], original_img.shape[0], 0]
+                    colored_mask,
+                    extent=[0, original_img.shape[1], original_img.shape[0], 0],
                 )
 
                 # Add legend entry for the organ
@@ -223,10 +249,10 @@ class ChestXRaySegmentationTool(BaseTool):
         return str(save_path)
 
     def _run(
-        self,
-        image_path: str,
-        organs: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            organs: Optional[List[str]] = None,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Run segmentation analysis for specified organs."""
         try:
@@ -274,7 +300,9 @@ class ChestXRaySegmentationTool(BaseTool):
 
             output = {
                 "segmentation_image_path": viz_path,
-                "metrics": {organ: metrics.dict() for organ, metrics in results.items()},
+                "metrics": {
+                    organ: metrics.dict() for organ, metrics in results.items()
+                },
             }
 
             metadata = {
@@ -300,10 +328,10 @@ class ChestXRaySegmentationTool(BaseTool):
             return error_output, error_metadata
 
     async def _arun(
-        self,
-        image_path: str,
-        organs: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            organs: Optional[List[str]] = None,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Async version of _run."""
         return self._run(image_path, organs)

@@ -6,20 +6,16 @@ This script generates clinical questions from X-ray case data of Eurorad dataset
 It structures questions across different analytical categories and saves them as JSON.
 """
 
+import json
 import os
 import re
-import json
-from typing import *
 from pprint import pprint
+from typing import *
 
 import openai
-import numpy as np
-from scipy import stats
-import plotly.graph_objects as go
-from tqdm import tqdm
-
-from benchmark.utils import load_eurorad_dataset
 from benchmark.llm import get_llm_response
+from benchmark.utils import load_eurorad_dataset
+from tqdm import tqdm
 
 # Constants
 DATA_DIR = "set your data directory here, e.g. /home/MedRAX/data"
@@ -44,11 +40,36 @@ CATEGORIES_META = {
 CATEGORIES = list(CATEGORIES_META.keys())
 
 CATEGORY_COMBINATIONS = [
-    ["detection", "localization", "characterization", "reasoning"],  # Detailed Finding Analysis
-    ["detection", "classification", "relationship", "reasoning"],  # Pattern Recognition & Relations
-    ["localization", "comparison", "relationship", "reasoning"],  # Spatial Understanding
-    ["classification", "comparison", "diagnosis", "reasoning"],  # Clinical Decision Making
-    ["classification", "characterization", "diagnosis", "reasoning"],  # Diagnostic Characterization
+    [
+        "detection",
+        "localization",
+        "characterization",
+        "reasoning",
+    ],  # Detailed Finding Analysis
+    [
+        "detection",
+        "classification",
+        "relationship",
+        "reasoning",
+    ],  # Pattern Recognition & Relations
+    [
+        "localization",
+        "comparison",
+        "relationship",
+        "reasoning",
+    ],  # Spatial Understanding
+    [
+        "classification",
+        "comparison",
+        "diagnosis",
+        "reasoning",
+    ],  # Clinical Decision Making
+    [
+        "classification",
+        "characterization",
+        "diagnosis",
+        "reasoning",
+    ],  # Diagnostic Characterization
 ]
 
 DEFAULT_SECTIONS = [
@@ -80,20 +101,20 @@ class Question:
     """
 
     def __init__(
-        self,
-        type: str,
-        difficulty: str,
-        case_data: Dict[str, Any],
-        categories: List[str],
-        sections: List[str] = [
-            "history",
-            "image_finding",
-            "discussion",
-            "differential_diagnosis",
-            "diagnosis",
-            "figures",
-        ],
-        system_prompt: str = "You are an expert medical benchmark creation assistant.",
+            self,
+            type: str,
+            difficulty: str,
+            case_data: Dict[str, Any],
+            categories: List[str],
+            sections: List[str] = [
+                "history",
+                "image_finding",
+                "discussion",
+                "differential_diagnosis",
+                "diagnosis",
+                "figures",
+            ],
+            system_prompt: str = "You are an expert medical benchmark creation assistant.",
     ) -> None:
         self.type = type
         self.difficulty = difficulty
@@ -184,7 +205,9 @@ class Question:
                     figures_text = []
                     for figure in content:
                         for subfig in figure["subfigures"]:
-                            figures_text.append(f"{subfig['number']}: {subfig['caption']}")
+                            figures_text.append(
+                                f"{subfig['number']}: {subfig['caption']}"
+                            )
                     content = "\n".join(figures_text)
 
                 formatted.append(f"{section}:\n{content}")
@@ -192,12 +215,12 @@ class Question:
         return "\n\n".join(formatted)
 
     def create_question(
-        self,
-        client: openai.OpenAI,
-        temperature: float = 0.7,
-        top_p: float = 0.95,
-        max_tokens: int = 500,
-        model: str = "gpt-4o",
+            self,
+            client: openai.OpenAI,
+            temperature: float = 0.7,
+            top_p: float = 0.95,
+            max_tokens: int = 500,
+            model: str = "gpt-4o",
     ) -> str:
         """Create a clinical question using LLM.
 
@@ -274,14 +297,14 @@ class Question:
 
 
 def generate_questions(
-    dataset: Dict[str, Any],
-    client: openai.OpenAI,
-    output_dir: str,
-    skip_first: int = 100,
-    temperature: float = 0.7,
-    top_p: float = 0.95,
-    max_tokens: int = 1200,
-    model: str = "gpt-4o",
+        dataset: Dict[str, Any],
+        client: openai.OpenAI,
+        output_dir: str,
+        skip_first: int = 100,
+        temperature: float = 0.7,
+        top_p: float = 0.95,
+        max_tokens: int = 1200,
+        model: str = "gpt-4o",
 ) -> None:
     """Generate questions for each case and category combination.
 
@@ -295,12 +318,14 @@ def generate_questions(
         max_tokens: Maximum tokens for LLM response
         model: LLM model name
     """
-    target_cases = sorted(list(dataset.keys()), key=int)[-len(dataset) : -skip_first]
+    target_cases = sorted(list(dataset.keys()), key=int)[-len(dataset): -skip_first]
 
     for case_id in tqdm(target_cases, desc="Processing cases"):
         case_data = dataset[case_id]
 
-        for category in tqdm(CATEGORY_COMBINATIONS, desc=f"Categories for case {case_id}"):
+        for category in tqdm(
+                CATEGORY_COMBINATIONS, desc=f"Categories for case {case_id}"
+        ):
             question = Question(
                 type="multiple choice (A/B/C/D/E/F)",
                 difficulty="complex",

@@ -1,11 +1,8 @@
 import json
-from datetime import datetime
-
-from services.logger_service import logger_service
-from services.mongodb_client import MongoDBClient
-from services.rabbitmq_client import RabbitMQClient
 
 from config import Config
+from services.logger_service import logger_service
+from services.rabbitmq_client import RabbitMQClient
 
 
 def handle_examination_request(ch, method, properties, body):
@@ -15,24 +12,33 @@ def handle_examination_request(ch, method, properties, body):
         message = json.loads(body)
         logger_service.info(f"Received examination request: {message}")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.examination_requests.insert_one(
-            {
-                "request_id": message.get("request_id"),
-                "doctor_id": message.get("doctor_id"),
-                "patient_id": message.get("patient_id"),
-                "patient_name": message.get("patient_name"),
-                "exam_type": message.get("exam_type"),
-                "reason": message.get("reason"),
-                "urgency": message.get("urgency", "normal"),
-                "status": "requested",
-                "timestamp": datetime.utcnow().isoformat(),
-                "raw_request": message,
-            }
+        # Extract relevant info for logging/processing
+        request_id = message.get("request_id")
+        doctor_id = message.get("doctor_id")
+        patient_id = message.get("patient_id")
+
+        # Log the request details
+        logger_service.info(
+            f"Processing examination request {request_id} for patient {patient_id} from doctor {doctor_id}"
         )
 
-        # Acknowledge message
+        # Process the examination request
+        # In a real scenario, you might need to handle this data differently
+        # For now, we'll just acknowledge receipt and prepare a sample response
+
+        # Initialize RabbitMQ client to send notifications or responses
+        rabbitmq_client = RabbitMQClient(Config)
+
+        # Notify the doctor that we received the request
+        rabbitmq_client.send_notification(
+            recipient_id=doctor_id,
+            recipient_type="doctor",
+            notification_type="examination_received",
+            message=f"Radiology examination request {request_id} has been received and is being processed.",
+            data={"request_id": request_id, "status": "received"},
+        )
+
+        # Acknowledge the message
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
@@ -52,20 +58,25 @@ def handle_report_analysis_request(ch, method, properties, body):
         report_id = message.get("report_id")
         report_data = message.get("report_data")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.analysis_requests.insert_one(
-            {
-                "report_id": report_id,
-                "received_at": datetime.utcnow().isoformat(),
-                "status": "received",
-                "report_data": report_data,
-                "raw_request": message,
-            }
+        # Log the analysis request
+        logger_service.info(
+            f"Processing report analysis request for report {report_id}"
         )
 
-        # Here you would typically trigger the analysis process
-        # For now, just acknowledge the message
+        # In a real scenario, you would process the report data here
+        # For now, we'll simulate receiving and processing
+
+        # Initialize RabbitMQ client for response
+        rabbitmq_client = RabbitMQClient(Config)
+
+        # Publish a status update about the report analysis
+        rabbitmq_client.update_radiology_report_status(
+            report_id=report_id,
+            status="analysis_started",
+            updated_by="radiologues-service",
+        )
+
+        # Acknowledge the message
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
     except Exception as e:
@@ -81,15 +92,12 @@ def handle_notification(ch, method, properties, body):
         message = json.loads(body)
         logger_service.info(f"Received notification: {message}")
 
-        # Store in database
-        mongodb_client = MongoDBClient(Config)
-        mongodb_client.db.notifications.insert_one(
-            {
-                "notification_type": method.routing_key,
-                "received_at": datetime.utcnow().isoformat(),
-                "raw_notification": message,
-            }
-        )
+        # Process notification based on routing key
+        notification_type = method.routing_key
+        logger_service.info(f"Processing notification type: {notification_type}")
+
+        # Here you could dispatch to different handlers based on notification type
+        # For now just acknowledge the message
 
         # Acknowledge message
         ch.basic_ack(delivery_tag=method.delivery_tag)

@@ -9,7 +9,6 @@ from services.logger_service import logger_service
 meter_provider = MeterProvider()
 metrics.set_meter_provider(meter_provider)
 
-
 # Get a meter (equivalent to a registry in Prometheus)
 meter = metrics.get_meter("patients_service")
 

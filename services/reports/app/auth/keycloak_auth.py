@@ -5,8 +5,6 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-
-
 security = HTTPBearer()
 
 
@@ -43,7 +41,7 @@ class KeycloakAuth:
             raise
 
     async def get_current_user(
-        self, credentials: HTTPAuthorizationCredentials = Depends(security)
+            self, credentials: HTTPAuthorizationCredentials = Depends(security)
     ):
         """
         FastAPI dependency for extracting and validating the token from the request.
@@ -91,7 +89,7 @@ class KeycloakAuth:
             HTTPException: If the user doesn't have the doctor role
         """
         roles = user_info.get("roles", [])
-        if "doctor-role" not in roles and "admin" not in roles:
+        if "doctor" not in roles and "admin" not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Doctor role required",
@@ -112,7 +110,7 @@ class KeycloakAuth:
             HTTPException: If the user doesn't have the patient role
         """
         roles = user_info.get("roles", [])
-        if "patient-role" not in roles and "admin" not in roles:
+        if "patient" not in roles and "admin" not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Patient role required",
@@ -120,7 +118,7 @@ class KeycloakAuth:
         return user_info
 
     async def get_current_radiologist(
-        self, user_info: Dict = Depends(get_current_user)
+            self, user_info: Dict = Depends(get_current_user)
     ):
         """
         FastAPI dependency for checking if the user has the radiologist role.
@@ -135,7 +133,7 @@ class KeycloakAuth:
             HTTPException: If the user doesn't have the radiologist role
         """
         roles = user_info.get("roles", [])
-        if "radiologist-role" not in roles and "admin" not in roles:
+        if "radiologist" not in roles and "admin" not in roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Radiologist role required",

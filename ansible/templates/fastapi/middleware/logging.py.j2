@@ -1,0 +1,63 @@
+import logging
+import sys
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from config import Config
+
+
+def setup_logging():
+    """Configure logging for the application."""
+    
+    # Create logs directory if it doesn't exist
+    log_dir = Path("logs")
+    log_dir.mkdir(exist_ok=True)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, Config.LOG_LEVEL.upper()))
+    
+    # Remove existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+    
+    # Create formatter
+    formatter = logging.Formatter(Config.LOG_FORMAT)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(getattr(logging, Config.LOG_LEVEL.upper()))
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # File handler with rotation
+    file_handler = RotatingFileHandler(
+        filename=log_dir / f"{Config.SERVICE_NAME}.log",
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5
+    )
+    file_handler.setLevel(getattr(logging, Config.LOG_LEVEL.upper()))
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
+    
+    # Error file handler
+    error_handler = RotatingFileHandler(
+        filename=log_dir / f"{Config.SERVICE_NAME}-errors.log",
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+    root_logger.addHandler(error_handler)
+    
+    # Configure specific logger levels
+    logging.getLogger("uvicorn").setLevel(logging.INFO)
+    logging.getLogger("uvicorn.access").setLevel(logging.INFO)
+    logging.getLogger("fastapi").setLevel(logging.INFO)
+    
+    # Suppress verbose third-party loggers in production
+    if not Config.DEBUG:
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("requests").setLevel(logging.WARNING)
+        logging.getLogger("aioredis").setLevel(logging.WARNING)
+        logging.getLogger("motor").setLevel(logging.WARNING)

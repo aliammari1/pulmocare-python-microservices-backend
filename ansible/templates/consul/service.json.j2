@@ -1,0 +1,71 @@
+{
+    "service": {
+        "name": "{{ service_name }}-service",
+        "tags": {{ service_tags | to_json }},
+        "address": "{{ service_name }}-service",
+        "port": {{ service_port }},
+        "meta": {
+            "version": "1.0.0",
+            "environment": "{{ ansible_deployment_env | default('production') }}",
+            "service_type": "fastapi",
+            "metrics_port": "{{ metrics_port }}",
+            "description": "{{ service_description }}"
+        },
+        "check": {
+            "id": "{{ service_name }}-service-health",
+            "name": "{{ service_name.title() }} Service Health Check",
+            "http": "http://{{ service_name }}-service:{{ service_port }}/api/v1/health",
+            "interval": "10s",
+            "timeout": "5s",
+            "deregister_critical_service_after": "30s"
+        },
+        "checks": [
+            {
+                "id": "{{ service_name }}-service-liveness",
+                "name": "{{ service_name.title() }} Service Liveness",
+                "http": "http://{{ service_name }}-service:{{ service_port }}/api/v1/health/live",
+                "interval": "30s",
+                "timeout": "10s",
+                "deregister_critical_service_after": "90s"
+            },
+            {
+                "id": "{{ service_name }}-service-readiness",
+                "name": "{{ service_name.title() }} Service Readiness",
+                "http": "http://{{ service_name }}-service:{{ service_port }}/api/v1/health/ready",
+                "interval": "15s",
+                "timeout": "5s",
+                "deregister_critical_service_after": "60s"
+            }
+        ],
+        "connect": {
+            "sidecar_service": {
+                "port": {{ service_port + 1000 }},
+                "check": {
+                    "name": "{{ service_name.title() }} Service Sidecar Proxy",
+                    "tcp": "{{ service_name }}-service:{{ service_port + 1000 }}",
+                    "interval": "10s"
+                },
+                "proxy": {
+                    "upstreams": [
+                        {
+                            "destination_name": "mongodb",
+                            "local_bind_port": 27017
+                        },
+                        {
+                            "destination_name": "redis",
+                            "local_bind_port": 6379
+                        },
+                        {
+                            "destination_name": "rabbitmq",
+                            "local_bind_port": 5672
+                        },
+                        {
+                            "destination_name": "auth-service",
+                            "local_bind_port": 8086
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}

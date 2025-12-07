@@ -37,7 +37,7 @@ conf:
       level: warn # supports levels, lower to higher: debug, info, warn, error, panic, fatal
       file_path:
         /dev/stderr # supports relative path, absolute path, standard output
-        # such as: logs/error.log, /tmp/logs/error.log, /dev/stdout, /dev/stderr
+      # such as: logs/error.log, /tmp/logs/error.log, /dev/stdout, /dev/stderr
     access_log:
       file_path: /dev/stdout
   max_cpu: 0

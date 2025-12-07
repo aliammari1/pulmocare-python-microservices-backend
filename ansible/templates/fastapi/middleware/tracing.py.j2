@@ -1,0 +1,79 @@
+import logging
+from opentelemetry import trace
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.requests import RequestsInstrumentor
+from opentelemetry.instrumentation.urllib3 import URLLib3Instrumentor
+
+from config import Config
+
+logger = logging.getLogger(__name__)
+
+
+def setup_tracing(service_name: str):
+    """Configure OpenTelemetry tracing for the application."""
+    
+    if not Config.ENABLE_TRACING:
+        logger.info("Tracing disabled")
+        return
+    
+    try:
+        # Create resource with service information
+        resource = Resource.create({
+            "service.name": service_name,
+            "service.version": "1.0.0",
+            "service.instance.id": f"{service_name}-{Config.ENV}",
+            "deployment.environment": Config.ENV,
+        })
+        
+        # Set up trace provider
+        trace_provider = TracerProvider(resource=resource)
+        trace.set_tracer_provider(trace_provider)
+        
+        # Configure OTLP exporter
+        otlp_exporter = OTLPSpanExporter(
+            endpoint=Config.OTEL_EXPORTER_OTLP_ENDPOINT,
+            headers={}
+        )
+        
+        # Add batch span processor
+        span_processor = BatchSpanProcessor(otlp_exporter)
+        trace_provider.add_span_processor(span_processor)
+        
+        # Auto-instrument libraries
+        RequestsInstrumentor().instrument()
+        URLLib3Instrumentor().instrument()
+        
+        logger.info(f"OpenTelemetry tracing configured for {service_name}")
+        logger.info(f"OTLP endpoint: {Config.OTEL_EXPORTER_OTLP_ENDPOINT}")
+        
+    except Exception as e:
+        logger.error(f"Failed to configure tracing: {e}")
+        logger.warning("Continuing without tracing...")
+
+
+def get_tracer(name: str):
+    """Get a tracer instance."""
+    return trace.get_tracer(name)
+
+
+def create_span(tracer, name: str, **kwargs):
+    """Create a new span with the given tracer."""
+    return tracer.start_span(name, **kwargs)
+
+
+def set_span_attributes(span, attributes: dict):
+    """Set attributes on a span."""
+    for key, value in attributes.items():
+        span.set_attribute(key, value)
+
+
+def set_span_error(span, error: Exception):
+    """Set error information on a span."""
+    span.set_status(trace.Status(trace.StatusCode.ERROR, str(error)))
+    span.set_attribute("error.type", type(error).__name__)
+    span.set_attribute("error.message", str(error))
+    span.record_exception(error)

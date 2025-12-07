@@ -1,12 +1,11 @@
 import json
 from datetime import datetime
 
+from config import Config
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 from services.report_service import ReportService
-
-from config import Config
 
 
 def handle_report_analysis_result(ch, method, properties, body):

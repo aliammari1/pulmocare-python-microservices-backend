@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "patients-service",
-    "tags": ["python", "api", "metrics"],
+    "tags": [
+      "python",
+      "api",
+      "metrics"
+    ],
     "address": "patients-service",
     "port": 8083,
     "meta": {

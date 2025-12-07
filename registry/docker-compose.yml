@@ -1,0 +1,221 @@
+version: "3.8"
+
+services:
+  # Local Docker Registry
+  registry:
+    image: registry:latest
+    container_name: medapp-registry
+    ports:
+      - "5000:5000"
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_HTTP_TLS_CERTIFICATE: /certs/domain.crt
+      REGISTRY_HTTP_TLS_KEY: /certs/domain.key
+      REGISTRY_AUTH_HTPASSWD_REALM: "Registry Realm"
+      REGISTRY_AUTH_HTPASSWD_PATH: /auth/htpasswd
+      REGISTRY_LOG_LEVEL: info
+    volumes:
+      - registry-data:/var/lib/registry
+      - ./certs:/certs:ro
+      - ./auth:/auth:ro
+    restart: unless-stopped
+    networks:
+      - registry-network
+
+  # Registry UI for browsing images
+  registry-ui:
+    image: joxit/docker-registry-ui:latest
+    container_name: medapp-registry-ui
+    ports:
+      - "8080:80"
+    environment:
+      SINGLE_REGISTRY: "true"
+      REGISTRY_TITLE: "MedApp Registry"
+      DELETE_IMAGES: "true"
+      SHOW_CONTENT_DIGEST: "true"
+      NGINX_PROXY_PASS_URL: "https://registry:5000"
+      SHOW_CATALOG_NB_TAGS: "true"
+      CATALOG_MIN_BRANCHES: "1"
+      CATALOG_MAX_BRANCHES: "1"
+      TAGLIST_PAGE_SIZE: "100"
+      REGISTRY_SECURED: "true"
+      CATALOG_ELEMENTS_LIMIT: "1000"
+    depends_on:
+      - registry
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Trivy vulnerability scanner
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: medapp-trivy
+    command: server --listen 0.0.0.0:4954
+    ports:
+      - "4954:4954"
+    volumes:
+      - trivy-cache:/root/.cache/trivy
+    environment:
+      TRIVY_LISTEN: "0.0.0.0:4954"
+      TRIVY_CACHE_DIR: "/root/.cache/trivy"
+      TRIVY_DEBUG: "false"
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Notary server for image signing
+  notary-server:
+    image: notary:server-0.6.1
+    container_name: medapp-notary-server
+    ports:
+      - "4443:4443"
+    environment:
+      NOTARY_SERVER_STORAGE_TYPE: memory
+      NOTARY_SERVER_TRUST_SERVICE_TYPE: local
+      NOTARY_SERVER_LOGGING_LEVEL: info
+    volumes:
+      - notary-data:/var/lib/notary
+      - ./certs:/certs:ro
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Notary signer for image signing
+  notary-signer:
+    image: notary:signer-0.6.1
+    container_name: medapp-notary-signer
+    ports:
+      - "7899:7899"
+    environment:
+      NOTARY_SIGNER_STORAGE_TYPE: memory
+      NOTARY_SIGNER_LOGGING_LEVEL: info
+    volumes:
+      - notary-signer-data:/var/lib/notary
+      - ./certs:/certs:ro
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Portus for advanced registry management (alternative to Harbor)
+  portus-db:
+    image: mariadb:10.6
+    container_name: medapp-portus-db
+    environment:
+      MYSQL_ROOT_PASSWORD: portus123!
+      MYSQL_DATABASE: portus
+      MYSQL_USER: portus
+      MYSQL_PASSWORD: portus123!
+    volumes:
+      - portus-db-data:/var/lib/mysql
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  portus:
+    image: opensuse/portus:head
+    container_name: medapp-portus
+    ports:
+      - "3000:3000"
+    environment:
+      PORTUS_MACHINE_FQDN: portus.medapp.local
+      PORTUS_PRODUCTION_HOST: portus-db
+      PORTUS_PRODUCTION_DATABASE: portus
+      PORTUS_PRODUCTION_USERNAME: portus
+      PORTUS_PRODUCTION_PASSWORD: portus123!
+      PORTUS_GRAVATAR_ENABLED: "false"
+      PORTUS_KEY_PATH: /certs/domain.key
+      PORTUS_CRT_PATH: /certs/domain.crt
+      PORTUS_PORT: 3000
+      PORTUS_CHECK_SSL_USAGE_ENABLED: "false"
+      PORTUS_SMTP_ENABLED: "false"
+      PORTUS_LDAP_ENABLED: "false"
+      PORTUS_SIGNUP_ENABLED: "true"
+      PORTUS_DISPLAY_NAME: "MedApp Portus"
+      PORTUS_REGISTRY_JWT_EXPIRATION_TIME: "5"
+      PORTUS_REGISTRY_CATALOG_PAGE: "100"
+    volumes:
+      - ./certs:/certs:ro
+    depends_on:
+      - portus-db
+      - registry
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # MinIO for S3-compatible storage backend
+  minio:
+    image: minio/minio:latest
+    container_name: medapp-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123!
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: medapp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--storage.tsdb.retention.time=200h"
+      - "--web.enable-lifecycle"
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: medapp-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: grafana123!
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - registry-network
+    restart: unless-stopped
+
+volumes:
+  registry-data:
+    driver: local
+  trivy-cache:
+    driver: local
+  notary-data:
+    driver: local
+  notary-signer-data:
+    driver: local
+  portus-db-data:
+    driver: local
+  minio-data:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+networks:
+  registry-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

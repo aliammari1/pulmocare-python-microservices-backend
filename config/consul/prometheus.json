@@ -1,7 +1,10 @@
 {
   "service": {
     "name": "prometheus",
-    "tags": ["metrics", "monitoring"],
+    "tags": [
+      "metrics",
+      "monitoring"
+    ],
     "address": "prometheus",
     "port": 9090,
     "check": {

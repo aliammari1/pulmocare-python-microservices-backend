@@ -1,0 +1,140 @@
+---
+- name: Setup MedApp Infrastructure
+  hosts: localhost
+  gather_facts: yes
+  vars:
+    setup_consul: "{{ setup_consul | default(true) }}"
+    setup_mongodb: "{{ setup_mongodb | default(true) }}"
+    setup_redis: "{{ setup_redis | default(true) }}"
+    setup_rabbitmq: "{{ setup_rabbitmq | default(true) }}"
+    setup_monitoring: "{{ setup_monitoring | default(true) }}"
+    setup_secrets: "{{ setup_secrets | default(true) }}"
+
+  tasks:
+    - name: Create Kubernetes namespace
+      command: kubectl create namespace medapp
+      register: namespace_result
+      ignore_errors: yes
+
+    - name: Display namespace creation result
+      debug:
+        msg: "Namespace 'medapp' {{ 'created' if namespace_result.rc == 0 else 'already exists' }}"
+
+    - name: Setup Kubernetes secrets
+      block:
+        - name: Create MongoDB secret
+          command: >
+            kubectl create secret generic mongodb-secret
+            --from-literal=username=admin
+            --from-literal=password=admin123!
+            -n medapp
+          ignore_errors: yes
+
+        - name: Create Redis secret
+          command: >
+            kubectl create secret generic redis-secret
+            --from-literal=password=redispass123!
+            -n medapp
+          ignore_errors: yes
+
+        - name: Create RabbitMQ secret
+          command: >
+            kubectl create secret generic rabbitmq-secret
+            --from-literal=username=admin
+            --from-literal=password=rabbitmq123!
+            -n medapp
+          ignore_errors: yes
+
+        - name: Create Consul secret
+          command: >
+            kubectl create secret generic consul-secret
+            --from-literal=token=consul-token-123
+            -n medapp
+          ignore_errors: yes
+
+        - name: Create Keycloak secret
+          command: >
+            kubectl create secret generic keycloak-secret
+            --from-literal=client-secret=keycloak-secret-123
+            -n medapp
+          ignore_errors: yes
+      when: setup_secrets | bool
+
+    - name: Deploy infrastructure components
+      block:
+        - name: Deploy Consul
+          command: kubectl apply -f {{ k8s_dir }}/infrastructure/consul.yaml
+          when: setup_consul | bool
+
+        - name: Deploy MongoDB
+          command: kubectl apply -f {{ k8s_dir }}/infrastructure/mongodb.yaml
+          when: setup_mongodb | bool
+
+        - name: Deploy Redis
+          command: kubectl apply -f {{ k8s_dir }}/infrastructure/redis.yaml
+          when: setup_redis | bool
+
+        - name: Deploy RabbitMQ
+          command: kubectl apply -f {{ k8s_dir }}/infrastructure/rabbitmq.yaml
+          when: setup_rabbitmq | bool
+
+    - name: Deploy monitoring stack
+      block:
+        - name: Deploy Prometheus
+          command: kubectl apply -f {{ k8s_dir }}/monitoring/prometheus.yaml
+          when: setup_monitoring | bool
+
+        - name: Deploy Grafana
+          command: kubectl apply -f {{ k8s_dir }}/monitoring/grafana.yaml
+          when: setup_monitoring | bool
+
+        - name: Deploy OpenTelemetry Collector
+          command: kubectl apply -f {{ k8s_dir }}/monitoring/otel-collector.yaml
+          when: setup_monitoring | bool
+
+        - name: Deploy Loki
+          command: kubectl apply -f {{ k8s_dir }}/monitoring/loki.yaml
+          when: setup_monitoring | bool
+
+        - name: Deploy Tempo
+          command: kubectl apply -f {{ k8s_dir }}/monitoring/tempo.yaml
+          when: setup_monitoring | bool
+      when: setup_monitoring | bool
+
+    - name: Wait for infrastructure to be ready
+      command: >
+        kubectl wait --for=condition=ready pod 
+        -l app={{ item }} 
+        --timeout=300s 
+        -n medapp
+      loop:
+        - consul
+        - mongodb
+        - redis
+        - rabbitmq
+      ignore_errors: yes
+
+    - name: Display infrastructure status
+      command: kubectl get pods -n medapp -o wide
+      register: pods_status
+
+    - name: Show infrastructure status
+      debug:
+        msg: |
+          🏗️  MedApp Infrastructure Setup Complete!
+
+          ☸️  Kubernetes Pods Status:
+          {{ pods_status.stdout }}
+
+          🔗 Access URLs (port-forward required):
+          - Consul UI: kubectl port-forward svc/consul 8500:8500 -n medapp
+          - MongoDB: kubectl port-forward svc/mongodb 27017:27017 -n medapp  
+          - Redis: kubectl port-forward svc/redis 6379:6379 -n medapp
+          - RabbitMQ Management: kubectl port-forward svc/rabbitmq 15672:15672 -n medapp
+          - Prometheus: kubectl port-forward svc/prometheus 9090:9090 -n medapp
+          - Grafana: kubectl port-forward svc/grafana 3000:3000 -n medapp
+
+          📋 Next Steps:
+          1. Verify all pods are running: kubectl get pods -n medapp
+          2. Create your first service: ansible-playbook playbooks/create-microservice.yml -e service_name=my-service
+          3. Build and deploy: ansible-playbook playbooks/build-and-deploy.yml -e service_name=my-service

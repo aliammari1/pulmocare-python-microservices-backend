@@ -7,7 +7,7 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.algorithms import RSAAlgorithm
-
+from models.auth import Role
 
 # Security scheme for Swagger UI
 security = HTTPBearer()
@@ -20,7 +20,7 @@ class KeycloakMiddleware:
     """
 
     def __init__(
-        self, keycloak_url=None, realm=None, client_id=None, client_secret=None
+            self, keycloak_url=None, realm=None, client_id=None, client_secret=None
     ):
         """
         Initialize the Keycloak middleware.
@@ -34,12 +34,14 @@ class KeycloakMiddleware:
         self.keycloak_url = keycloak_url or os.getenv(
             "KEYCLOAK_URL", "http://keycloak:8080"
         )
-        
+
         # Strip trailing '/auth' if present as newer Keycloak versions don't use this path
-        if self.keycloak_url.endswith('/auth'):
-            print(f"Detected '/auth' suffix in Keycloak URL, removing it for compatibility with newer versions")
-            self.keycloak_url = self.keycloak_url.removesuffix('/auth')
-            
+        if self.keycloak_url.endswith("/auth"):
+            print(
+                f"Detected '/auth' suffix in Keycloak URL, removing it for compatibility with newer versions"
+            )
+            self.keycloak_url = self.keycloak_url.removesuffix("/auth")
+
         self.realm = realm or os.getenv("KEYCLOAK_REALM", "pulmocare")
         self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
         self.client_secret = client_secret or os.getenv(
@@ -56,7 +58,9 @@ class KeycloakMiddleware:
         )
         self.token_introspection_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token/introspect"
 
-        print(f"Keycloak middleware initialized for realm {self.realm} with URL {self.keycloak_url}")
+        print(
+            f"Keycloak middleware initialized for realm {self.realm} with URL {self.keycloak_url}"
+        )
 
     def get_public_key(self, kid=None):
         """
@@ -181,9 +185,9 @@ class KeycloakMiddleware:
             raise
 
     async def get_current_user(
-        self,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        required_roles: List[str] = None,
+            self,
+            credentials: HTTPAuthorizationCredentials = Depends(security),
+            required_roles: List[Role] = None,
     ) -> Dict[str, Any]:
         """
         FastAPI dependency to get the current authenticated user.
@@ -207,7 +211,7 @@ class KeycloakMiddleware:
 
         try:
             token = credentials.credentials
-            
+
             # Normal token verification path
             payload = self.verify_token(token)
 
@@ -249,25 +253,25 @@ class KeycloakMiddleware:
         """
         Dependency to require admin role.
         """
-        return await self.get_current_user(required_roles=["admin"])
+        return await self.get_current_user(required_roles=[Role.ADMIN])
 
     async def get_doctor_user(self, user=Depends(get_current_user)):
         """
         Dependency to require doctor role.
         """
-        return await self.get_current_user(required_roles=["doctor-role"])
+        return await self.get_current_user(required_roles=[Role.Doctor])
 
     async def get_patient_user(self, user=Depends(get_current_user)):
         """
         Dependency to require patient role.
         """
-        return await self.get_current_user(required_roles=["patient-role"])
+        return await self.get_current_user(required_roles=[Role.PATIENT])
 
     async def get_radiologist_user(self, user=Depends(get_current_user)):
         """
         Dependency to require radiologist role.
         """
-        return await self.get_current_user(required_roles=["radiologist-role"])
+        return await self.get_current_user(required_roles=[Role.RADIOLOGIST])
 
 
 # Create a global instance that can be imported directly

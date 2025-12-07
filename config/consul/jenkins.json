@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "jenkins",
-    "tags": ["ci-cd", "automation", "pipeline"],
+    "tags": [
+      "ci-cd",
+      "automation",
+      "pipeline"
+    ],
     "address": "jenkins",
     "port": 8080,
     "check": {

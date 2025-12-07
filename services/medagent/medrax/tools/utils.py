@@ -1,21 +1,26 @@
+from pathlib import Path
 from typing import Optional, Type, Dict, Tuple
-from pydantic import BaseModel, Field
+
 import matplotlib.pyplot as plt
 import skimage.io
-from pathlib import Path
-
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
 
 
 class ImageVisualizerInput(BaseModel):
     """Input schema for the Image Visualizer Tool. Only supports JPG or PNG images."""
 
-    image_path: str = Field(..., description="Path to the image file to display, only supports JPG or PNG images")
-    title: Optional[str] = Field(None, description="Optional title to display above the image")
+    image_path: str = Field(
+        ...,
+        description="Path to the image file to display, only supports JPG or PNG images",
+    )
+    title: Optional[str] = Field(
+        None, description="Optional title to display above the image"
+    )
     description: Optional[str] = Field(
         None, description="Optional description to display below the image"
     )
@@ -39,12 +44,12 @@ class ImageVisualizerTool(BaseTool):
     args_schema: Type[BaseModel] = ImageVisualizerInput
 
     def _display_image(
-        self,
-        image_path: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        figsize: tuple = (10, 10),
-        cmap: str = "rgb",
+            self,
+            image_path: str,
+            title: Optional[str] = None,
+            description: Optional[str] = None,
+            figsize: tuple = (10, 10),
+            cmap: str = "rgb",
     ) -> None:
         """Display an image with optional annotations."""
         plt.figure(figsize=figsize)
@@ -62,7 +67,12 @@ class ImageVisualizerTool(BaseTool):
         # Add description if provided
         if description:
             plt.figtext(
-                0.5, 0.01, description, wrap=True, horizontalalignment="center", fontsize=10
+                0.5,
+                0.01,
+                description,
+                wrap=True,
+                horizontalalignment="center",
+                fontsize=10,
             )
 
         # Adjust margins to minimize whitespace while preventing overlap
@@ -70,13 +80,13 @@ class ImageVisualizerTool(BaseTool):
         plt.show()
 
     def _run(
-        self,
-        image_path: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        figsize: tuple = (10, 10),
-        cmap: str = "rgb",
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            title: Optional[str] = None,
+            description: Optional[str] = None,
+            figsize: tuple = (10, 10),
+            cmap: str = "rgb",
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> dict:
         """
         Display an image to the user with optional annotations.
@@ -122,13 +132,13 @@ class ImageVisualizerTool(BaseTool):
             )
 
     async def _arun(
-        self,
-        image_path: str,
-        title: Optional[str] = None,
-        description: Optional[str] = None,
-        figsize: tuple = (10, 10),
-        cmap: str = "rgb",
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            image_path: str,
+            title: Optional[str] = None,
+            description: Optional[str] = None,
+            figsize: tuple = (10, 10),
+            cmap: str = "rgb",
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, any], Dict]:
         """Async version of _run."""
         return self._run(image_path, title, description, figsize, cmap)

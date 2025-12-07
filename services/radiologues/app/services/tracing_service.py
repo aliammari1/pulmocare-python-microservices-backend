@@ -1,16 +1,13 @@
 import os
 
 from opentelemetry import trace
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import \
-    OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.pymongo import PymongoInstrumentor
 from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (BatchSpanProcessor,
-                                            ConsoleSpanExporter)
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import NoOpTracer
 from services.logger_service import logger_service
 
@@ -89,7 +86,6 @@ class TracingService:
                 # Instrument FastAPI
                 FastAPIInstrumentor().instrument_app(self.app)
                 # Instrument libraries
-                PymongoInstrumentor().instrument()
                 RedisInstrumentor().instrument()
                 RequestsInstrumentor().instrument()
 

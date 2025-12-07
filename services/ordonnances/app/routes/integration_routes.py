@@ -1,9 +1,10 @@
 from datetime import datetime
 from typing import Dict, Optional
 
-from auth.keycloak_auth import get_current_doctor
+import httpx
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from models.api_models import ErrorResponse, MessageResponse
 from models.ordonnance import OrdonnanceCreate
 from services.logger_service import logger_service
@@ -14,6 +15,7 @@ from services.rabbitmq_client import RabbitMQClient
 from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
+security = HTTPBearer()
 
 # Initialize services
 mongodb_client = MongoDBClient(Config)
@@ -21,6 +23,75 @@ rabbitmq_client = RabbitMQClient(Config)
 
 # MongoDB collections
 ordonnances_collection = mongodb_client.db.ordonnances
+
+# Create HTTP client with a reasonable timeout
+http_client = httpx.AsyncClient(timeout=10.0)
+
+
+async def get_current_doctor(
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> Dict:
+    """
+    Get current doctor information directly from auth service
+
+    Returns:
+        Dict: The doctor information with user_id and roles
+
+    Raises:
+        HTTPException: If the token is invalid or user is not a doctor
+    """
+    try:
+        token = credentials.credentials
+
+        # Call auth service directly to verify token and get user info
+        auth_url = f"{Config.AUTH_SERVICE_URL}/api/auth/token/verify"
+        headers = {"Authorization": f"Bearer {token}"}
+        # Include the token in the request body as well
+        body = {"token": token}
+
+        async with http_client as client:
+            response = await client.post(auth_url, headers=headers, json=body)
+
+            if response.status_code != 200:
+                logger_service.error(
+                    f"Failed to verify token: {response.status_code} - {response.text}"
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
+            # Get user info from response
+            user_info = response.json()
+
+            # Check if the user has the doctor role
+            roles = user_info.get("roles", [])
+            if "doctor" not in roles and "admin" not in roles:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Doctor role required",
+                )
+
+            # Add token to user info for convenience
+            user_info["token"] = token
+
+            return user_info
+
+    except httpx.RequestError as e:
+        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Authentication service unavailable",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Authentication error",
+        )
 
 
 @router.post(
@@ -30,7 +101,7 @@ ordonnances_collection = mongodb_client.db.ordonnances
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def create_prescription(
-    prescription: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
+        prescription: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
 ):
     """Create a new prescription and notify relevant services"""
     try:
@@ -96,10 +167,10 @@ async def create_prescription(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def update_prescription_status(
-    prescription_id: str,
-    status: str,
-    pharmacy_id: Optional[str] = None,
-    user_info: Dict = Depends(get_current_doctor),
+        prescription_id: str,
+        status: str,
+        pharmacy_id: Optional[str] = None,
+        user_info: Dict = Depends(get_current_doctor),
 ):
     """Update prescription status and notify relevant services"""
     try:

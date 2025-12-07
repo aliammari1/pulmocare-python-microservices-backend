@@ -1,0 +1,70 @@
+# Patients Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patients-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: patients-service
+  template:
+    metadata:
+      labels:
+        app: patients-service
+    spec:
+      containers:
+        - name: patients-service
+          image: your-registry/medapp-patients:latest
+          ports:
+            - containerPort: 8083
+          env:
+            - name: PORT
+              value: "8083"
+            - name: OTEL_SERVICE_NAME
+              value: "patients-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=patients-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patients-service
+  namespace: medapp
+spec:
+  selector:
+    app: patients-service
+  ports:
+    - port: 8083
+      targetPort: 8083

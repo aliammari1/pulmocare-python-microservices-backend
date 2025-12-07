@@ -1,9 +1,8 @@
-from typing import Dict, List, Optional, Tuple, Union, Any
-import json
-import os
-import sys
 import argparse
+import json
 from collections import defaultdict
+from typing import Dict, List, Optional, Tuple, Union, Any
+
 from tqdm import tqdm
 
 QUESTION_TYPES = {
@@ -47,7 +46,7 @@ def extract_answer_letter(answer: Optional[Union[str, Any]]) -> Optional[str]:
 
 
 def analyze_gpt4_results(
-    results_file: str, max_questions: Optional[int] = None
+        results_file: str, max_questions: Optional[int] = None
 ) -> Tuple[float, Dict, Dict, List[str], List[str]]:
     """
     Analyze results in GPT-4 format.
@@ -84,7 +83,9 @@ def analyze_gpt4_results(
 
         try:
             entry = json.loads(line)
-            metadata = entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            metadata = (
+                entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            )
             question_id = entry.get("question_id")
 
             model_letter = extract_answer_letter(entry.get("model_answer"))
@@ -115,7 +116,7 @@ def analyze_gpt4_results(
 
 
 def analyze_llama_results(
-    results_file: str, max_questions: Optional[int] = None
+        results_file: str, max_questions: Optional[int] = None
 ) -> Tuple[float, Dict, Dict, List[str], List[str]]:
     """
     Analyze results in Llama format.
@@ -151,7 +152,9 @@ def analyze_llama_results(
 
         try:
             entry = json.loads(line)
-            metadata = entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            metadata = (
+                entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            )
             question_id = entry.get("question_id")
 
             model_letter = extract_answer_letter(entry.get("model_answer"))
@@ -181,7 +184,7 @@ def analyze_llama_results(
 
 
 def analyze_chexagent_results(
-    results_file: str, max_questions: Optional[int] = None
+        results_file: str, max_questions: Optional[int] = None
 ) -> Tuple[float, Dict, Dict, List[str], List[str]]:
     """
     Analyze results in CheXagent format.
@@ -214,7 +217,9 @@ def analyze_chexagent_results(
     for line in tqdm(lines, desc="Analyzing Benchmark Results"):
         try:
             entry = json.loads(line)
-            metadata = entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            metadata = (
+                entry.get("input", {}).get("question_data", {}).get("metadata", {})
+            )
             question_id = entry.get("question_id")
 
             model_letter = extract_answer_letter(entry.get("model_answer"))
@@ -244,11 +249,11 @@ def analyze_chexagent_results(
 
 
 def process_results(
-    category_performance: Dict,
-    all_questions: int,
-    all_correct: int,
-    correct_ids: Optional[List[str]] = None,
-    incorrect_ids: Optional[List[str]] = None,
+        category_performance: Dict,
+        all_questions: int,
+        all_correct: int,
+        correct_ids: Optional[List[str]] = None,
+        incorrect_ids: Optional[List[str]] = None,
 ) -> Tuple[float, Dict, Dict, List[str], List[str]]:
     """
     Process raw results into final statistics.
@@ -270,7 +275,9 @@ def process_results(
     """
     category_accuracies = {
         category: {
-            "accuracy": stats["correct"] / stats["total"] * 100 if stats["total"] > 0 else 0,
+            "accuracy": (
+                stats["correct"] / stats["total"] * 100 if stats["total"] > 0 else 0
+            ),
             "total": stats["total"],
             "correct": stats["correct"],
         }
@@ -280,7 +287,9 @@ def process_results(
     question_type_stats = {}
     for qtype, categories in QUESTION_TYPES.items():
         total = sum(
-            category_performance[cat]["total"] for cat in categories if cat in category_performance
+            category_performance[cat]["total"]
+            for cat in categories
+            if cat in category_performance
         )
         correct = sum(
             category_performance[cat]["correct"]
@@ -306,12 +315,12 @@ def process_results(
 
 
 def print_analysis(
-    overall_accuracy: float,
-    category_accuracies: Dict,
-    question_type_stats: Dict,
-    correct_ids: List[str],
-    incorrect_ids: List[str],
-    model_name: str,
+        overall_accuracy: float,
+        category_accuracies: Dict,
+        question_type_stats: Dict,
+        correct_ids: List[str],
+        incorrect_ids: List[str],
+        model_name: str,
 ) -> None:
     """
     Print analysis results.
@@ -340,7 +349,9 @@ def print_analysis(
         print(f"  Correct Questions: {metrics['correct']}")
 
     print("\nQuestion Type Performance:")
-    sorted_types = sorted(question_type_stats.items(), key=lambda x: x[1]["accuracy"], reverse=True)
+    sorted_types = sorted(
+        question_type_stats.items(), key=lambda x: x[1]["accuracy"], reverse=True
+    )
     for qtype, metrics in sorted_types:
         print(f"\n{qtype}:")
         print(f"  Accuracy: {metrics['accuracy']:.2f}%")
@@ -361,14 +372,18 @@ def print_analysis(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Analyze benchmark results")
     parser.add_argument("results_file", help="Path to results file")
-    parser.add_argument("benchmark_dir", nargs="?", help="Path to benchmark questions directory")
+    parser.add_argument(
+        "benchmark_dir", nargs="?", help="Path to benchmark questions directory"
+    )
     parser.add_argument(
         "--model",
         choices=["llava-med", "chexagent", "llama", "gpt4", "medrax"],
         default="gpt4",
         help="Specify model format (default: gpt4)",
     )
-    parser.add_argument("--max-questions", type=int, help="Maximum number of questions to analyze")
+    parser.add_argument(
+        "--max-questions", type=int, help="Maximum number of questions to analyze"
+    )
     args = parser.parse_args()
 
     if args.model == "gpt4":

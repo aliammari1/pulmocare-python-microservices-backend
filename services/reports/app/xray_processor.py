@@ -4,9 +4,10 @@ import random
 import cv2
 import numpy as np
 import pydicom  # For DICOM format support
-from services.logger_service import logger_service
 from skimage.filters import threshold_otsu
 from skimage.measure import shannon_entropy
+
+from services.logger_service import logger_service
 
 
 class ChestImageProcessor:
@@ -273,7 +274,7 @@ class ChestXRayModel:
         }
 
         quality_score = (
-            quality_scores[contrast_quality] + quality_scores[sharpness_quality]
+                quality_scores[contrast_quality] + quality_scores[sharpness_quality]
         )
         if exposure_quality == "good":
             quality_score += 2

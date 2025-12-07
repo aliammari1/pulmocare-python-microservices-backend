@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "reports-service",
-    "tags": ["python", "api", "metrics"],
+    "tags": [
+      "python",
+      "api",
+      "metrics"
+    ],
     "address": "reports-service",
     "port": 8085,
     "meta": {

@@ -1,9 +1,8 @@
-from typing import Dict, List, Tuple, Optional
 import json
 import sys
-import glob
-from pathlib import Path
 from collections import defaultdict
+from pathlib import Path
+from typing import Dict, List, Tuple
 
 
 def get_latest_log() -> str:
@@ -23,7 +22,9 @@ def get_latest_log() -> str:
     return str(max(logs, key=lambda p: p.stat().st_mtime))
 
 
-def analyze_log_file(filename: str) -> Tuple[List[Dict], List[Dict], Dict[str, List[str]]]:
+def analyze_log_file(
+        filename: str,
+) -> Tuple[List[Dict], List[Dict], Dict[str, List[str]]]:
     """Analyze a log file for entries missing images and errors.
 
     Args:
@@ -79,7 +80,10 @@ def analyze_log_file(filename: str) -> Tuple[List[Dict], List[Dict], Dict[str, L
                         content = msg.get("content", [])
                         if isinstance(content, list):
                             for item in content:
-                                if isinstance(item, dict) and item.get("type") == "image_url":
+                                if (
+                                        isinstance(item, dict)
+                                        and item.get("type") == "image_url"
+                                ):
                                     has_image = True
                                     break
                     if not has_image:
@@ -88,16 +92,18 @@ def analyze_log_file(filename: str) -> Tuple[List[Dict], List[Dict], Dict[str, L
                                 "case_id": case_id,
                                 "question_id": question_id,
                                 "question": entry.get("input", {})
-                                .get("question_data", {})
-                                .get("question", "")[:100]
-                                + "...",  # First 100 chars of question
+                                            .get("question_data", {})
+                                            .get("question", "")[:100]
+                                            + "...",  # First 100 chars of question
                             }
                         )
                 except json.JSONDecodeError:
                     errors["json_decode"].append(f"Line {line_num}: Invalid JSON")
                     continue
                 except Exception as e:
-                    errors["other"].append(f"Line {line_num}: Error processing entry: {str(e)}")
+                    errors["other"].append(
+                        f"Line {line_num}: Error processing entry: {str(e)}"
+                    )
     except FileNotFoundError:
         print(f"Error: Could not find log file: {filename}")
         sys.exit(1)
@@ -109,7 +115,10 @@ def analyze_log_file(filename: str) -> Tuple[List[Dict], List[Dict], Dict[str, L
 
 
 def print_results(
-    filename: str, no_images: List[Dict], skipped: List[Dict], errors: Dict[str, List[str]]
+        filename: str,
+        no_images: List[Dict],
+        skipped: List[Dict],
+        errors: Dict[str, List[str]],
 ) -> None:
     """Print analysis results.
 

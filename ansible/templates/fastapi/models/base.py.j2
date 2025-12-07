@@ -1,0 +1,113 @@
+from datetime import datetime
+from typing import Optional, List, Any, Dict
+from pydantic import BaseModel, Field
+
+
+class HealthCheckResponse(BaseModel):
+    """Health check response model."""
+    status: str = Field(..., description="Service health status")
+    service: str = Field(..., description="Service name")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Check timestamp")
+    version: str = Field(default="1.0.0", description="Service version")
+    dependencies: Optional[Dict[str, str]] = Field(None, description="Dependencies status")
+
+
+class ServiceInfo(BaseModel):
+    """Service information model."""
+    name: str = Field(..., description="Service name")
+    version: str = Field(..., description="Service version")
+    description: str = Field(..., description="Service description")
+    environment: str = Field(..., description="Environment (development/production)")
+    port: int = Field(..., description="Service port")
+    metrics_port: int = Field(..., description="Metrics port")
+
+
+class BaseResponse(BaseModel):
+    """Base response model."""
+    success: bool = Field(True, description="Operation success status")
+    message: str = Field("", description="Response message")
+    data: Optional[Any] = Field(None, description="Response data")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
+
+
+class ErrorResponse(BaseModel):
+    """Error response model."""
+    success: bool = Field(False, description="Operation success status")
+    error: str = Field(..., description="Error message")
+    error_code: Optional[str] = Field(None, description="Error code")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Error timestamp")
+    details: Optional[Dict[str, Any]] = Field(None, description="Additional error details")
+
+
+class PaginationMeta(BaseModel):
+    """Pagination metadata."""
+    page: int = Field(..., description="Current page number")
+    per_page: int = Field(..., description="Items per page")
+    total: int = Field(..., description="Total number of items")
+    pages: int = Field(..., description="Total number of pages")
+    has_prev: bool = Field(..., description="Has previous page")
+    has_next: bool = Field(..., description="Has next page")
+
+
+class PaginatedResponse(BaseModel):
+    """Paginated response model."""
+    success: bool = Field(True, description="Operation success status")
+    data: List[Any] = Field(..., description="Response data items")
+    meta: PaginationMeta = Field(..., description="Pagination metadata")
+    timestamp: datetime = Field(default_factory=datetime.now, description="Response timestamp")
+
+
+# Base entity model for all domain models
+class BaseEntity(BaseModel):
+    """Base entity model with common fields."""
+    id: Optional[str] = Field(None, description="Entity ID")
+    created_at: Optional[datetime] = Field(None, description="Creation timestamp")
+    updated_at: Optional[datetime] = Field(None, description="Last update timestamp")
+    created_by: Optional[str] = Field(None, description="Created by user ID")
+    updated_by: Optional[str] = Field(None, description="Updated by user ID")
+    is_active: bool = Field(True, description="Active status")
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
+
+
+# Example domain model for {{ service_name }}
+class {{ service_name.title() }}Base(BaseModel):
+    """Base {{ service_name }} model."""
+    name: str = Field(..., description="{{ service_name.title() }} name", min_length=1, max_length=255)
+    description: Optional[str] = Field(None, description="{{ service_name.title() }} description", max_length=1000)
+    
+    class Config:
+        """Pydantic configuration."""
+        from_attributes = True
+
+
+class {{ service_name.title() }}Create({{ service_name.title() }}Base):
+    """{{ service_name.title() }} creation model."""
+    pass
+
+
+class {{ service_name.title() }}Update(BaseModel):
+    """{{ service_name.title() }} update model."""
+    name: Optional[str] = Field(None, description="{{ service_name.title() }} name", min_length=1, max_length=255)
+    description: Optional[str] = Field(None, description="{{ service_name.title() }} description", max_length=1000)
+    is_active: Optional[bool] = Field(None, description="Active status")
+
+
+class {{ service_name.title() }}({{ service_name.title() }}Base, BaseEntity):
+    """{{ service_name.title() }} model with full entity fields."""
+    pass
+
+
+class {{ service_name.title() }}Response(BaseResponse):
+    """{{ service_name.title() }} response model."""
+    data: {{ service_name.title() }} = Field(..., description="{{ service_name.title() }} data")
+
+
+class {{ service_name.title() }}ListResponse(PaginatedResponse):
+    """{{ service_name.title() }} list response model."""
+    data: List[{{ service_name.title() }}] = Field(..., description="List of {{ service_name }} items")

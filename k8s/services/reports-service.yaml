@@ -1,0 +1,70 @@
+# Reports Service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reports-service
+  namespace: medapp
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: reports-service
+  template:
+    metadata:
+      labels:
+        app: reports-service
+    spec:
+      containers:
+        - name: reports-service
+          image: your-registry/medapp-reports:latest
+          ports:
+            - containerPort: 8085
+          env:
+            - name: PORT
+              value: "8085"
+            - name: OTEL_SERVICE_NAME
+              value: "reports-service"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=reports-service"
+          envFrom:
+            - configMapRef:
+                name: medapp-config
+            - secretRef:
+                name: medapp-secrets
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: logs
+              mountPath: /app/logs
+      volumes:
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reports-service
+  namespace: medapp
+spec:
+  selector:
+    app: reports-service
+  ports:
+    - port: 8085
+      targetPort: 8085

@@ -1,0 +1,94 @@
+- name: List MedApp Microservices
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../vars/services.yml
+
+  tasks:
+    - name: Display services registry
+      debug:
+        msg: |
+          📋 MedApp Microservices Registry
+          ================================
+
+          📊 Summary:
+          - Total Services: {{ services | length }}
+          - Next Available Port: {{ next_available_port }}
+          - Next Available Metrics Port: {{ next_available_metrics_port }}
+
+          🚀 Services:
+          {% for service_name, service_info in services.items() %}
+
+          📦 {{ service_name }}:
+            - Name: {{ service_info.name }}
+            - Description: {{ service_info.description }}
+            - Port: {{ service_info.port }}
+            - Metrics Port: {{ service_info.metrics_port }}
+            - Tags: {{ service_info.tags | join(', ') }}
+            - Status: {{ 'Existing' if service_info.existing | default(false) else 'Created via Ansible' }}
+            {% if service_info.created is defined %}- Created: {{ service_info.created }}{% endif %}
+          {% endfor %}
+
+    - name: Check service directories
+      find:
+        paths: "{{ services_dir }}"
+        file_type: directory
+        depth: 1
+      register: service_directories
+
+    - name: Display directory status
+      debug:
+        msg: |
+          📁 Service Directories Status:
+          {% for dir in service_directories.files %}
+          - {{ dir.path | basename }}: {% if dir.path | basename in services %}✅ Registered{% else %}❓ Unregistered{% endif %}
+          {% endfor %}
+
+    - name: Check Docker images
+      command: >
+        docker images {{ docker_registry }}/medapp-*
+        --format "table {% raw %}{{ .Repository }}{% endraw %}\t{% raw %}{{ .Tag }}{% endraw %}\t{% raw %}{{ .Size }}{% endraw %}"
+      register: docker_images_result
+      ignore_errors: true
+      changed_when: false
+
+    - name: Display Docker images
+      debug:
+        msg: |
+          🐳 Docker Images:
+          {{ docker_images_result.stdout }}
+      when: docker_images_result.rc == 0
+
+    - name: Check Kubernetes deployments
+      command: kubectl get deployments -n medapp -o wide
+      register: k8s_deployments_result
+      failed_when: false
+      changed_when: false
+
+    - name: Display Kubernetes deployments
+      debug:
+        msg: |
+          ☸️  Kubernetes Deployments:
+          {{ k8s_deployments_result.stdout }}
+      when: k8s_deployments_result.rc == 0
+
+    - name: Check Consul services
+      uri:
+        url: "http://localhost:8500/v1/agent/services"
+        method: GET
+      register: consul_services_result
+      ignore_errors: true
+      changed_when: false
+
+    - name: Display Consul services
+      debug:
+        msg: |
+          🔍 Consul Registered Services:
+          {% if consul_services_result.json is defined %}
+          {% for service_id, service_info in consul_services_result.json.items() %}
+          - {{ service_info.Service }}: {{ service_info.Address }}:{{ service_info.Port }}
+          {% endfor %}
+          {% else %}
+          Unable to retrieve Consul services
+          {% endif %}
+      when: consul_services_result.status == 200

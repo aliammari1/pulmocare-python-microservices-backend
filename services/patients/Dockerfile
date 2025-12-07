@@ -12,6 +12,7 @@ RUN apt-get -y update && \
     pkg-config \
     gcc \
     build-essential \
+    libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python packages

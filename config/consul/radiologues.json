@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "radiologues-service",
-    "tags": ["python", "api", "metrics"],
+    "tags": [
+      "python",
+      "api",
+      "metrics"
+    ],
     "address": "radiologues-service",
     "port": 8084,
     "meta": {

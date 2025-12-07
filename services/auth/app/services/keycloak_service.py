@@ -1,21 +1,22 @@
 import os
-import requests
-from typing import Dict, Any, Optional
+from typing import Optional
 
+import requests
 from keycloak import KeycloakAdmin, KeycloakOpenID, KeycloakOpenIDConnection
+from models.auth import Role
+from services.token_provider import TokenProvider
 
 from config import Config
-from services.token_provider import TokenProvider
 
 
 class KeycloakService:
     def __init__(
-        self,
-        config=None,
-        keycloak_url=None,
-        realm=None,
-        client_id=None,
-        client_secret=None,
+            self,
+            config=None,
+            keycloak_url=None,
+            realm=None,
+            client_id=None,
+            client_secret=None,
     ):
         self.config = config or Config()
         self.keycloak_url = keycloak_url or os.getenv(
@@ -128,25 +129,21 @@ class KeycloakService:
 
             # First try to get role from realm_access in the token
             if (
-                token_info
-                and "realm_access" in token_info
-                and "roles" in token_info["realm_access"]
+                    token_info
+                    and "realm_access" in token_info
+                    and "roles" in token_info["realm_access"]
             ):
                 roles = token_info["realm_access"]["roles"]
-                # Look for role-specific roles (patient-role, doctor-role, etc.)
                 for role in roles:
-                    if role.endswith("-role") and role != "default-roles-pulmocare":
-                        user_role = role  # Keep the full role name including '-role'
-                        break
-                    elif role == "admin":
-                        user_role = "admin"
+                    if role != "default-roles-pulmocare":
+                        user_role = Role(role)
                         break
 
             # If no role found in token, try to get from user attributes
             if (
-                not user_role
-                and "attributes" in user_info
-                and "role" in user_info["attributes"]
+                    not user_role
+                    and "attributes" in user_info
+                    and "role" in user_info["attributes"]
             ):
                 role_attr = user_info["attributes"]["role"]
                 if isinstance(role_attr, list) and role_attr:
@@ -156,14 +153,14 @@ class KeycloakService:
 
             # Check for a role without the suffix and add it if needed
             if user_role and user_role not in [
-                "admin",
-                "patient-role",
-                "doctor-role",
-                "radiologist-role",
+                Role.ADMIN,
+                Role.PATIENT,
+                Role.DOCTOR,
+                Role.RADIOLOGIST,
             ]:
                 # If it's one of our standard roles but missing the suffix, add it back
                 if user_role in ["patient", "doctor", "radiologist"]:
-                    user_role = f"{user_role}-role"
+                    user_role = f"{user_role}"
 
             return {
                 "access_token": token["access_token"],
@@ -181,7 +178,7 @@ class KeycloakService:
             print(f"Login error: {str(e)}")
             raise
 
-    def register_user(self, user_data):
+    def register(self, user_data):
         """
         Register a new user in Keycloak
 
@@ -200,8 +197,8 @@ class KeycloakService:
         try:
             # Determine role name based on role type
             role = user_data.get("role", "patient").lower()
-            # Special case for admin role which doesn't have "-role" suffix in realm config
-            role_name = role if role == "admin" else f"{role}-role"
+            # Special case for admin role which doesn't have suffix in realm config
+            role_name = role if role == "admin" else f"{role}"
 
             # Log the registration attempt
             print(f"Registration attempt for user: {user_data.get('email')}")
@@ -282,6 +279,29 @@ class KeycloakService:
                     "address": user_data.get("address", ""),
                     "specialty": user_data.get("specialty", ""),
                     "role": role_name,
+                    # Include doctor/radiologist fields
+                    "bio": user_data.get("bio", ""),
+                    "license_number": user_data.get("license_number", ""),
+                    "hospital": user_data.get("hospital", ""),
+                    "education": user_data.get("education", ""),
+                    "experience": user_data.get("experience", ""),
+                    # Include new radiologist fields
+                    "signature": user_data.get("signature", ""),
+                    "is_verified": user_data.get("is_verified", "false"),
+                    "verification_details": str(
+                        user_data.get("verification_details", "")
+                    ),
+                    # Include new patient fields
+                    "date_of_birth": user_data.get("date_of_birth", ""),
+                    "blood_type": user_data.get("blood_type", ""),
+                    "social_security_number": user_data.get(
+                        "social_security_number", ""
+                    ),
+                    "medical_history": user_data.get("medical_history", []),
+                    "allergies": user_data.get("allergies", []),
+                    "height": user_data.get("height", ""),
+                    "weight": user_data.get("weight", ""),
+                    "medical_files": user_data.get("medical_files", []),
                 },
             }
 
@@ -295,15 +315,89 @@ class KeycloakService:
                 user_id=user_id, password=user_data.get("password"), temporary=False
             )
 
+            # Check if the role exists and create it if it doesn't
+            try:
+                print(f"Checking if role {role_name} exists")
+                role_exists = False
+
+                try:
+                    role_obj = self.keycloak_admin.get_realm_role(role_name)
+                    if role_obj:
+                        print(f"Role {role_name} exists")
+                        role_exists = True
+                except Exception as e:
+                    if "404" in str(e) or "not found" in str(e).lower():
+                        print(f"Role {role_name} does not exist")
+                        role_exists = False
+                    else:
+                        print(f"Error checking if role exists: {str(e)}")
+                        raise e
+
+                # Create the role if it doesn't exist
+                if not role_exists:
+                    print(f"Creating role {role_name}")
+                    self.keycloak_admin.create_realm_role(
+                        {
+                            "name": role_name,
+                            "description": f"Role for {role}s",
+                        }
+                    )
+                    print(f"Role {role_name} created successfully")
+            except Exception as e:
+                print(f"Error creating role {role_name}: {str(e)}")
+                # Continue with registration even if role creation fails
+
             # Assign role to user
             try:
-                print(f"Getting realm role: {role_name}")
-                role_obj = self.keycloak_admin.get_realm_role(role_name)
-                print(f"Assigning role {role_name} to user {user_id}")
-                self.keycloak_admin.assign_realm_roles(user_id, [role_name])
+                print(f"Assigning roleee {role_name} to user {user_id}")
+                self.keycloak_admin.assign_realm_roles(user_id, role_name)
                 print(f"Role {role_name} assigned successfully")
             except Exception as e:
                 print(f"Could not assign role {role_name}: {str(e)}")
+                # Try using direct API call if the Keycloak client method fails
+                try:
+                    print(f"Trying alternative method to assign role {role_name}")
+                    admin_token = self.get_admin_token()
+                    if admin_token:
+                        # First, get the role representation
+                        role_info_url = f"{self.keycloak_url}/admin/realms/{self.realm}/roles/{role_name}"
+                        role_info_response = requests.get(
+                            role_info_url,
+                            headers={"Authorization": f"Bearer {admin_token}"},
+                        )
+
+                        if role_info_response.status_code != 200:
+                            print(
+                                f"Error fetching role info: {role_info_response.status_code} - {role_info_response.text}"
+                            )
+                            raise Exception(f"Role not found: {role_name}")
+
+                        role_info = role_info_response.json()
+
+                        # Now assign the role using the role representation
+                        role_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users/{user_id}/role-mappings/realm"
+                        role_payload = [role_info]
+
+                        print(f"Role payload: {role_payload}")
+                        response = requests.post(
+                            role_url,
+                            json=role_payload,
+                            headers={
+                                "Authorization": f"Bearer {admin_token}",
+                                "Content-Type": "application/json",
+                            },
+                        )
+
+                        if response.status_code in [200, 201, 204]:
+                            print(f"Role {role_name} assigned using direct API call")
+                        else:
+                            print(
+                                f"Failed to assign role using direct API: HTTP {response.status_code} - {response.text}"
+                            )
+                    else:
+                        print("Could not get admin token for direct role assignment")
+                except Exception as direct_e:
+                    print(f"Direct role assignment failed: {str(direct_e)}")
 
             # Assign user to appropriate group
             try:
@@ -312,7 +406,7 @@ class KeycloakService:
                     group_name = "Administrators"
                 else:
                     group_name = (
-                        role.capitalize() + "s"
+                            role.capitalize() + "s"
                     )  # e.g., "Doctors", "Patients", "Radiologists"
 
                 print(f"Getting groups to assign user to {group_name}")
@@ -332,8 +426,22 @@ class KeycloakService:
                     print(f"User {user_id} added to group {group_name}")
                 else:
                     print(f"Warning: Group {group_name} not found")
+                    # Try to create the group if it doesn't exist
+                    try:
+                        print(f"Creating missing group: {group_name}")
+                        group_id = self.keycloak_admin.create_group(
+                            {"name": group_name}
+                        )
+                        if group_id:
+                            print(f"Group {group_name} created with ID: {group_id}")
+                            self.keycloak_admin.group_user_add(user_id, group_id)
+                            print(
+                                f"User {user_id} added to newly created group {group_name}"
+                            )
+                    except Exception as ge:
+                        print(f"Error creating group {group_name}: {str(ge)}")
             except Exception as e:
-                print(f"Could not assign user to group {group_name}: {str(e)}")
+                print(f"Could not assign user to group: {str(e)}")
 
             return user_id
         except Exception as e:
@@ -393,6 +501,103 @@ class KeycloakService:
         except Exception as e:
             print(f"Token refresh error: {str(e)}")
             raise
+
+    def logout(self, refresh_token):
+        """
+        Log out a user by invalidating their refresh token
+        """
+        try:
+            # Get the admin client config for logout
+            config = self.keycloak_admin.connection.get_config()
+            server_url = config["server_url"]
+            client_id = self.config.KEYCLOAK_CLIENT_ID
+            client_secret = self.config.KEYCLOAK_CLIENT_SECRET
+            realm_name = self.config.KEYCLOAK_REALM
+
+            # Construct the logout URL
+            logout_url = (
+                f"{server_url}/realms/{realm_name}/protocol/openid-connect/logout"
+            )
+
+            # Send the logout request
+            response = requests.post(
+                logout_url,
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                },
+            )
+
+            if response.status_code != 204:
+                print(
+                    f"Keycloak logout response: {response.status_code} {response.text}"
+                )
+
+            response.raise_for_status()
+            return True
+        except Exception as e:
+            print(f"Error during logout: {str(e)}")
+            raise
+
+    def logout_from_access_token(self, access_token):
+        """
+        Log out a user using their access token
+        """
+        try:
+            # Decode the access token to get user session information
+            payload = self.verify_token(access_token)
+            session_id = payload.get("sid")
+            user_id = payload.get("sub")
+
+            # If no session ID or user ID, we can't proceed
+            if not session_id or not user_id:
+                print("No session ID or user ID in the token, can't logout")
+                return False
+
+            # Use admin API to logout specific session for user
+            try:
+                # Try to log out all sessions for this user
+                self.keycloak_admin.logout_all_sessions(user_id)
+                print(f"Successfully logged out all sessions for user {user_id}")
+                return True
+            except Exception as e:
+                print(f"Error logging out all sessions: {e}")
+
+                # If that fails, try to log out a specific session
+                try:
+                    # Need to use a direct API call since there's no method for single session logout
+                    admin_url = self.keycloak_admin.connection.get_base_url()
+                    admin_headers = self.keycloak_admin.connection.get_headers()
+                    session_logout_url = f"{admin_url}/users/{user_id}/sessions"
+
+                    # Get all sessions for user
+                    sessions_response = requests.get(
+                        session_logout_url, headers=admin_headers
+                    )
+                    if sessions_response.status_code == 200:
+                        sessions = sessions_response.json()
+                        for session in sessions:
+                            if session.get("id") == session_id:
+                                # Logout this specific session
+                                logout_session_url = (
+                                    f"{admin_url}/sessions/{session_id}"
+                                )
+                                delete_response = requests.delete(
+                                    logout_session_url, headers=admin_headers
+                                )
+                                if delete_response.status_code in (204, 200):
+                                    print(
+                                        f"Successfully logged out session {session_id}"
+                                    )
+                                    return True
+                except Exception as inner_e:
+                    print(f"Error in specific session logout: {inner_e}")
+
+            return False
+        except Exception as e:
+            print(f"Error during logout with access token: {str(e)}")
+            return False
 
     def logout(self, refresh_token):
         """
@@ -475,6 +680,60 @@ class KeycloakService:
             if user_data.get("specialty"):
                 attributes["specialty"] = [user_data["specialty"]]
 
+            # Handle doctor fields
+            if user_data.get("bio"):
+                attributes["bio"] = [user_data["bio"]]
+            if user_data.get("license_number"):
+                attributes["license_number"] = [user_data["license_number"]]
+            if user_data.get("hospital"):
+                attributes["hospital"] = [user_data["hospital"]]
+            if user_data.get("education"):
+                attributes["education"] = [user_data["education"]]
+            if user_data.get("experience"):
+                attributes["experience"] = [user_data["experience"]]
+
+            # Handle radiologist fields
+            if "signature" in user_data:
+                attributes["signature"] = [user_data["signature"]]
+            if "is_verified" in user_data:
+                attributes["is_verified"] = [str(user_data["is_verified"]).lower()]
+            if "verification_details" in user_data:
+                attributes["verification_details"] = [
+                    str(user_data["verification_details"])
+                ]
+
+            # Handle patient specific fields
+            if "date_of_birth" in user_data:
+                attributes["date_of_birth"] = [user_data["date_of_birth"]]
+            if "blood_type" in user_data:
+                attributes["blood_type"] = [user_data["blood_type"]]
+            if "social_security_number" in user_data:
+                attributes["social_security_number"] = [
+                    user_data["social_security_number"]
+                ]
+            if "medical_history" in user_data:
+                attributes["medical_history"] = (
+                    user_data["medical_history"]
+                    if isinstance(user_data["medical_history"], list)
+                    else [user_data["medical_history"]]
+                )
+            if "allergies" in user_data:
+                attributes["allergies"] = (
+                    user_data["allergies"]
+                    if isinstance(user_data["allergies"], list)
+                    else [user_data["allergies"]]
+                )
+            if "height" in user_data:
+                attributes["height"] = [str(user_data["height"])]
+            if "weight" in user_data:
+                attributes["weight"] = [str(user_data["weight"])]
+            if "medical_files" in user_data:
+                attributes["medical_files"] = (
+                    user_data["medical_files"]
+                    if isinstance(user_data["medical_files"], list)
+                    else [user_data["medical_files"]]
+                )
+
             if attributes:
                 update_data["attributes"] = attributes
 
@@ -542,3 +801,132 @@ class KeycloakService:
         except Exception as e:
             print(f"Error getting admin token: {str(e)}")
             return None
+
+    def sync_user_roles_from_attributes(self, user_id=None):
+        """
+        Synchronize user roles based on their attributes.
+        This is useful for fixing existing users that have role attributes but not the corresponding realm role.
+
+        Args:
+            user_id (str, optional): Specific user ID to sync, or None to sync all users
+
+        Returns:
+            int: Number of users that were updated
+        """
+        try:
+            updated_users = 0
+
+            # Get users to process
+            if user_id:
+                users = [self.keycloak_admin.get_user(user_id)]
+            else:
+                users = self.keycloak_admin.get_users({})
+
+            print(f"Syncing roles for {len(users)} users")
+
+            for user in users:
+                try:
+                    user_id = user["id"]
+                    user_name = user.get("username", "unknown")
+                    attributes = user.get("attributes", {})
+
+                    if not attributes or "role" not in attributes:
+                        print(f"User {user_name} has no role attribute, skipping")
+                        continue
+
+                    # Get the role from attributes
+                    role_attr = attributes["role"]
+                    if isinstance(role_attr, list) and role_attr:
+                        role_name = role_attr[0]
+                    else:
+                        role_name = role_attr
+
+                    # Ensure it ends with unless it's admin
+                    if role_name != "admin":
+                        role_name = f"{role_name}"
+
+                    print(f"User {user_name} has role attribute: {role_name}")
+
+                    # Check if the role exists
+                    try:
+                        role_exists = True
+                        self.keycloak_admin.get_realm_role(role_name)
+                    except Exception:
+                        role_exists = False
+
+                    # Create the role if it doesn't exist
+                    if not role_exists:
+                        print(f"Creating missing role: {role_name}")
+                        self.keycloak_admin.create_realm_role(
+                            {
+                                "name": role_name,
+                                "description": f"Role for {role_name}s",
+                            }
+                        )
+
+                    # Check if the user already has this role
+                    current_roles = self.keycloak_admin.get_realm_roles_of_user(user_id)
+                    current_role_names = [r["name"] for r in current_roles]
+
+                    if role_name in current_role_names:
+                        print(f"User {user_name} already has role {role_name}")
+                        continue
+
+                    # Assign the role to the user
+                    print(f"Assigning role {role_name} to user {user_name}")
+                    try:
+                        self.keycloak_admin.assign_realm_roles(user_id, [role_name])
+                        updated_users += 1
+                        print(
+                            f"Successfully assigned role {role_name} to user {user_name}"
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error assigning role {role_name} to user {user_name}: {str(e)}"
+                        )
+                        # Try alternative method
+                        try:
+                            admin_token = self.get_admin_token()
+                            if admin_token:
+                                role_url = f"{self.keycloak_url}/admin/realms/{self.realm}/users/{user_id}/role-mappings/realm"
+                                role_payload = [
+                                    {
+                                        "name": role_name,
+                                        "clientRole": False,
+                                        "composite": False,
+                                        "containerId": self.realm,
+                                    }
+                                ]
+                                response = requests.post(
+                                    role_url,
+                                    json=role_payload,
+                                    headers={
+                                        "Authorization": f"Bearer {admin_token}",
+                                        "Content-Type": "application/json",
+                                    },
+                                )
+                                if response.status_code in [200, 201, 204]:
+                                    print(
+                                        f"Role {role_name} assigned to {user_name} using direct API call"
+                                    )
+                                    updated_users += 1
+                                else:
+                                    print(
+                                        f"Failed to assign role using direct API: HTTP {response.status_code} - {response.text}"
+                                    )
+                            else:
+                                print(
+                                    "Could not get admin token for direct role assignment"
+                                )
+                        except Exception as direct_e:
+                            print(f"Direct role assignment failed: {str(direct_e)}")
+                except Exception as user_e:
+                    print(
+                        f"Error processing user {user.get('username', 'unknown')}: {str(user_e)}"
+                    )
+                    continue
+
+            return updated_users
+        except Exception as e:
+            print(f"Error syncing user roles: {str(e)}")
+            return 0

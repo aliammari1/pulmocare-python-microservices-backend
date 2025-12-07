@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
 import httpx
 from services.logger_service import logger_service
@@ -14,11 +14,11 @@ class AppointmentService:
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
     async def get_doctor_appointments(
-        self,
-        doctor_id: str,
-        status: Optional[str] = None,
-        page: int = 1,
-        limit: int = 10,
+            self,
+            doctor_id: str,
+            status: Optional[str] = None,
+            page: int = 1,
+            limit: int = 10,
     ) -> Dict:
         """
         Get appointments for a specific doctor
@@ -51,7 +51,7 @@ class AppointmentService:
             return {"items": [], "total": 0, "page": page, "limit": limit, "pages": 0}
 
     async def get_appointment_details(
-        self, appointment_id: str, doctor_id: str
+            self, appointment_id: str, doctor_id: str
     ) -> Optional[Dict]:
         """
         Get details for a specific appointment
@@ -86,11 +86,11 @@ class AppointmentService:
             return None
 
     async def update_appointment_status(
-        self,
-        appointment_id: str,
-        doctor_id: str,
-        new_status: str,
-        reason: Optional[str] = None,
+            self,
+            appointment_id: str,
+            doctor_id: str,
+            new_status: str,
+            reason: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Update the status of an appointment (accept/reject)
@@ -126,7 +126,7 @@ class AppointmentService:
             return None
 
     async def accept_appointment(
-        self, appointment_id: str, doctor_id: str
+            self, appointment_id: str, doctor_id: str
     ) -> Optional[Dict]:
         """
         Accept an appointment
@@ -136,7 +136,7 @@ class AppointmentService:
         )
 
     async def reject_appointment(
-        self, appointment_id: str, doctor_id: str, reason: Optional[str] = None
+            self, appointment_id: str, doctor_id: str, reason: Optional[str] = None
     ) -> Optional[Dict]:
         """
         Reject an appointment
@@ -149,11 +149,11 @@ class AppointmentService:
         )
 
     async def reschedule_appointment(
-        self,
-        appointment_id: str,
-        doctor_id: str,
-        new_time: str,
-        reason: Optional[str] = None,
+            self,
+            appointment_id: str,
+            doctor_id: str,
+            new_time: str,
+            reason: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Reschedule an appointment to a new time
@@ -189,10 +189,10 @@ class AppointmentService:
             return None
 
     async def add_appointment_notes(
-        self,
-        appointment_id: str,
-        doctor_id: str,
-        notes: str,
+            self,
+            appointment_id: str,
+            doctor_id: str,
+            notes: str,
     ) -> Optional[Dict]:
         """
         Add notes to an existing appointment
@@ -225,12 +225,12 @@ class AppointmentService:
             return None
 
     async def get_patient_appointments(
-        self,
-        doctor_id: str,
-        patient_id: str,
-        status: Optional[str] = None,
-        page: int = 1,
-        limit: int = 10,
+            self,
+            doctor_id: str,
+            patient_id: str,
+            status: Optional[str] = None,
+            page: int = 1,
+            limit: int = 10,
     ) -> Dict:
         """
         Get appointments between a specific doctor and patient
@@ -263,12 +263,12 @@ class AppointmentService:
             return {"items": [], "total": 0, "page": page, "limit": limit, "pages": 0}
 
     async def create_appointment(
-        self,
-        doctor_id: str,
-        patient_id: str,
-        patient_name: str,
-        requested_time: str,
-        reason: Optional[str] = None,
+            self,
+            doctor_id: str,
+            patient_id: str,
+            patient_name: str,
+            requested_time: str,
+            reason: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Create a new appointment for a patient with this doctor
@@ -301,10 +301,10 @@ class AppointmentService:
             return None
 
     async def cancel_appointment(
-        self,
-        appointment_id: str,
-        doctor_id: str,
-        reason: Optional[str] = None,
+            self,
+            appointment_id: str,
+            doctor_id: str,
+            reason: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Cancel an existing appointment
@@ -317,10 +317,10 @@ class AppointmentService:
         )
 
     async def complete_appointment(
-        self,
-        appointment_id: str,
-        doctor_id: str,
-        notes: Optional[str] = None,
+            self,
+            appointment_id: str,
+            doctor_id: str,
+            notes: Optional[str] = None,
     ) -> Optional[Dict]:
         """
         Mark an appointment as completed

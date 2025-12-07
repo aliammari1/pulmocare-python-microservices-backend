@@ -22,15 +22,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install LuaRocks
-RUN wget https://luarocks.org/releases/luarocks-3.9.2.tar.gz \
-    && tar -xzvf luarocks-3.9.2.tar.gz \
-    && cd luarocks-3.9.2 \
+RUN wget https://luarocks.org/releases/luarocks-3.12.0.tar.gz \
+    && tar -xzvf luarocks-3.12.0.tar.gz \
+    && cd luarocks-3.12.0 \
     && ./configure --with-lua-include=/usr/include/lua5.1 \
     && make \
     && make install \
     && cd .. \
-    && rm -rf luarocks-3.9.2 \
-    && rm luarocks-3.9.2.tar.gz
+    && rm -rf luarocks-3.12.0 \
+    && rm luarocks-3.12.0.tar.gz
 
 # Install Lua packages
 RUN luarocks install lua-resty-jwt \

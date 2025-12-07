@@ -5,8 +5,7 @@ from typing import Any, Callable, Dict, Optional
 
 import pika
 from services.logger_service import logger_service
-from services.metrics import (RABBITMQ_MESSAGES_PUBLISHED,
-                              RABBITMQ_PUBLISH_LATENCY)
+from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
 
 from config import Config
 
@@ -142,7 +141,7 @@ class RabbitMQClient:
             raise
 
     def notify_prescription_created(
-        self, prescription_id: str, doctor_id: str, patient_id: str
+            self, prescription_id: str, doctor_id: str, patient_id: str
     ):
         """Notify when a new prescription has been created"""
         payload = {
@@ -168,7 +167,7 @@ class RabbitMQClient:
         )
 
     def notify_prescription_dispensed(
-        self, prescription_id: str, pharmacy_id: Optional[str] = None
+            self, prescription_id: str, pharmacy_id: Optional[str] = None
     ):
         """Notify when a prescription has been dispensed"""
         payload = {
@@ -185,7 +184,7 @@ class RabbitMQClient:
         )
 
     def notify_patient_prescription(
-        self, prescription_id: str, patient_id: str, action: str
+            self, prescription_id: str, patient_id: str, action: str
     ):
         """Send prescription notification to patient"""
         payload = {
@@ -202,7 +201,7 @@ class RabbitMQClient:
         )
 
     def notify_doctor_prescription(
-        self, prescription_id: str, doctor_id: str, action: str
+            self, prescription_id: str, doctor_id: str, action: str
     ):
         """Send prescription notification to doctor"""
         payload = {

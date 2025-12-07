@@ -1,0 +1,113 @@
+- name: Remove MedApp Microservice
+  hosts: localhost
+  gather_facts: yes
+  vars_files:
+    - vars/services.yml
+  vars:
+    service_name: "{{ service_name | mandatory }}"
+    remove_files: "{{ remove_files | default(false) }}"
+    remove_docker: "{{ remove_docker | default(false) }}"
+    remove_k8s: "{{ remove_k8s | default(true) }}"
+    remove_consul: "{{ remove_consul | default(true) }}"
+
+  tasks:
+    - name: Validate service name
+      fail:
+        msg: "Service name must be provided"
+      when: service_name is not defined or service_name == ""
+
+    - name: Check if service exists
+      stat:
+        path: "{{ services_dir }}/{{ service_name }}"
+      register: service_exists
+
+    - name: Confirm service removal
+      pause:
+        prompt: |
+          ⚠️  You are about to remove service '{{ service_name }}'
+
+          This will:
+          - Remove Kubernetes deployment: {{ remove_k8s }}
+          - Remove Consul registration: {{ remove_consul }}
+          - Remove Docker images: {{ remove_docker }}
+          - Remove service files: {{ remove_files }}
+
+          Are you sure you want to continue? (yes/no)
+      register: confirm_removal
+
+    - name: Abort if not confirmed
+      fail:
+        msg: "Service removal aborted by user"
+      when: confirm_removal.user_input | lower != 'yes'
+
+    - name: Remove Kubernetes deployment
+      command: kubectl delete -f {{ k8s_dir }}/services/{{ service_name }}-service.yaml
+      when: remove_k8s | bool
+      register: k8s_remove_result
+      ignore_errors: yes
+
+    - name: Remove Kubernetes deployment file
+      file:
+        path: "{{ k8s_dir }}/services/{{ service_name }}-service.yaml"
+        state: absent
+      when: remove_k8s | bool
+
+    - name: Deregister service from Consul
+      uri:
+        url: "http://localhost:8500/v1/agent/service/deregister/{{ service_name }}-service"
+        method: PUT
+        status_code: [200, 404]
+      when: remove_consul | bool
+      register: consul_deregister_result
+      ignore_errors: yes
+
+    - name: Remove Consul configuration
+      file:
+        path: "{{ consul_config_dir }}/{{ service_name }}.json"
+        state: absent
+      when: remove_consul | bool
+
+    - name: Remove Docker images
+      command: docker rmi {{ docker_registry }}/medapp-{{ service_name }}:{{ docker_image_tag }}
+      when: remove_docker | bool
+      register: docker_remove_result
+      ignore_errors: yes
+
+    - name: Remove Docker latest image
+      command: docker rmi {{ docker_registry }}/medapp-{{ service_name }}:latest
+      when: remove_docker | bool
+      ignore_errors: yes
+
+    - name: Remove service directory
+      file:
+        path: "{{ services_dir }}/{{ service_name }}"
+        state: absent
+      when: remove_files | bool and service_exists.stat.exists
+
+    - name: Remove service from registry
+      lineinfile:
+        path: "{{ playbook_dir }}/vars/services.yml"
+        regexp: "^  {{ service_name }}:"
+        state: absent
+      when: service_name in services
+
+    - name: Remove service configuration block from registry
+      blockinfile:
+        path: "{{ playbook_dir }}/vars/services.yml"
+        marker: "# {mark} {{ service_name }} service block"
+        block: ""
+        state: absent
+      ignore_errors: yes
+
+    - name: Display removal summary
+      debug:
+        msg: |
+          🗑️  Service '{{ service_name }}' removal completed!
+
+          📊 Removal Status:
+          - Kubernetes: {{ '✅ Removed' if remove_k8s and k8s_remove_result.rc == 0 else '⏭️ Skipped' }}
+          - Consul: {{ '✅ Removed' if remove_consul and consul_deregister_result.status == 200 else '⏭️ Skipped' }}
+          - Docker Images: {{ '✅ Removed' if remove_docker and docker_remove_result.rc == 0 else '⏭️ Skipped' }}
+          - Service Files: {{ '✅ Removed' if remove_files and service_exists.stat.exists else '⏭️ Skipped' }}
+
+          ⚠️  Note: Make sure to clean up any remaining resources manually if needed.

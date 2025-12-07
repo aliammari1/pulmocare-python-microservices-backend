@@ -1,0 +1,26 @@
+format: json
+output: /tmp/trivy-results.json
+severity:
+  - UNKNOWN
+  - LOW
+  - MEDIUM
+  - HIGH
+  - CRITICAL
+vulnerability:
+  type:
+    - os
+    - library
+  scanners:
+    - vuln
+    - secret
+ignore-unfixed: false
+skip-dirs:
+  - /var/lib/apt/lists
+  - /tmp
+  - /var/cache
+skip-files:
+  - "*.md"
+  - "*.txt"
+  - "*.log"
+ignore-policies:
+  - /etc/trivy/ignore.yaml

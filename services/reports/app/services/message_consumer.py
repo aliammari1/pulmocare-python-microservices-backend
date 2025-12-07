@@ -15,7 +15,7 @@ class MessageConsumer:
     """Consumer for processing messages from RabbitMQ queues"""
 
     def __init__(
-        self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient
+            self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient
     ):
         """Initialize the message consumer with dependencies"""
         self.config = config
@@ -285,7 +285,7 @@ class MessageConsumer:
             )
 
     def _process_notification(
-        self, report_id: str, event: str, message: Dict[str, Any]
+            self, report_id: str, event: str, message: Dict[str, Any]
     ):
         """Process a report notification"""
         try:

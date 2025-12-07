@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "keycloak-db",
-    "tags": ["database", "postgres", "keycloak"],
+    "tags": [
+      "database",
+      "postgres",
+      "keycloak"
+    ],
     "address": "keycloak-db",
     "port": 5432,
     "check": {

@@ -1,0 +1,118 @@
+- name: Build and Deploy MedApp Microservice
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../vars/services.yml
+  vars:
+    service_name: "{{ service_name | mandatory }}"
+    build_image: "{{ build_image | default(true) }}"
+    push_image: "{{ push_image | default(false) }}"
+    deploy_k8s: "{{ deploy_k8s | default(true) }}"
+    register_consul: "{{ register_consul | default(true) }}"
+
+  tasks:
+    - name: Validate service exists
+      stat:
+        path: "{{ services_dir }}/{{ service_name }}"
+      register: service_exists
+
+    - name: Fail if service doesn't exist
+      fail:
+        msg: "Service {{ service_name }} does not exist. Create it first with create-microservice.yml"
+      when: not service_exists.stat.exists
+
+    - name: Build Docker image
+      command:
+        - docker
+        - build
+        - -t
+        - "{{ docker_registry }}/medapp-{{ service_name }}:{{ docker_image_tag }}"
+        - -t
+        - "{{ docker_registry }}/medapp-{{ service_name }}:latest"
+        - "{{ services_dir }}/{{ service_name }}"
+      when: build_image | bool
+      register: docker_build_result
+
+    - name: Display build result
+      debug:
+        msg: "Docker build completed for {{ service_name }}"
+      when: build_image | bool and docker_build_result.rc == 0
+
+    - name: Push Docker image to registry
+      command: docker push {{ docker_registry }}/medapp-{{ service_name }}:{{ docker_image_tag }}
+      when: push_image | bool
+      register: docker_push_result
+
+    - name: Push latest Docker image to registry
+      command: docker push {{ docker_registry }}/medapp-{{ service_name }}:latest
+      when: push_image | bool
+
+    - name: Display push result
+      debug:
+        msg: "Docker image pushed for {{ service_name }}"
+      when: push_image | bool and docker_push_result.rc == 0
+
+    - name: Apply Kubernetes deployment
+      command: kubectl apply -f {{ k8s_dir }}/services/{{ service_name }}-service.yaml
+      when: deploy_k8s | bool
+      register: k8s_deploy_result
+
+    - name: Wait for deployment to be ready
+      command:
+        - kubectl
+        - wait
+        - --for=condition=available
+        - --timeout=300s
+        - deployment/{{ service_name }}-service
+        - -n
+        - medapp
+      when: deploy_k8s | bool and k8s_deploy_result.rc == 0
+
+    - name: Display deployment result
+      debug:
+        msg: "Kubernetes deployment completed for {{ service_name }}-service"
+      when: deploy_k8s | bool and k8s_deploy_result.rc == 0
+
+    - name: Register service with Consul
+      uri:
+        url: "http://localhost:8500/v1/agent/service/register"
+        method: POST
+        body_format: json
+        body: "{{ lookup('file', consul_config_dir + '/' + service_name + '.json') | from_json }}"
+        status_code: 200
+      when: register_consul | bool
+      register: consul_register_result
+
+    - name: Display Consul registration result
+      debug:
+        msg: "Service {{ service_name }} registered with Consul"
+      when: register_consul | bool and consul_register_result.status == 200
+
+    - name: Run service health check
+      uri:
+        url: "http://localhost:{{ services[service_name].port }}/api/v1/health"
+        method: GET
+        status_code: 200
+      retries: 5
+      delay: 10
+      when: deploy_k8s | bool
+      register: health_check_result
+      ignore_errors: true
+
+    - name: Display health check result
+      debug:
+        msg: |
+          🎉 Service '{{ service_name }}' successfully deployed!
+
+          📊 Status:
+          - Docker Build: {{ '✅' if build_image and docker_build_result.rc == 0 else '⏭️' }}
+          - Docker Push: {{ '✅' if push_image and docker_push_result.rc == 0 else '⏭️' }}
+          - Kubernetes Deploy: {{ '✅' if deploy_k8s and k8s_deploy_result.rc == 0 else '⏭️' }}
+          - Consul Register: {{ '✅' if register_consul and consul_register_result.status == 200 else '⏭️' }}
+          - Health Check: {{ '✅' if health_check_result.status == 200 else '❌' }}
+
+          🔗 Service URLs:
+          - Service: http://localhost:{{ services[service_name].port }}
+          - Health: http://localhost:{{ services[service_name].port }}/api/v1/health
+          - Docs: http://localhost:{{ services[service_name].port }}/docs
+          - Metrics: http://localhost:{{ services[service_name].metrics_port }}/metrics

@@ -74,7 +74,9 @@ class Conversation:
                 else:
                     ret += role
         elif self.sep_style == SeparatorStyle.LLAMA_2:
-            wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n" if len(msg) > 0 else msg
+            wrap_sys = lambda msg: (
+                f"<<SYS>>\n{msg}\n<</SYS>>\n\n" if len(msg) > 0 else msg
+            )
             wrap_inst = lambda msg: f"[INST] {msg} [/INST]"
             ret = ""
 
@@ -156,7 +158,7 @@ class Conversation:
 
     def get_images(self, return_pil=False):
         images = []
-        for i, (role, msg) in enumerate(self.messages[self.offset :]):
+        for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
                 if type(msg) is tuple:
                     import base64
@@ -171,11 +173,15 @@ class Conversation:
                             if width == height:
                                 return pil_img
                             elif width > height:
-                                result = Image.new(pil_img.mode, (width, width), background_color)
+                                result = Image.new(
+                                    pil_img.mode, (width, width), background_color
+                                )
                                 result.paste(pil_img, (0, (width - height) // 2))
                                 return result
                             else:
-                                result = Image.new(pil_img.mode, (height, height), background_color)
+                                result = Image.new(
+                                    pil_img.mode, (height, height), background_color
+                                )
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
 
@@ -185,7 +191,9 @@ class Conversation:
                     elif image_process_mode == "Resize":
                         image = image.resize((336, 336))
                     else:
-                        raise ValueError(f"Invalid image_process_mode: {image_process_mode}")
+                        raise ValueError(
+                            f"Invalid image_process_mode: {image_process_mode}"
+                        )
                     max_hw, min_hw = max(image.size), min(image.size)
                     aspect_ratio = max_hw / min_hw
                     max_len, min_len = 800, 400
@@ -209,7 +217,7 @@ class Conversation:
 
     def to_gradio_chatbot(self):
         ret = []
-        for i, (role, msg) in enumerate(self.messages[self.offset :]):
+        for i, (role, msg) in enumerate(self.messages[self.offset:]):
             if i % 2 == 0:
                 if type(msg) is tuple:
                     import base64
@@ -230,9 +238,7 @@ class Conversation:
                     buffered = BytesIO()
                     image.save(buffered, format="JPEG")
                     img_b64_str = base64.b64encode(buffered.getvalue()).decode()
-                    img_str = (
-                        f'<img src="data:image/png;base64,{img_b64_str}" alt="user upload image" />'
-                    )
+                    img_str = f'<img src="data:image/png;base64,{img_b64_str}" alt="user upload image" />'
                     msg = img_str + msg.replace("<image>", "").strip()
                     ret.append([msg, None])
                 else:
@@ -258,7 +264,9 @@ class Conversation:
             return {
                 "system": self.system,
                 "roles": self.roles,
-                "messages": [[x, y[0] if type(y) is tuple else y] for x, y in self.messages],
+                "messages": [
+                    [x, y[0] if type(y) is tuple else y] for x, y in self.messages
+                ],
                 "offset": self.offset,
                 "sep": self.sep,
                 "sep2": self.sep2,
@@ -275,7 +283,7 @@ class Conversation:
 
 conv_vicuna_v0 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("Human", "Assistant"),
     messages=(
         (
@@ -311,7 +319,7 @@ conv_vicuna_v0 = Conversation(
 
 conv_vicuna_v1 = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the user's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the user's questions.",
     roles=("USER", "ASSISTANT"),
     version="v1",
     messages=(),
@@ -336,8 +344,8 @@ If a question does not make any sense, or is not factually coherent, explain why
 
 conv_llava_llama_2 = Conversation(
     system="You are a helpful language and vision assistant. "
-    "You are able to understand the visual content that the user provides, "
-    "and assist the user with a variety of tasks using natural language.",
+           "You are able to understand the visual content that the user provides, "
+           "and assist the user with a variety of tasks using natural language.",
     roles=("USER", "ASSISTANT"),
     version="llama_v2",
     messages=(),
@@ -369,7 +377,7 @@ conv_llava_plain = Conversation(
 
 conv_llava_v0 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("Human", "Assistant"),
     messages=(),
     offset=0,
@@ -379,8 +387,8 @@ conv_llava_v0 = Conversation(
 
 conv_llava_v0_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
-    "The visual content will be provided with the following format: <Image>visual content</Image>.",
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
     roles=("Human", "Assistant"),
     messages=(),
     offset=0,
@@ -391,7 +399,7 @@ conv_llava_v0_mmtag = Conversation(
 
 conv_llava_v1 = Conversation(
     system="A chat between a curious human and an artificial intelligence assistant. "
-    "The assistant gives helpful, detailed, and polite answers to the human's questions.",
+           "The assistant gives helpful, detailed, and polite answers to the human's questions.",
     roles=("USER", "ASSISTANT"),
     version="v1",
     messages=(),
@@ -403,8 +411,8 @@ conv_llava_v1 = Conversation(
 
 conv_llava_v1_mmtag = Conversation(
     system="A chat between a curious user and an artificial intelligence assistant. "
-    "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
-    "The visual content will be provided with the following format: <Image>visual content</Image>.",
+           "The assistant is able to understand the visual content that the user provides, and assist the user with a variety of tasks using natural language."
+           "The visual content will be provided with the following format: <Image>visual content</Image>.",
     roles=("USER", "ASSISTANT"),
     messages=(),
     offset=0,
@@ -442,7 +450,6 @@ conv_templates = {
     "llava_llama_2": conv_llava_llama_2,
     "mpt": conv_mpt,
 }
-
 
 if __name__ == "__main__":
     print(default_conversation.get_prompt())

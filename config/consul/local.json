@@ -1,1 +1,5 @@
-{"leave_on_terminate": true, "skip_leave_on_interrupt": true, "rejoin_after_leave": true}
+{
+  "leave_on_terminate": true,
+  "skip_leave_on_interrupt": true,
+  "rejoin_after_leave": true
+}

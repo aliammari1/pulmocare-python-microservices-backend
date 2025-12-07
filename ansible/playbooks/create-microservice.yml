@@ -1,0 +1,150 @@
+- name: Create New MedApp Microservice
+  hosts: localhost
+  gather_facts: true
+  vars_files:
+    - ../vars/services.yml
+  vars:
+    service_name: "{{ service_name | mandatory }}"
+    service_description: "{{ service_description | default('MedApp ' + service_name.title() + ' Service') }}"
+    service_port: "{{ service_port | default(8000 + (services | length)) }}"
+    metrics_port: "{{ metrics_port | default(9000 + (services | length)) }}"
+    service_tags: "{{ service_tags | default(['api', service_name]) }}"
+
+  tasks:
+    - name: Validate service name
+      fail:
+        msg: "Service name must be provided and contain only lowercase letters, numbers, and hyphens"
+      when: >
+        service_name is not defined or
+        service_name | length == 0 or
+        service_name | regex_search('[^a-z0-9-]')
+
+    - name: Check if service already exists
+      stat:
+        path: "{{ services_dir }}/{{ service_name }}"
+      register: service_exists
+
+    - name: Fail if service already exists
+      fail:
+        msg: "Service {{ service_name }} already exists"
+      when: service_exists.stat.exists
+
+    - name: Create service directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ services_dir }}/{{ service_name }}"
+        - "{{ services_dir }}/{{ service_name }}/app"
+        - "{{ services_dir }}/{{ service_name }}/app/models"
+        - "{{ services_dir }}/{{ service_name }}/app/routes"
+        - "{{ services_dir }}/{{ service_name }}/app/services"
+        - "{{ services_dir }}/{{ service_name }}/app/middleware"
+        - "{{ services_dir }}/{{ service_name }}/app/logs"
+        - "{{ services_dir }}/{{ service_name }}/tests"
+
+    - name: Generate FastAPI application files
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ services_dir }}/{{ service_name }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - src: "templates/fastapi/app.py.j2"
+          dest: "app/app.py"
+        - src: "templates/fastapi/config.py.j2"
+          dest: "app/config.py"
+        - src: "templates/fastapi/__init__.py.j2"
+          dest: "app/__init__.py"
+        - src: "templates/fastapi/models/__init__.py.j2"
+          dest: "app/models/__init__.py"
+        - src: "templates/fastapi/models/base.py.j2"
+          dest: "app/models/base.py"
+        - src: "templates/fastapi/routes/__init__.py.j2"
+          dest: "app/routes/__init__.py"
+        - src: "templates/fastapi/routes/health.py.j2"
+          dest: "app/routes/health.py"
+        - src: "templates/fastapi/routes/main.py.j2"
+          dest: "app/routes/main.py"
+        - src: "templates/fastapi/services/__init__.py.j2"
+          dest: "app/services/__init__.py"
+        - src: "templates/fastapi/middleware/__init__.py.j2"
+          dest: "app/middleware/__init__.py"
+        - src: "templates/fastapi/middleware/logging.py.j2"
+          dest: "app/middleware/logging.py"
+        - src: "templates/fastapi/middleware/tracing.py.j2"
+          dest: "app/middleware/tracing.py"
+        - src: "templates/fastapi/requirements.txt.j2"
+          dest: "requirements.txt"
+        - src: "templates/fastapi/.env.development.j2"
+          dest: "app/.env.development"
+        - src: "templates/fastapi/.env.production.j2"
+          dest: "app/.env.production"
+
+    - name: Generate Docker files
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ services_dir }}/{{ service_name }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - src: "docker/Dockerfile.j2"
+          dest: "Dockerfile"
+        - src: "docker/.dockerignore.j2"
+          dest: ".dockerignore"
+
+    - name: Generate Kubernetes deployment
+      template:
+        src: kubernetes/service-deployment.yaml.j2
+        dest: "{{ k8s_dir }}/services/{{ service_name }}-service.yaml"
+        mode: "0644"
+
+    - name: Generate Consul service configuration
+      template:
+        src: consul/service.json.j2
+        dest: "{{ consul_config_dir }}/{{ service_name }}.json"
+        mode: "0644"
+
+    - name: Generate test files
+      template:
+        src: "{{ item.src }}"
+        dest: "{{ services_dir }}/{{ service_name }}/{{ item.dest }}"
+        mode: "0644"
+      loop:
+        - src: "templates/fastapi/tests/__init__.py.j2"
+          dest: "tests/__init__.py"
+        - src: "templates/fastapi/tests/test_main.py.j2"
+          dest: "tests/test_main.py"
+        - src: "templates/fastapi/tests/conftest.py.j2"
+          dest: "tests/conftest.py"
+
+    - name: Update services registry
+      lineinfile:
+        path: "{{ playbook_dir }}/vars/services.yml"
+        line: |
+          {{ service_name }}:
+            name: "{{ service_name }}"
+            description: "{{ service_description }}"
+            port: {{ service_port }}
+            metrics_port: {{ metrics_port }}
+            tags: {{ service_tags | to_json }}
+            created: "{{ ansible_date_time.iso8601 }}"
+        create: true
+        insertafter: "services:"
+        mode: "0644"
+      when: not service_exists.stat.exists
+
+    - name: Display service creation summary
+      debug:
+        msg: |
+          ✅ Service '{{ service_name }}' created successfully!
+
+          📁 Service Location: {{ services_dir }}/{{ service_name }}
+          🐳 Docker: docker build -t {{ docker_registry }}/medapp-{{ service_name }}:{{ docker_image_tag }} {{ services_dir }}/{{ service_name }}
+          ☸️  Kubernetes: kubectl apply -f {{ k8s_dir }}/services/{{ service_name }}-service.yaml
+          🔍 Consul: Service registered at {{ consul_config_dir }}/{{ service_name }}.json
+
+          🚀 Next Steps:
+          1. Customize the service logic in {{ services_dir }}/{{ service_name }}/app/
+          2. Build and test the Docker image
+          3. Deploy to Kubernetes cluster
+          4. Register with Consul service discovery

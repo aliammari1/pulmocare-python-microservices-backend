@@ -4,25 +4,29 @@ from datetime import datetime
 from typing import Dict, Optional
 
 import uvicorn
-from auth.keycloak_auth import get_current_doctor
 from bson import ObjectId
-from decorator.health_check import health_check_middleware
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from models.api_models import ErrorResponse, MessageResponse
-from models.ordonnance import (Ordonnance, OrdonnanceCreate, OrdonnanceInDB,
-                               OrdonnanceList, OrdonnanceUpdate)
 from pymongo import DESCENDING
-from routes.integration_routes import router as integration_router
+
+from config import Config
+from decorator.health_check import health_check_middleware
+from models.api_models import ErrorResponse, MessageResponse
+from models.ordonnance import (
+    Ordonnance,
+    OrdonnanceCreate,
+    OrdonnanceInDB,
+    OrdonnanceList,
+    OrdonnanceUpdate,
+)
+from routes.integration_routes import get_current_doctor, router as integration_router
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 from services.redis_client import RedisClient
 from services.tracing_service import TracingService
-
-from config import Config
 
 # Determine environment and load corresponding .env file
 env = os.getenv("ENV", "development")
@@ -56,7 +60,6 @@ redis_client = RedisClient(Config)
 mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
 
-
 # MongoDB collections
 ordonnances_collection = mongodb_client.db.ordonnances
 
@@ -68,7 +71,7 @@ ordonnances_collection = mongodb_client.db.ordonnances
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def create_ordonnance(
-    ordonnance_data: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
+        ordonnance_data: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
 ):
     try:
         doctor_id = user_info.get("user_id")
@@ -110,10 +113,10 @@ async def create_ordonnance(
     responses={500: {"model": ErrorResponse}},
 )
 async def get_ordonnances(
-    patient_id: Optional[str] = None,
-    doctor_id: Optional[str] = None,
-    limit: int = 100,
-    skip: int = 0,
+        patient_id: Optional[str] = None,
+        doctor_id: Optional[str] = None,
+        limit: int = 100,
+        skip: int = 0,
 ):
     try:
         # Build query based on parameters
@@ -190,9 +193,9 @@ async def get_ordonnance(ordonnance_id: str):
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def update_ordonnance(
-    ordonnance_id: str,
-    update_data: OrdonnanceUpdate,
-    user_info: Dict = Depends(get_current_doctor),
+        ordonnance_id: str,
+        update_data: OrdonnanceUpdate,
+        user_info: Dict = Depends(get_current_doctor),
 ):
     try:
         # Validate ID format
@@ -249,7 +252,7 @@ async def update_ordonnance(
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def delete_ordonnance(
-    ordonnance_id: str, user_info: Dict = Depends(get_current_doctor)
+        ordonnance_id: str, user_info: Dict = Depends(get_current_doctor)
 ):
     try:
         # Validate ID format
@@ -426,7 +429,7 @@ if __name__ == "__main__":
     # Start the consumer in a separate thread
     consumer_thread = threading.Thread(target=consumer_main, daemon=True)
     consumer_thread.start()
-    
+
     # Run the FastAPI app with uvicorn in the main thread
     uvicorn.run(
         "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"

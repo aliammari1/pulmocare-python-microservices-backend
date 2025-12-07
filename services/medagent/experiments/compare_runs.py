@@ -1,9 +1,9 @@
-import json
 import argparse
+import json
 import random
-from typing import List, Dict, Any, Tuple
 import re
 from collections import defaultdict
+from typing import List, Dict, Any, Tuple
 
 # Define category order
 CATEGORY_ORDER = [
@@ -77,12 +77,15 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
             if data.get("model") == "llava-med-v1.5-mistral-7b":
                 model_name = data["model"]
                 for result in data.get("results", []):
-                    if all(k in result for k in ["case_id", "question_id", "correct_answer"]):
+                    if all(
+                            k in result
+                            for k in ["case_id", "question_id", "correct_answer"]
+                    ):
                         # Extract answer with priority: model_answer > validated_answer > raw_output
                         model_answer = (
-                            result.get("model_answer")
-                            or result.get("validated_answer")
-                            or result.get("raw_output", "")
+                                result.get("model_answer")
+                                or result.get("validated_answer")
+                                or result.get("raw_output", "")
                         )
 
                         # Add default categories for LLaVA results
@@ -122,7 +125,13 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
                 if "model" in data:
                     model_name = data["model"]
                 if all(
-                    k in data for k in ["model_answer", "correct_answer", "case_id", "question_id"]
+                        k in data
+                        for k in [
+                            "model_answer",
+                            "correct_answer",
+                            "case_id",
+                            "question_id",
+                        ]
                 ):
                     valid_predictions.append(data)
             except json.JSONDecodeError:
@@ -132,7 +141,7 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
 
 
 def filter_common_questions(
-    predictions_list: List[List[Dict[str, Any]]]
+        predictions_list: List[List[Dict[str, Any]]],
 ) -> List[List[Dict[str, Any]]]:
     """Ensure only questions that exist across all models are evaluated.
 
@@ -143,7 +152,8 @@ def filter_common_questions(
         List[List[Dict[str, Any]]]: Filtered predictions containing only common questions
     """
     question_sets = [
-        set((p["case_id"], p["question_id"]) for p in preds) for preds in predictions_list
+        set((p["case_id"], p["question_id"]) for p in preds)
+        for preds in predictions_list
     ]
     common_questions = set.intersection(*question_sets)
 
@@ -154,7 +164,7 @@ def filter_common_questions(
 
 
 def calculate_accuracy(
-    predictions: List[Dict[str, Any]]
+        predictions: List[Dict[str, Any]],
 ) -> Tuple[float, int, int, Dict[str, Dict[str, float]]]:
     """Compute overall and category-level accuracy.
 
@@ -216,14 +226,21 @@ def calculate_accuracy(
 
     category_accuracies = {
         category: {
-            "accuracy": (stats["correct"] / stats["total"]) * 100 if stats["total"] > 0 else 0,
+            "accuracy": (
+                (stats["correct"] / stats["total"]) * 100 if stats["total"] > 0 else 0
+            ),
             "total": stats["total"],
             "correct": stats["correct"],
         }
         for category, stats in category_performance.items()
     }
 
-    return (correct / total * 100 if total > 0 else 0.0, correct, total, category_accuracies)
+    return (
+        correct / total * 100 if total > 0 else 0.0,
+        correct,
+        total,
+        category_accuracies,
+    )
 
 
 def compare_models(file_paths: List[str]) -> None:
@@ -269,8 +286,12 @@ def compare_models(file_paths: List[str]) -> None:
     for category in CATEGORY_ORDER:
         print(f"\n{category.capitalize()}:")
         for model_name, category_acc in zip(model_names, filtered_category_results):
-            stats = category_acc.get(category, {"accuracy": 0, "total": 0, "correct": 0})
-            print(f"  {model_name}: {stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})")
+            stats = category_acc.get(
+                category, {"accuracy": 0, "total": 0, "correct": 0}
+            )
+            print(
+                f"  {model_name}: {stats['accuracy']:.2f}% ({stats['correct']}/{stats['total']})"
+            )
 
 
 def main():

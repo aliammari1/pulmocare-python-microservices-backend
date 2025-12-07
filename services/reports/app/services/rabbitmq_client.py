@@ -4,8 +4,7 @@ from datetime import datetime
 
 import pika
 from services.logger_service import logger_service
-from services.metrics import (RABBITMQ_MESSAGES_PUBLISHED,
-                              RABBITMQ_PUBLISH_LATENCY)
+from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
 
 
 class RabbitMQClient:

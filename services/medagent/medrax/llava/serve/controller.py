@@ -2,23 +2,22 @@
 A controller manages distributed workers.
 It sends worker addresses to clients.
 """
+
 import argparse
 import dataclasses
-from enum import Enum, auto
 import json
-import time
-from typing import List
 import threading
+import time
+from enum import Enum, auto
+from typing import List
 
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
 import numpy as np
 import requests
 import uvicorn
-
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse
 from medrax.llava.constants import CONTROLLER_HEART_BEAT_EXPIRATION
 from medrax.llava.utils import build_logger, server_error_msg
-
 
 logger = build_logger("controller", "controller.log")
 
@@ -58,12 +57,16 @@ class Controller:
         self.worker_info = {}
         self.dispatch_method = DispatchMethod.from_str(dispatch_method)
 
-        self.heart_beat_thread = threading.Thread(target=heart_beat_controller, args=(self,))
+        self.heart_beat_thread = threading.Thread(
+            target=heart_beat_controller, args=(self,)
+        )
         self.heart_beat_thread.start()
 
         logger.info("Init controller")
 
-    def register_worker(self, worker_name: str, check_heart_beat: bool, worker_status: dict):
+    def register_worker(
+            self, worker_name: str, check_heart_beat: bool, worker_status: dict
+    ):
         if worker_name not in self.worker_info:
             logger.info(f"Register a new worker: {worker_name}")
         else:
@@ -163,7 +166,9 @@ class Controller:
             min_index = np.argmin(worker_qlen)
             w_name = worker_names[min_index]
             self.worker_info[w_name].queue_length += 1
-            logger.info(f"names: {worker_names}, queue_lens: {worker_qlen}, ret: {w_name}")
+            logger.info(
+                f"names: {worker_names}, queue_lens: {worker_qlen}, ret: {w_name}"
+            )
             return w_name
         else:
             raise ValueError(f"Invalid dispatch method: {self.dispatch_method}")
@@ -200,7 +205,10 @@ class Controller:
 
         try:
             response = requests.post(
-                worker_addr + "/worker_generate_stream", json=params, stream=True, timeout=5
+                worker_addr + "/worker_generate_stream",
+                json=params,
+                stream=True,
+                timeout=5,
             )
             for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
                 if chunk:

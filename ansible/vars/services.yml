@@ -1,0 +1,80 @@
+# Services Registry for MedApp
+# This file tracks all created microservices and their configurations
+
+services:
+  # Existing services (documented for reference)
+  auth:
+    name: "auth"
+    description: "Authentication and Authorization Service"
+    port: 8086
+    metrics_port: 9096
+    tags: ["api", "authentication", "keycloak"]
+    existing: true
+
+  medecins:
+    name: "medecins"
+    description: "Doctors Management Service"
+    port: 8081
+    metrics_port: 9091
+    tags: ["api", "doctors", "management"]
+    existing: true
+
+  patients:
+    name: "patients"
+    description: "Patients Management Service"
+    port: 8082
+    metrics_port: 9092
+    tags: ["api", "patients", "management"]
+    existing: true
+
+  appointments:
+    name: "appointments"
+    description: "Appointments Management Service"
+    port: 8083
+    metrics_port: 9093
+    tags: ["api", "appointments", "scheduling"]
+    existing: true
+
+  ordonnances:
+    name: "ordonnances"
+    description: "Prescriptions Management Service"
+    port: 8084
+    metrics_port: 9094
+    tags: ["api", "prescriptions", "pharmacy"]
+    existing: true
+
+  radiologues:
+    name: "radiologues"
+    description: "Radiology Services Management"
+    port: 8085
+    metrics_port: 9095
+    tags: ["api", "radiology", "imaging"]
+    existing: true
+
+  reports:
+    name: "reports"
+    description: "Medical Reports Service"
+    port: 8087
+    metrics_port: 9097
+    tags: ["api", "reports", "analytics"]
+    existing: true
+
+  medfiles:
+    name: "medfiles"
+    description: "Medical Files Management Service"
+    port: 8088
+    metrics_port: 9098
+    tags: ["api", "files", "documents"]
+    existing: true
+
+  medagent:
+    name: "medagent"
+    description: "AI Medical Agent Service"
+    port: 8089
+    metrics_port: 9099
+    tags: ["api", "ai", "assistant"]
+    existing: true
+
+# Port allocation tracker
+next_available_port: 8090
+next_available_metrics_port: 9100

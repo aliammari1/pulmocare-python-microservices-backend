@@ -1,0 +1,55 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Container Registry Dashboard",
+    "tags": ["registry", "docker"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Registry Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "up{job=\"registry\"}",
+            "legendFormat": "Registry Status"
+          }
+        ]
+      },
+      {
+        "title": "Total Repositories",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "registry_repositories_total",
+            "legendFormat": "Repositories"
+          }
+        ]
+      },
+      {
+        "title": "Storage Usage",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "registry_storage_usage_bytes",
+            "legendFormat": "Storage Usage"
+          }
+        ]
+      },
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(registry_http_requests_total[5m])",
+            "legendFormat": "{{method}} {{code}}"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "30s"
+  }
+}

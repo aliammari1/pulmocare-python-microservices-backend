@@ -1,14 +1,14 @@
-import re
-import json
-import os
 import glob
-import time
+import json
 import logging
+import os
+import re
+import time
 from datetime import datetime
+
 import torch
-from PIL import Image
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from tqdm import tqdm
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 # Configure model settings
 MODEL_NAME = "StanfordAIMI/CheXagent-2-3b"
@@ -39,12 +39,12 @@ def initialize_model() -> tuple[AutoModelForCausalLM, AutoTokenizer]:
 
 
 def create_inference_request(
-    question_data: dict,
-    case_details: dict,
-    case_id: str,
-    question_id: str,
-    model: AutoModelForCausalLM,
-    tokenizer: AutoTokenizer,
+        question_data: dict,
+        case_details: dict,
+        case_id: str,
+        question_id: str,
+        model: AutoModelForCausalLM,
+        tokenizer: AutoTokenizer,
 ) -> str | None:
     """Create and execute an inference request for the CheXagent model.
 
@@ -100,7 +100,8 @@ Base your answer only on the provided images and case information."""
         required_figures = []
 
     required_figures = [
-        fig if fig.startswith("Figure ") else f"Figure {fig}" for fig in required_figures
+        fig if fig.startswith("Figure ") else f"Figure {fig}"
+        for fig in required_figures
     ]
 
     # Get image paths
@@ -122,7 +123,7 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                    or subfig.get("label", "").lower() == figure_letter.lower()
+                       or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
@@ -142,7 +143,10 @@ Base your answer only on the provided images and case information."""
         query = tokenizer.from_list_format(
             [*[{"image": path} for path in image_paths], {"text": prompt}]
         )
-        conv = [{"from": "system", "value": system_prompt}, {"from": "human", "value": query}]
+        conv = [
+            {"from": "system", "value": system_prompt},
+            {"from": "human", "value": query},
+        ]
         input_ids = tokenizer.apply_chat_template(
             conv, add_generation_prompt=True, return_tensors="pt"
         )
@@ -159,7 +163,7 @@ Base your answer only on the provided images and case information."""
                 max_new_tokens=512,
             )[0]
 
-        response = tokenizer.decode(output[input_ids.size(1) : -1])
+        response = tokenizer.decode(output[input_ids.size(1): -1])
         duration = time.time() - start_time
 
         # Clean response
@@ -287,7 +291,7 @@ def main():
 
         cases_processed += 1
         for question_file in tqdm(
-            question_files, desc=f"Processing questions for case {case_id}", leave=False
+                question_files, desc=f"Processing questions for case {case_id}", leave=False
         ):
             with open(question_file, "r") as file:
                 question_data = json.load(file)

@@ -1,10 +1,11 @@
 import argparse
-import torch
-import os
 import json
-from tqdm import tqdm
-import shortuuid
+import math
+import os
 
+import shortuuid
+import torch
+from PIL import Image
 from medrax.llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
@@ -12,17 +13,15 @@ from medrax.llava.constants import (
     DEFAULT_IM_END_TOKEN,
 )
 from medrax.llava.conversation import conv_templates, SeparatorStyle
-from medrax.llava.model.builder import load_pretrained_model
-from medrax.llava.utils import disable_torch_init
 from medrax.llava.mm_utils import (
     tokenizer_image_token,
     get_model_name_from_path,
     KeywordsStoppingCriteria,
     process_images,
 )
-
-from PIL import Image
-import math
+from medrax.llava.model.builder import load_pretrained_model
+from medrax.llava.utils import disable_torch_init
+from tqdm import tqdm
 from transformers import set_seed, logging
 
 logging.set_verbosity_error()
@@ -31,7 +30,7 @@ logging.set_verbosity_error()
 def split_list(lst, n):
     """Split a list into n (roughly) equal-sized chunks"""
     chunk_size = math.ceil(len(lst) / n)  # integer division
-    return [lst[i : i + chunk_size] for i in range(0, len(lst), chunk_size)]
+    return [lst[i: i + chunk_size] for i in range(0, len(lst), chunk_size)]
 
 
 def get_chunk(lst, n, k):
@@ -49,7 +48,9 @@ def eval_model(args):
         model_path, args.model_base, model_name
     )
 
-    questions = [json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")]
+    questions = [
+        json.loads(q) for q in open(os.path.expanduser(args.question_file), "r")
+    ]
     questions = get_chunk(questions, args.num_chunks, args.chunk_idx)
     answers_file = os.path.expanduser(args.answers_file)
     os.makedirs(os.path.dirname(answers_file), exist_ok=True)
@@ -60,7 +61,13 @@ def eval_model(args):
         qs = line["text"].replace(DEFAULT_IMAGE_TOKEN, "").strip()
         cur_prompt = qs
         if model.config.mm_use_im_start_end:
-            qs = DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN + "\n" + qs
+            qs = (
+                    DEFAULT_IM_START_TOKEN
+                    + DEFAULT_IMAGE_TOKEN
+                    + DEFAULT_IM_END_TOKEN
+                    + "\n"
+                    + qs
+            )
         else:
             qs = DEFAULT_IMAGE_TOKEN + "\n" + qs
 
@@ -70,7 +77,9 @@ def eval_model(args):
         prompt = conv.get_prompt()
 
         input_ids = (
-            tokenizer_image_token(prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+            tokenizer_image_token(
+                prompt, tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+            )
             .unsqueeze(0)
             .cuda()
         )
@@ -95,7 +104,9 @@ def eval_model(args):
                 use_cache=True,
             )
 
-        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+        outputs = tokenizer.batch_decode(output_ids, skip_special_tokens=True)[
+            0
+        ].strip()
 
         ans_id = shortuuid.uuid()
         ans_file.write(

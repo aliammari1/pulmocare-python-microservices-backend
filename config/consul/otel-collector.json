@@ -1,7 +1,11 @@
 {
   "service": {
     "name": "otel-collector",
-    "tags": ["observability", "telemetry", "monitoring"],
+    "tags": [
+      "observability",
+      "telemetry",
+      "monitoring"
+    ],
     "address": "otel-collector",
     "port": 4317,
     "meta": {

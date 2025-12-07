@@ -1,15 +1,15 @@
-from typing import Dict, List, Optional, Tuple, Type, Any
 from pathlib import Path
-from pydantic import BaseModel, Field
+from typing import Dict, List, Optional, Tuple, Type, Any
 
 import torch
 import transformers
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from pydantic import BaseModel, Field
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class XRayVQAToolInput(BaseModel):
@@ -18,7 +18,9 @@ class XRayVQAToolInput(BaseModel):
     image_paths: List[str] = Field(
         ..., description="List of paths to chest X-ray images to analyze"
     )
-    prompt: str = Field(..., description="Question or instruction about the chest X-ray images")
+    prompt: str = Field(
+        ..., description="Question or instruction about the chest X-ray images"
+    )
     max_new_tokens: int = Field(
         512, description="Maximum number of tokens to generate in the response"
     )
@@ -44,12 +46,12 @@ class XRayVQATool(BaseTool):
     model: Optional[AutoModelForCausalLM] = None
 
     def __init__(
-        self,
-        model_name: str = "StanfordAIMI/CheXagent-2-3b",
-        device: Optional[str] = "cuda",
-        dtype: torch.dtype = torch.bfloat16,
-        cache_dir: Optional[str] = None,
-        **kwargs: Any,
+            self,
+            model_name: str = "StanfordAIMI/CheXagent-2-3b",
+            device: Optional[str] = "cuda",
+            dtype: torch.dtype = torch.bfloat16,
+            cache_dir: Optional[str] = None,
+            **kwargs: Any,
     ) -> None:
         """Initialize the XRayVQATool.
 
@@ -68,7 +70,7 @@ class XRayVQATool(BaseTool):
         original_transformers_version = transformers.__version__
         transformers.__version__ = "4.40.0"
 
-        self.device =  "cuda" if device and torch.cuda.is_available() else "cpu"
+        self.device = "cuda" if device and torch.cuda.is_available() else "cpu"
         self.dtype = dtype
         self.cache_dir = cache_dir
 
@@ -89,7 +91,9 @@ class XRayVQATool(BaseTool):
 
         transformers.__version__ = original_transformers_version
 
-    def _generate_response(self, image_paths: List[str], prompt: str, max_new_tokens: int) -> str:
+    def _generate_response(
+            self, image_paths: List[str], prompt: str, max_new_tokens: int
+    ) -> str:
         """Generate response using CheXagent model.
 
         Args:
@@ -121,16 +125,16 @@ class XRayVQATool(BaseTool):
                 use_cache=True,
                 max_new_tokens=max_new_tokens,
             )[0]
-            response = self.tokenizer.decode(output[input_ids.size(1) : -1])
+            response = self.tokenizer.decode(output[input_ids.size(1): -1])
 
             return response
 
     def _run(
-        self,
-        image_paths: List[str],
-        prompt: str,
-        max_new_tokens: int = 512,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            image_paths: List[str],
+            prompt: str,
+            max_new_tokens: int = 512,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Execute the chest X-ray analysis.
 
@@ -176,11 +180,11 @@ class XRayVQATool(BaseTool):
             return output, metadata
 
     async def _arun(
-        self,
-        image_paths: List[str],
-        prompt: str,
-        max_new_tokens: int = 512,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            image_paths: List[str],
+            prompt: str,
+            max_new_tokens: int = 512,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[Dict[str, Any], Dict]:
         """Async version of _run."""
         return self._run(image_paths, prompt, max_new_tokens)

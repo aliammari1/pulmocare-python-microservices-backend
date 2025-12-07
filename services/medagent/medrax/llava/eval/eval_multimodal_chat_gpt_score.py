@@ -1,18 +1,19 @@
-import os
-import json
 import argparse
+import json
+import os
 from copy import deepcopy
 from pathlib import Path
+
 from tqdm import tqdm
 
 import llm
 import util
 
-
 INSTRUCT_PROMPT = """We would like to request your feedback on the performance of two AI assistants in response to the user question displayed above. The user asks the question on observing an image. For your reference, the visual content in the image is represented with caption describing the same image.
   Please rate the helpfulness, relevance, accuracy, level of details of their responses. Each assistant receives an overall score on a scale of 1 to 10, where a higher score indicates better overall performance.
   Please first output a single line containing only two values indicating the scores for Assistant 1 and 2, respectively. The two scores are separated by a space. In the subsequent line, please provide a comprehensive explanation of your evaluation, avoiding any potential bias and ensuring that the order in which the responses were presented does not affect your judgment."""
 ROLE = "Assistant"
+
 
 # Generate instruction for GPT-4 to score the two answers.
 def conv_to_str(fig_label, fig_caption, fig_context, question, ans1, ans2):
@@ -37,7 +38,9 @@ def compare_messages_gen(fig_label, fig_caption, fig_context, question, ans1, an
     messages.append(
         {
             "role": "user",
-            "content": conv_to_str(fig_label, fig_caption, fig_context, question, ans1, ans2),
+            "content": conv_to_str(
+                fig_label, fig_caption, fig_context, question, ans1, ans2
+            ),
         }
     )
     return messages
@@ -137,7 +140,10 @@ if __name__ == "__main__":
         help="path to multichat questions file",
     )
     parser.add_argument(
-        "--scores-file", default="", metavar="FILE", help="path to save gpt-4 score file"
+        "--scores-file",
+        default="",
+        metavar="FILE",
+        help="path to save gpt-4 score file",
     )
     args = parser.parse_args()
     main(args)

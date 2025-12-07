@@ -1,25 +1,24 @@
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
-from medrax.llava.model import LlavaMistralForCausalLM
 from medrax.llava.constants import (
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
 )
+from medrax.llava.model import LlavaMistralForCausalLM
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 
 def load_pretrained_model(
-    model_path,
-    model_base,
-    model_name,
-    load_in_8bit=False,
-    load_in_4bit=True,
-    device="cuda",
-    cache_dir: str = "./model-weights",
-    low_cpu_mem_usage=True,
-    torch_dtype=torch.bfloat16,
+        model_path,
+        model_base,
+        model_name,
+        load_in_8bit=False,
+        load_in_4bit=True,
+        device="cuda",
+        cache_dir: str = "./model-weights",
+        low_cpu_mem_usage=True,
+        torch_dtype=torch.bfloat16,
 ):
-
     kwargs = {}
 
     if device != "cuda":

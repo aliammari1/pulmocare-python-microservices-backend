@@ -1,13 +1,18 @@
+import uuid
+from datetime import datetime
 from typing import Dict, Optional
 
-from auth.keycloak_auth import get_current_user
-from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from models.api_models import *
 from models.api_models import ErrorResponse, MessageResponse, RadiologyRequestModel
+from routes.doctor_routes import (
+    get_doctor_from_auth_service,
+    get_current_user,
+    get_doctor_by_id,
+)
 from services.appointment_service import AppointmentService
 from services.logger_service import logger_service
-from services.mongodb_client import MongoDBClient
 from services.prescription_service import PrescriptionService
 from services.rabbitmq_client import RabbitMQClient
 from services.radiology_service import RadiologyService
@@ -15,13 +20,10 @@ from services.radiology_service import RadiologyService
 from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
+security = HTTPBearer()
 
 # Initialize services
-mongodb_client = MongoDBClient(Config)
 rabbitmq_client = RabbitMQClient(Config)
-
-# MongoDB collections
-doctors_collection = mongodb_client.db.doctors
 
 
 @router.post(
@@ -30,18 +32,23 @@ doctors_collection = mongodb_client.db.doctors
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def request_radiology_examination(
-    request: RadiologyRequestModel, user_info: Dict = Depends(get_current_user)
+        request: RadiologyRequestModel, user_info: Dict = Depends(get_current_user)
 ):
     """Request a radiology examination for a patient"""
     try:
         doctor_id = user_info.get("user_id")
-        doctor = doctors_collection.find_one({"_id": ObjectId(doctor_id)})
 
-        if not doctor:
+        # Use auth service to get doctor information
+        credentials = HTTPAuthorizationCredentials(
+            credentials=user_info.get("token", "")
+        )
+        doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
+
+        if not doctor_info:
             raise HTTPException(status_code=404, detail="Doctor not found")
 
         # Generate a unique request ID
-        request_id = f"rad-req-{ObjectId()}"
+        request_id = f"rad-req-{uuid.uuid4()}"
 
         # Send the request to the radiology service via RabbitMQ
         result = rabbitmq_client.request_radiology_examination(
@@ -75,54 +82,55 @@ async def request_radiology_examination(
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def get_patient_history(
-    patient_id: str, user_info: Dict = Depends(get_current_user)
+        patient_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """Get a patient's medical history (prescriptions, radiology reports, etc.)"""
     try:
         doctor_id = user_info.get("user_id")
 
-        # Verify doctor exists
-        doctor = doctors_collection.find_one({"_id": ObjectId(doctor_id)})
-        if not doctor:
+        # Verify doctor exists in auth service
+        credentials = HTTPAuthorizationCredentials(
+            credentials=user_info.get("token", "")
+        )
+        doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
+        if not doctor_info:
             raise HTTPException(status_code=404, detail="Doctor not found")
 
-        # Get prescriptions for this patient from local database
-        prescriptions = list(
-            mongodb_client.db.prescriptions.find(
-                {"patient_id": patient_id, "doctor_id": doctor_id}
-            )
+        # Get prescriptions from prescription service
+        prescription_service = PrescriptionService()
+        prescriptions = await prescription_service.get_prescriptions_for_patient(
+            patient_id=patient_id, doctor_id=doctor_id
         )
 
         # Format the prescriptions
         formatted_prescriptions = []
-        for prescription in prescriptions:
+        for prescription in prescriptions.get("items", []):
             formatted_prescriptions.append(
                 {
-                    "id": str(prescription["_id"]),
+                    "id": prescription.get("id"),
                     "created_at": prescription.get("created_at"),
                     "status": prescription.get("status"),
                     "medications": prescription.get("medications", []),
                 }
             )
 
-        # Get radiology reports for this patient
-        radiology_reports = list(
-            mongodb_client.db.radiology_requests.find(
-                {"patient_id": patient_id, "doctor_id": doctor_id}
-            )
+        # Get radiology reports from radiology service
+        radiology_service = RadiologyService()
+        radiology_reports = await radiology_service.get_doctor_radiology_reports(
+            doctor_id=doctor_id, patient_id=patient_id
         )
 
         # Format the radiology reports
         formatted_reports = []
-        for report in radiology_reports:
+        for report in radiology_reports.get("items", []):
             formatted_reports.append(
                 {
-                    "id": str(report["_id"]),
-                    "request_id": report.get("request_id"),
+                    "id": report.get("id"),
+                    "request_id": report.get("request_id", ""),
                     "exam_type": report.get("exam_type"),
                     "status": report.get("status"),
-                    "requested_at": report.get("timestamp"),
-                    "completed_at": report.get("completed_at"),
+                    "requested_at": report.get("created_at"),
+                    "completed_at": report.get("updated_at"),
                 }
             )
 
@@ -137,6 +145,11 @@ async def get_patient_history(
     except Exception as e:
         logger_service.error(f"Error retrieving patient history: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        if prescription_service:
+            prescription_service.close()
+        if radiology_service:
+            radiology_service.close()
 
 
 @router.post(
@@ -145,28 +158,38 @@ async def get_patient_history(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def notify_patient(
-    patient_id: str,
-    message: str,
-    update_type: str = "general_update",
-    user_info: Dict = Depends(get_current_user),
+        patient_id: str,
+        message: str,
+        update_type: str = "general_update",
+        user_info: Dict = Depends(get_current_user),
 ):
     """Send a notification to a patient"""
     try:
         doctor_id = user_info.get("user_id")
 
-        # Verify doctor exists
-        doctor = doctors_collection.find_one({"_id": ObjectId(doctor_id)})
-        if not doctor:
+        # Verify doctor exists in auth service
+        credentials = HTTPAuthorizationCredentials(
+            credentials=user_info.get("token", "")
+        )
+        doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
+        if not doctor_info:
             raise HTTPException(status_code=404, detail="Doctor not found")
+
+        # Get doctor's name from auth service
+        doctor_name = f"{doctor_info.get('firstName', '')} {doctor_info.get('lastName', '')}".strip()
+        if not doctor_name:
+            doctor_name = "Unknown Doctor"
+
+        timestamp = datetime.now().isoformat()
 
         # Send notification via RabbitMQ
         data = {
             "message": message,
             "from_doctor": {
                 "id": doctor_id,
-                "name": doctor.get("name", "Unknown Doctor"),
+                "name": doctor_name,
             },
-            "timestamp": str(ObjectId().generation_time),
+            "timestamp": timestamp,
         }
 
         result = rabbitmq_client.notify_patient_medical_update(
@@ -191,10 +214,10 @@ async def notify_patient(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_prescriptions(
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    user_info: Dict = Depends(get_current_user),
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get prescriptions for the current doctor
@@ -225,7 +248,7 @@ async def get_doctor_prescriptions(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_prescription_details(
-    prescription_id: str, user_info: Dict = Depends(get_current_user)
+        prescription_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Get details for a specific prescription
@@ -263,7 +286,7 @@ async def get_prescription_details(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def renew_prescription(
-    prescription_id: str, user_info: Dict = Depends(get_current_user)
+        prescription_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Renew an existing prescription
@@ -302,9 +325,9 @@ async def renew_prescription(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def cancel_prescription(
-    prescription_id: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        prescription_id: str,
+        reason: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Cancel an existing prescription
@@ -343,11 +366,11 @@ async def cancel_prescription(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_appointments(
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    doctor_id: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        doctor_id: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get appointments for the current doctor
@@ -379,7 +402,7 @@ async def get_doctor_appointments(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_appointment_details(
-    appointment_id: str, user_info: Dict = Depends(get_current_user)
+        appointment_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Get details for a specific appointment
@@ -417,7 +440,7 @@ async def get_appointment_details(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def accept_appointment(
-    appointment_id: str, user_info: Dict = Depends(get_current_user)
+        appointment_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Accept an appointment request
@@ -456,9 +479,9 @@ async def accept_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def reject_appointment(
-    appointment_id: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        appointment_id: str,
+        reason: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Reject an appointment request
@@ -500,11 +523,11 @@ async def reject_appointment(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_radiology_reports(
-    patient_id: Optional[str] = None,
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    user_info: Dict = Depends(get_current_user),
+        patient_id: Optional[str] = None,
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get radiology reports related to the current doctor
@@ -539,7 +562,7 @@ async def get_doctor_radiology_reports(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_radiology_report_details(
-    report_id: str, user_info: Dict = Depends(get_current_user)
+        report_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Get details for a specific radiology report
@@ -578,11 +601,11 @@ async def get_radiology_report_details(
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def request_radiology_examination(
-    patient_id: str,
-    exam_type: str,
-    reason: Optional[str] = None,
-    urgency: str = "normal",
-    user_info: Dict = Depends(get_current_user),
+        patient_id: str,
+        exam_type: str,
+        reason: Optional[str] = None,
+        urgency: str = "normal",
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Request a radiology examination for a patient
@@ -630,10 +653,10 @@ async def request_radiology_examination(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_radiology_reports(
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    user_info: Dict = Depends(get_current_user),
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get radiology reports for the current doctor
@@ -667,7 +690,7 @@ async def get_doctor_radiology_reports(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_radiology_report_details(
-    report_id: str, user_info: Dict = Depends(get_current_user)
+        report_id: str, user_info: Dict = Depends(get_current_user)
 ):
     """
     Get details for a specific radiology report
@@ -691,9 +714,9 @@ async def get_radiology_report_details(
 
         # Check if this report belongs to the current doctor
         if (
-            "doctor_id" in report
-            and report["doctor_id"]
-            and report["doctor_id"] != doctor_id
+                "doctor_id" in report
+                and report["doctor_id"]
+                and report["doctor_id"] != doctor_id
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -720,7 +743,7 @@ async def get_radiology_report_details(
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def request_radiology_examination(
-    request: RadiologyExaminationRequest, user_info: Dict = Depends(get_current_user)
+        request: RadiologyExaminationRequest, user_info: Dict = Depends(get_current_user)
 ):
     """
     Request a radiology examination for a patient
@@ -767,9 +790,9 @@ async def request_radiology_examination(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def cancel_appointment(
-    appointment_id: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        appointment_id: str,
+        reason: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Cancel an existing appointment
@@ -811,10 +834,10 @@ async def cancel_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def reschedule_appointment(
-    appointment_id: str,
-    new_time: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        appointment_id: str,
+        new_time: str,
+        reason: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Reschedule an appointment to a new time
@@ -859,9 +882,9 @@ async def reschedule_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def add_appointment_notes(
-    appointment_id: str,
-    notes: str,
-    user_info: Dict = Depends(get_current_user),
+        appointment_id: str,
+        notes: str,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Add notes to an existing appointment
@@ -903,9 +926,9 @@ async def add_appointment_notes(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def complete_appointment(
-    appointment_id: str,
-    notes: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        appointment_id: str,
+        notes: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Mark an appointment as completed
@@ -947,11 +970,11 @@ async def complete_appointment(
     responses={500: {"model": MessageResponse}},
 )
 async def get_patient_appointments(
-    patient_id: str,
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    user_info: Dict = Depends(get_current_user),
+        patient_id: str,
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get appointments between the current doctor and a specific patient
@@ -989,11 +1012,11 @@ async def get_patient_appointments(
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def create_appointment(
-    patient_id: str,
-    patient_name: str,
-    requested_time: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_user),
+        patient_id: str,
+        patient_name: str,
+        requested_time: str,
+        reason: Optional[str] = None,
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Create a new appointment for a patient with this doctor
@@ -1040,82 +1063,44 @@ async def create_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_doctor_appointments_direct(
-    doctor_id: str,
-    status: Optional[str] = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    user_info: Dict = Depends(get_current_user),
+        doctor_id: str,
+        status: Optional[str] = None,
+        page: int = Query(1, ge=1),
+        limit: int = Query(10, ge=1, le=100),
+        user_info: Dict = Depends(get_current_user),
 ):
     """
     Get appointments for a specific doctor (direct API endpoint for service-to-service calls)
     """
     try:
         # Verify the requesting user is authorized (either the doctor themselves or an admin)
-        # print()
-        # if user_info.get("user_id") != doctor_id and "admin" not in user_info.get(
-        #     "roles", []
-        # ):
-        #     raise HTTPException(
-        #         status_code=status.HTTP_403_FORBIDDEN,
-        #         detail="You don't have permission to view these appointments",
-        #     )
+        if user_info.get("user_id") != doctor_id and "admin" not in user_info.get(
+                "roles", []
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view these appointments",
+            )
 
-        # Verify doctor exists
-        doctor = doctors_collection.find_one({"_id": ObjectId(doctor_id)})
-        if not doctor:
+        # Verify doctor exists in auth service
+        credentials = HTTPAuthorizationCredentials(
+            credentials=user_info.get("token", "")
+        )
+        doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
+        if not doctor_info:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found"
             )
 
-        # Query parameters
-        skip = (page - 1) * limit
-        query = {"doctor_id": doctor_id}
+        # Create appointment service
+        appointment_service = AppointmentService()
 
-        if status:
-            query["status"] = status
-
-        # Get appointments from the database
-        appointments_cursor = (
-            mongodb_client.db.appointment_requests.find(query)
-            .sort("requested_time", -1)
-            .skip(skip)
-            .limit(limit)
+        # Get appointments from the appointment service
+        appointments = await appointment_service.get_doctor_appointments(
+            doctor_id=doctor_id, status=status, page=page, limit=limit
         )
 
-        appointments = list(appointments_cursor)
-
-        # Count total for pagination
-        total_appointments = mongodb_client.db.appointment_requests.count_documents(
-            query
-        )
-        total_pages = (total_appointments + limit - 1) // limit  # ceiling division
-
-        # Format the response
-        formatted_appointments = []
-        for appointment in appointments:
-            formatted_appointments.append(
-                {
-                    "id": appointment.get(
-                        "appointment_id", str(appointment.get("_id", ""))
-                    ),
-                    "doctor_id": appointment.get("doctor_id"),
-                    "patient_id": appointment.get("patient_id"),
-                    "patient_name": appointment.get("patient_name", "Unknown Patient"),
-                    "requested_time": appointment.get("requested_time"),
-                    "status": appointment.get("status"),
-                    "reason": appointment.get("reason"),
-                    "notes": appointment.get("notes"),
-                    "created_at": appointment.get("created_at"),
-                    "updated_at": appointment.get("updated_at"),
-                }
-            )
-
-        return {
-            "items": formatted_appointments,
-            "total": total_appointments,
-            "page": page,
-            "pages": total_pages,
-        }
+        return appointments
     except HTTPException:
         raise
     except Exception as e:
@@ -1124,3 +1109,6 @@ async def get_doctor_appointments_direct(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving appointments: {str(e)}",
         )
+    finally:
+        if appointment_service:
+            appointment_service.close()

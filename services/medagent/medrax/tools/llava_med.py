@@ -1,32 +1,30 @@
 from typing import Any, Dict, Optional, Tuple, Type
-from pydantic import BaseModel, Field
 
 import torch
-
+from PIL import Image
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
-
-from PIL import Image
-
-
-from medrax.llava.conversation import conv_templates
-from medrax.llava.model.builder import load_pretrained_model
-from medrax.llava.mm_utils import tokenizer_image_token, process_images
 from medrax.llava.constants import (
     IMAGE_TOKEN_INDEX,
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
 )
+from medrax.llava.conversation import conv_templates
+from medrax.llava.mm_utils import tokenizer_image_token, process_images
+from medrax.llava.model.builder import load_pretrained_model
+from pydantic import BaseModel, Field
 
 
 class LlavaMedInput(BaseModel):
     """Input for the LLaVA-Med Visual QA tool. Only supports JPG or PNG images."""
 
-    question: str = Field(..., description="The question to ask about the medical image")
+    question: str = Field(
+        ..., description="The question to ask about the medical image"
+    )
     image_path: Optional[str] = Field(
         None,
         description="Path to the medical image file (optional), only supports JPG or PNG images",
@@ -54,41 +52,43 @@ class LlavaMedTool(BaseTool):
     context_len: int = 200000
 
     def __init__(
-        self,
-        model_path: str = "microsoft/llava-med-v1.5-mistral-7b",
-        cache_dir: str = "./model-weights",
-        low_cpu_mem_usage: bool = True,
-        torch_dtype: torch.dtype = torch.bfloat16,
-        device: str = "cuda",
-        load_in_4bit: bool = False,
-        load_in_8bit: bool = False,
-        **kwargs,
+            self,
+            model_path: str = "microsoft/llava-med-v1.5-mistral-7b",
+            cache_dir: str = "./model-weights",
+            low_cpu_mem_usage: bool = True,
+            torch_dtype: torch.dtype = torch.bfloat16,
+            device: str = "cuda",
+            load_in_4bit: bool = False,
+            load_in_8bit: bool = False,
+            **kwargs,
     ):
         super().__init__()
-        self.tokenizer, self.model, self.image_processor, self.context_len = load_pretrained_model(
-            model_path=model_path,
-            model_base=None,
-            model_name=model_path,
-            load_in_4bit=load_in_4bit,
-            load_in_8bit=load_in_8bit,
-            cache_dir=cache_dir,
-            low_cpu_mem_usage=low_cpu_mem_usage,
-            torch_dtype=torch_dtype,
-            device=device,
-            **kwargs,
+        self.tokenizer, self.model, self.image_processor, self.context_len = (
+            load_pretrained_model(
+                model_path=model_path,
+                model_base=None,
+                model_name=model_path,
+                load_in_4bit=load_in_4bit,
+                load_in_8bit=load_in_8bit,
+                cache_dir=cache_dir,
+                low_cpu_mem_usage=low_cpu_mem_usage,
+                torch_dtype=torch_dtype,
+                device=device,
+                **kwargs,
+            )
         )
         self.model.eval()
 
     def _process_input(
-        self, question: str, image_path: Optional[str] = None
+            self, question: str, image_path: Optional[str] = None
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         if self.model.config.mm_use_im_start_end:
             question = (
-                DEFAULT_IM_START_TOKEN
-                + DEFAULT_IMAGE_TOKEN
-                + DEFAULT_IM_END_TOKEN
-                + "\n"
-                + question
+                    DEFAULT_IM_START_TOKEN
+                    + DEFAULT_IMAGE_TOKEN
+                    + DEFAULT_IM_END_TOKEN
+                    + "\n"
+                    + question
             )
         else:
             question = DEFAULT_IMAGE_TOKEN + "\n" + question
@@ -99,7 +99,9 @@ class LlavaMedTool(BaseTool):
         prompt = conv.get_prompt()
 
         input_ids = (
-            tokenizer_image_token(prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt")
+            tokenizer_image_token(
+                prompt, self.tokenizer, IMAGE_TOKEN_INDEX, return_tensors="pt"
+            )
             .unsqueeze(0)
             .cuda()
         )
@@ -107,16 +109,18 @@ class LlavaMedTool(BaseTool):
         image_tensor = None
         if image_path:
             image = Image.open(image_path)
-            image_tensor = process_images([image], self.image_processor, self.model.config)[0]
+            image_tensor = process_images(
+                [image], self.image_processor, self.model.config
+            )[0]
             image_tensor = image_tensor.unsqueeze(0).half().cuda()
 
         return input_ids, image_tensor
 
     def _run(
-        self,
-        question: str,
-        image_path: Optional[str] = None,
-        run_manager: Optional[CallbackManagerForToolRun] = None,
+            self,
+            question: str,
+            image_path: Optional[str] = None,
+            run_manager: Optional[CallbackManagerForToolRun] = None,
     ) -> Tuple[str, Dict]:
         """Answer a medical question, optionally based on an input image.
 
@@ -134,7 +138,9 @@ class LlavaMedTool(BaseTool):
         try:
             input_ids, image_tensor = self._process_input(question, image_path)
             input_ids = input_ids.to(device=self.model.device)
-            image_tensor = image_tensor.to(device=self.model.device, dtype=self.model.dtype)
+            image_tensor = image_tensor.to(
+                device=self.model.device, dtype=self.model.dtype
+            )
 
             with torch.inference_mode():
                 output_ids = self.model.generate(
@@ -146,7 +152,9 @@ class LlavaMedTool(BaseTool):
                     use_cache=True,
                 )
 
-            output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[0].strip()
+            output = self.tokenizer.batch_decode(output_ids, skip_special_tokens=True)[
+                0
+            ].strip()
             metadata = {
                 "question": question,
                 "image_path": image_path,
@@ -161,10 +169,10 @@ class LlavaMedTool(BaseTool):
             }
 
     async def _arun(
-        self,
-        question: str,
-        image_path: Optional[str] = None,
-        run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
+            self,
+            question: str,
+            image_path: Optional[str] = None,
+            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
     ) -> Tuple[str, Dict]:
         """Asynchronously answer a medical question, optionally based on an input image.
 

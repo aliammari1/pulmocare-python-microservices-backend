@@ -1,12 +1,11 @@
 import os
 import warnings
-from typing import *
+
 from dotenv import load_dotenv
+from langchain_openai import AzureChatOpenAI
+from langgraph.checkpoint.memory import MemorySaver
 from openai import azure_endpoint
 from transformers import logging
-
-from langgraph.checkpoint.memory import MemorySaver
-from langchain_openai import AzureChatOpenAI
 
 from interface import create_demo
 from medrax.agent import *
@@ -19,15 +18,15 @@ _ = load_dotenv()
 
 
 def initialize_agent(
-    prompt_file,
-    tools_to_use=None,
-    model_dir="./model-weights",
-    temp_dir="temp",
-    device="cuda",
-    model="chatgpt-4o-latest",
-    temperature=0.7,
-    top_p=0.95,
-    openai_kwargs={}
+        prompt_file,
+        tools_to_use=None,
+        model_dir="./model-weights",
+        temp_dir="temp",
+        device="cuda",
+        model="chatgpt-4o-latest",
+        temperature=0.7,
+        top_p=0.95,
+        openai_kwargs={},
 ):
     """Initialize the MedRAX agent with specified tools and configuration.
 
@@ -51,7 +50,9 @@ def initialize_agent(
     all_tools = {
         "ChestXRayClassifierTool": lambda: ChestXRayClassifierTool(device=device),
         "ChestXRaySegmentationTool": lambda: ChestXRaySegmentationTool(device=device),
-        "LlavaMedTool": lambda: LlavaMedTool(cache_dir=model_dir, device=device, load_in_8bit=True),
+        "LlavaMedTool": lambda: LlavaMedTool(
+            cache_dir=model_dir, device=device, load_in_8bit=True
+        ),
         "XRayVQATool": lambda: XRayVQATool(cache_dir=model_dir, device=device),
         "ChestXRayReportGeneratorTool": lambda: ChestXRayReportGeneratorTool(
             cache_dir=model_dir, device=device
@@ -82,7 +83,7 @@ def initialize_agent(
         model=model,
         temperature=temperature,
         top_p=top_p,
-        **openai_kwargs
+        **openai_kwargs,
     )
     agent = Agent(
         model,
@@ -112,9 +113,9 @@ if __name__ == "__main__":
         "ChestXRayClassifierTool",
         "ChestXRaySegmentationTool",
         "ChestXRayReportGeneratorTool",
-        "XRayVQATool",
-        "LlavaMedTool",
-        "XRayPhraseGroundingTool",
+        # "XRayVQATool",
+        # "LlavaMedTool",
+        # "XRayPhraseGroundingTool",
         # "ChestXRayGeneratorTool",
     ]
 
@@ -135,7 +136,7 @@ if __name__ == "__main__":
         model="gpt-4o",  # Change this to the model you want to use, e.g. gpt-4o-mini
         temperature=0.7,
         top_p=0.95,
-        openai_kwargs=openai_kwargs
+        openai_kwargs=openai_kwargs,
     )
     demo = create_demo(agent, tools_dict)
 

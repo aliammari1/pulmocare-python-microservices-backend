@@ -1,0 +1,529 @@
+#!/bin/bash
+
+# Registry Management CLI
+# Unified command-line interface for all registry operations
+
+set -e
+
+# Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REGISTRY_URL="${REGISTRY_URL:-registry.medapp.local:5000}"
+PROJECT_NAME="${PROJECT_NAME:-medapp}"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m' # No Color
+
+print_status() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+print_header() {
+    echo -e "${BLUE}[REGISTRY-CLI]${NC} $1"
+}
+
+print_command() {
+    echo -e "${CYAN}$1${NC}"
+}
+
+# Function to display banner
+show_banner() {
+    echo -e "${BLUE}"
+    cat << "EOF"
+ ____            _     _              ____ _     ___ 
+|  _ \ ___  __ _(_)___| |_ _ __ _   _ / ___| |   |_ _|
+| |_) / _ \/ _` | / __| __| '__| | | | |   | |    | | 
+|  _ <  __/ (_| | \__ \ |_| |  | |_| | |___| |___ | | 
+|_| \_\___|\__, |_|___/\__|_|   \__, |\____|_____|___|
+           |___/                |___/                 
+EOF
+    echo -e "${NC}"
+    echo "MedApp Container Registry Management CLI"
+    echo "========================================="
+    echo
+}
+
+# Function to display help
+show_help() {
+    cat << EOF
+Usage: registry-cli <command> [options]
+
+SETUP COMMANDS:
+  setup local              - Setup local development registry
+  setup harbor             - Setup Harbor enterprise registry
+  setup acr                - Setup Azure Container Registry
+  setup test               - Test registry connectivity
+
+BUILD COMMANDS:
+  build [services...]      - Build and push images with auto-tagging
+  build-all               - Build all services
+  ci-build [services...]   - Build with CI/CD integration
+
+TAG MANAGEMENT:
+  tag list <service>       - List all tags for a service
+  tag promote <service> <src> <dst> - Promote tag between environments
+  tag cleanup <service> [count] - Clean up old tags
+  tag retag <service> <old> <new> - Retag an image
+  tag stats <service>      - Show tag statistics
+  tag validate <tag>       - Validate tag naming convention
+
+HEALTH & MONITORING:
+  health check            - Run complete health check
+  health monitor [interval] - Start continuous monitoring
+  health connectivity     - Check registry connectivity
+  health performance      - Check registry performance
+  health scan <image>     - Scan image for vulnerabilities
+
+DEPLOYMENT:
+  deploy local-stack      - Deploy local registry stack
+  deploy k8s              - Deploy registry to Kubernetes
+  deploy update           - Update registry deployment
+
+MAINTENANCE:
+  maintenance cleanup     - Clean up old images and artifacts
+  maintenance backup      - Backup registry data
+  maintenance restore     - Restore registry data
+  maintenance logs        - Show registry logs
+
+CONFIGURATION:
+  config show             - Show current configuration
+  config set <key> <value> - Set configuration value
+  config validate         - Validate configuration
+
+EXAMPLES:
+  registry-cli setup local                    # Setup local registry
+  registry-cli build auth medecins           # Build specific services
+  registry-cli tag promote auth dev staging  # Promote tag
+  registry-cli health check                  # Run health check
+  registry-cli deploy local-stack            # Deploy registry stack
+
+ENVIRONMENT VARIABLES:
+  REGISTRY_TYPE           - Registry type (local, harbor, acr, etc.)
+  REGISTRY_URL            - Registry URL
+  PROJECT_NAME            - Project name
+  ENVIRONMENT             - Environment (dev, staging, prod)
+
+For detailed help on a specific command:
+  registry-cli help <command>
+EOF
+}
+
+# Function to show detailed command help
+show_command_help() {
+    local command=$1
+    
+    case "$command" in
+        "setup")
+            cat << EOF
+SETUP COMMANDS:
+
+registry-cli setup local
+  - Sets up a secure local Docker registry with TLS and authentication
+  - Creates Kubernetes deployment with persistent storage
+  - Generates SSL certificates and authentication credentials
+
+registry-cli setup harbor
+  - Deploys Harbor enterprise registry with full features
+  - Includes vulnerability scanning, RBAC, and image signing
+  - Sets up PostgreSQL database and Redis cache
+
+registry-cli setup acr
+  - Creates Azure Container Registry in specified resource group
+  - Configures authentication and access policies
+  - Creates Kubernetes secrets for image pulling
+
+registry-cli setup test
+  - Tests connectivity to configured registry
+  - Validates authentication credentials
+  - Performs basic push/pull operations
+EOF
+            ;;
+        "build")
+            cat << EOF
+BUILD COMMANDS:
+
+registry-cli build [services...]
+  - Builds specified services with intelligent auto-tagging
+  - Generates tags based on Git context and environment
+  - Supports multi-registry pushing and caching
+
+registry-cli build-all
+  - Builds all services in the project
+  - Uses parallel building for improved performance
+  - Generates comprehensive build report
+
+registry-cli ci-build [services...]
+  - CI/CD optimized building with pipeline integration
+  - Detects CI platform and adjusts behavior accordingly
+  - Outputs variables for downstream pipeline jobs
+EOF
+            ;;
+        "tag")
+            cat << EOF
+TAG MANAGEMENT COMMANDS:
+
+registry-cli tag list <service>
+  - Lists all tags for the specified service
+  - Shows tag creation dates and sizes
+  - Supports filtering and sorting options
+
+registry-cli tag promote <service> <source> <target>
+  - Promotes an image from one tag to another
+  - Maintains image history and metadata
+  - Supports cross-environment promotions
+
+registry-cli tag cleanup <service> [keep_count]
+  - Removes old tags while preserving important releases
+  - Protects semantic version tags and environment tags
+  - Configurable retention policies
+
+registry-cli tag stats <service>
+  - Shows comprehensive statistics about tags
+  - Categorizes tags by type (version, commit, branch, etc.)
+  - Displays storage usage and growth trends
+EOF
+            ;;
+        *)
+            print_error "No detailed help available for: $command"
+            show_help
+            ;;
+    esac
+}
+
+# Function to execute registry commands
+execute_command() {
+    local command=$1
+    local subcommand=$2
+    shift 2
+    
+    case "$command" in
+        "setup")
+            case "$subcommand" in
+                "local"|"harbor"|"acr")
+                    REGISTRY_TYPE=$subcommand "$SCRIPT_DIR/registry-setup.sh" setup
+                    ;;
+                "test")
+                    "$SCRIPT_DIR/registry-setup.sh" test
+                    ;;
+                *)
+                    print_error "Unknown setup command: $subcommand"
+                    show_command_help "setup"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        "build")
+            case "$subcommand" in
+                "")
+                    "$SCRIPT_DIR/build-and-push.sh" "$@"
+                    ;;
+                *)
+                    "$SCRIPT_DIR/build-and-push.sh" "$subcommand" "$@"
+                    ;;
+            esac
+            ;;
+        "build-all")
+            "$SCRIPT_DIR/build-and-push.sh"
+            ;;
+        "ci-build")
+            "$SCRIPT_DIR/ci-cd-integration.sh" build "$@"
+            ;;
+        "tag")
+            "$SCRIPT_DIR/tag-manager.sh" "$subcommand" "$@"
+            ;;
+        "health")
+            "$SCRIPT_DIR/health-check.sh" "$subcommand" "$@"
+            ;;
+        "deploy")
+            case "$subcommand" in
+                "local-stack")
+                    print_status "Deploying local registry stack..."
+                    cd "$(dirname "$SCRIPT_DIR")"
+                    docker-compose up -d
+                    ;;
+                "k8s")
+                    print_status "Deploying registry to Kubernetes..."
+                    kubectl apply -f "$SCRIPT_DIR/../local-registry.yaml"
+                    ;;
+                "update")
+                    print_status "Updating registry deployment..."
+                    cd "$(dirname "$SCRIPT_DIR")"
+                    docker-compose pull && docker-compose up -d
+                    ;;
+                *)
+                    print_error "Unknown deploy command: $subcommand"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        "maintenance")
+            case "$subcommand" in
+                "cleanup")
+                    "$SCRIPT_DIR/ci-cd-integration.sh" cleanup "$@"
+                    ;;
+                "backup")
+                    print_status "Backing up registry data..."
+                    # Implementation depends on registry type
+                    print_warning "Backup implementation varies by registry type"
+                    ;;
+                "restore")
+                    print_status "Restoring registry data..."
+                    print_warning "Restore implementation varies by registry type"
+                    ;;
+                "logs")
+                    "$SCRIPT_DIR/health-check.sh" logs
+                    ;;
+                *)
+                    print_error "Unknown maintenance command: $subcommand"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        "config")
+            case "$subcommand" in
+                "show")
+                    print_header "Current Configuration"
+                    echo "Registry URL: $REGISTRY_URL"
+                    echo "Project Name: $PROJECT_NAME"
+                    echo "Registry Type: ${REGISTRY_TYPE:-auto}"
+                    echo "Environment: ${ENVIRONMENT:-development}"
+                    ;;
+                "set")
+                    if [[ $# -lt 2 ]]; then
+                        print_error "Usage: registry-cli config set <key> <value>"
+                        exit 1
+                    fi
+                    local key=$1
+                    local value=$2
+                    export "$key"="$value"
+                    print_status "Set $key=$value"
+                    ;;
+                "validate")
+                    print_status "Validating configuration..."
+                    "$SCRIPT_DIR/registry-setup.sh" test
+                    ;;
+                *)
+                    print_error "Unknown config command: $subcommand"
+                    exit 1
+                    ;;
+            esac
+            ;;
+        "help")
+            if [[ -n "$subcommand" ]]; then
+                show_command_help "$subcommand"
+            else
+                show_help
+            fi
+            ;;
+        *)
+            print_error "Unknown command: $command"
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+# Function to check prerequisites
+check_prerequisites() {
+    local missing_tools=()
+    
+    if ! command -v docker &> /dev/null; then
+        missing_tools+=("docker")
+    fi
+    
+    if ! command -v kubectl &> /dev/null; then
+        missing_tools+=("kubectl")
+    fi
+    
+    if [[ ${#missing_tools[@]} -gt 0 ]]; then
+        print_error "Missing required tools: ${missing_tools[*]}"
+        print_status "Please install the missing tools and run again"
+        exit 1
+    fi
+}
+
+# Function to show interactive menu
+show_interactive_menu() {
+    while true; do
+        clear
+        show_banner
+        
+        echo "Select an option:"
+        echo "1. Setup Registry"
+        echo "2. Build Images"
+        echo "3. Manage Tags"
+        echo "4. Health Check"
+        echo "5. Deploy Stack"
+        echo "6. Maintenance"
+        echo "7. Configuration"
+        echo "8. Help"
+        echo "9. Exit"
+        echo
+        
+        read -p "Enter your choice (1-9): " choice
+        
+        case $choice in
+            1)
+                echo
+                echo "Registry Setup Options:"
+                echo "1. Local Registry"
+                echo "2. Harbor Registry"
+                echo "3. Azure Container Registry"
+                echo "4. Test Registry"
+                echo
+                read -p "Select setup type (1-4): " setup_choice
+                
+                case $setup_choice in
+                    1) execute_command "setup" "local" ;;
+                    2) execute_command "setup" "harbor" ;;
+                    3) execute_command "setup" "acr" ;;
+                    4) execute_command "setup" "test" ;;
+                    *) print_error "Invalid choice" ;;
+                esac
+                ;;
+            2)
+                echo
+                read -p "Enter services to build (leave empty for all): " services
+                if [[ -z "$services" ]]; then
+                    execute_command "build-all"
+                else
+                    execute_command "build" "" $services
+                fi
+                ;;
+            3)
+                echo
+                echo "Tag Management Options:"
+                echo "1. List Tags"
+                echo "2. Promote Tag"
+                echo "3. Cleanup Tags"
+                echo "4. Tag Statistics"
+                echo
+                read -p "Select option (1-4): " tag_choice
+                
+                case $tag_choice in
+                    1)
+                        read -p "Enter service name: " service
+                        execute_command "tag" "list" "$service"
+                        ;;
+                    2)
+                        read -p "Enter service name: " service
+                        read -p "Enter source tag: " src_tag
+                        read -p "Enter target tag: " dst_tag
+                        execute_command "tag" "promote" "$service" "$src_tag" "$dst_tag"
+                        ;;
+                    3)
+                        read -p "Enter service name: " service
+                        read -p "Enter number of tags to keep (default 10): " keep_count
+                        execute_command "tag" "cleanup" "$service" "${keep_count:-10}"
+                        ;;
+                    4)
+                        read -p "Enter service name: " service
+                        execute_command "tag" "stats" "$service"
+                        ;;
+                    *) print_error "Invalid choice" ;;
+                esac
+                ;;
+            4)
+                execute_command "health" "check"
+                ;;
+            5)
+                echo
+                echo "Deployment Options:"
+                echo "1. Local Stack"
+                echo "2. Kubernetes"
+                echo "3. Update Deployment"
+                echo
+                read -p "Select deployment (1-3): " deploy_choice
+                
+                case $deploy_choice in
+                    1) execute_command "deploy" "local-stack" ;;
+                    2) execute_command "deploy" "k8s" ;;
+                    3) execute_command "deploy" "update" ;;
+                    *) print_error "Invalid choice" ;;
+                esac
+                ;;
+            6)
+                echo
+                echo "Maintenance Options:"
+                echo "1. Cleanup Old Images"
+                echo "2. View Logs"
+                echo "3. Backup Data"
+                echo
+                read -p "Select maintenance task (1-3): " maint_choice
+                
+                case $maint_choice in
+                    1) execute_command "maintenance" "cleanup" ;;
+                    2) execute_command "maintenance" "logs" ;;
+                    3) execute_command "maintenance" "backup" ;;
+                    *) print_error "Invalid choice" ;;
+                esac
+                ;;
+            7)
+                execute_command "config" "show"
+                ;;
+            8)
+                show_help
+                ;;
+            9)
+                print_status "Goodbye!"
+                exit 0
+                ;;
+            *)
+                print_error "Invalid choice. Please select 1-9."
+                ;;
+        esac
+        
+        echo
+        read -p "Press Enter to continue..."
+    done
+}
+
+# Main function
+main() {
+    # Show banner for interactive mode
+    if [[ $# -eq 0 ]]; then
+        show_interactive_menu
+        return
+    fi
+    
+    # Check prerequisites
+    check_prerequisites
+    
+    # Parse command line arguments
+    local command=$1
+    shift
+    
+    if [[ "$command" == "help" ]]; then
+        if [[ $# -eq 0 ]]; then
+            show_help
+        else
+            show_command_help "$1"
+        fi
+        return
+    fi
+    
+    # Extract subcommand if present
+    local subcommand=""
+    if [[ $# -gt 0 ]]; then
+        subcommand=$1
+        shift
+    fi
+    
+    # Execute the command
+    execute_command "$command" "$subcommand" "$@"
+}
+
+# Execute main function
+main "$@"

@@ -1,196 +1,118 @@
-from datetime import datetime
 from typing import Dict, Optional
 
-from auth.keycloak_auth import get_current_patient
-from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security import HTTPBearer
 from models.patient_model import ErrorResponse, MessageResponse
+from routes.patients_routes import get_current_patient
 from services.logger_service import logger_service
-from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 
 from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
 
-# Initialize services
-mongodb_client = MongoDBClient(Config)
+# Initialize RabbitMQ client
 rabbitmq_client = RabbitMQClient(Config)
 
-# MongoDB collections
-patients_collection = mongodb_client.db.patients
-prescriptions_collection = mongodb_client.db.prescriptions
-medical_history_collection = mongodb_client.db.medical_history
+# Remove the global HTTP client that causes the issue
+security = HTTPBearer()
+
+
+@router.get(
+    "/health-systems",
+    responses={500: {"model": ErrorResponse}},
+)
+async def list_connected_health_systems(user_info: Dict = Depends(get_current_patient)):
+    """List all health systems connected to this patient's account"""
+    try:
+        # This would typically query a database or external service
+        # For now, we'll return a sample of connected health systems
+        return {
+            "connected_systems": [
+                {
+                    "id": "hs-1",
+                    "name": "National Health System",
+                    "connected_since": "2023-01-15T10:30:00Z",
+                    "data_shared": ["demographics", "prescriptions"],
+                },
+                {
+                    "id": "hs-2",
+                    "name": "Regional Medical Center",
+                    "connected_since": "2023-03-22T14:15:00Z",
+                    "data_shared": ["medical_records", "radiology"],
+                },
+            ]
+        }
+    except Exception as e:
+        logger_service.error(f"Error listing connected health systems: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.post(
-    "/request-appointment",
+    "/connect-health-system",
     response_model=MessageResponse,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def request_appointment(
-    doctor_id: str,
-    requested_time: str,
-    reason: Optional[str] = None,
-    user_info: Dict = Depends(get_current_patient),
+async def connect_health_system(
+        system_id: str,
+        access_token: str,
+        data_permissions: Dict,
+        user_info: Dict = Depends(get_current_patient),
 ):
-    """Request an appointment with a doctor"""
+    """Connect a new health system to the patient's account"""
     try:
+        # This would validate the access token with the external system
+        # and establish the connection
+
+        # For demonstration purposes, we'll just log the request
         patient_id = user_info.get("user_id")
-
-        # Verify patient exists
-        patient = patients_collection.find_one({"_id": ObjectId(patient_id)})
-        if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
-
-        # Send appointment request via RabbitMQ
-        appointment_id = rabbitmq_client.request_appointment(
-            patient_id=patient_id,
-            doctor_id=doctor_id,
-            requested_time=requested_time,
-            reason=reason,
+        logger_service.info(
+            f"Patient {patient_id} connecting to health system {system_id}"
         )
 
-        if appointment_id:
-            # Store appointment request in database
-            mongodb_client.db.appointment_requests.insert_one(
-                {
-                    "appointment_id": appointment_id,
-                    "patient_id": patient_id,
-                    "doctor_id": doctor_id,
-                    "requested_time": requested_time,
-                    "reason": reason,
-                    "status": "requested",
-                    "created_at": datetime.utcnow().isoformat(),
-                }
-            )
+        # Here we would store the connection in the database
 
-            return MessageResponse(
-                message=f"Appointment request sent successfully. Appointment ID: {appointment_id}"
-            )
-        else:
-            raise HTTPException(
-                status_code=500, detail="Failed to send appointment request"
-            )
-
-    except HTTPException:
-        raise
+        return MessageResponse(
+            message=f"Successfully connected to health system {system_id}"
+        )
     except Exception as e:
-        logger_service.error(f"Error requesting appointment: {e}")
+        logger_service.error(f"Error connecting health system: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
-@router.get(
-    "/medical-history",
-    responses={500: {"model": ErrorResponse}},
+@router.post(
+    "/data-request",
+    response_model=MessageResponse,
+    responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def get_medical_history(user_info: Dict = Depends(get_current_patient)):
-    """Get patient's medical history"""
+async def request_external_data(
+        system_id: str,
+        data_type: str,
+        date_range: Optional[Dict] = None,
+        user_info: Dict = Depends(get_current_patient),
+):
+    """Request data from an external health system"""
     try:
         patient_id = user_info.get("user_id")
 
-        # Get prescriptions
-        prescriptions = list(
-            prescriptions_collection.find({"patient_id": patient_id}).sort(
-                "created_at", -1
-            )
-        )
-
-        # Get medical records
-        medical_records = list(
-            medical_history_collection.find({"patient_id": patient_id}).sort("date", -1)
-        )
-
-        # Get radiology reports
-        radiology_reports = list(
-            mongodb_client.db.radiology_reports.find({"patient_id": patient_id}).sort(
-                "created_at", -1
-            )
-        )
-
-        # Format the data
-        formatted_prescriptions = []
-        for prescription in prescriptions:
-            formatted_prescriptions.append(
-                {
-                    "id": str(prescription.get("_id")),
-                    "doctor_id": prescription.get("doctor_id"),
-                    "created_at": prescription.get("created_at"),
-                    "status": prescription.get("status"),
-                    "medications": prescription.get("medications", []),
-                }
-            )
-
-        formatted_records = []
-        for record in medical_records:
-            formatted_records.append(
-                {
-                    "id": str(record.get("_id")),
-                    "type": record.get("type"),
-                    "date": record.get("date"),
-                    "doctor_id": record.get("doctor_id"),
-                    "notes": record.get("notes"),
-                    "diagnosis": record.get("diagnosis", []),
-                }
-            )
-
-        formatted_reports = []
-        for report in radiology_reports:
-            formatted_reports.append(
-                {
-                    "id": str(report.get("_id")),
-                    "report_id": report.get("report_id"),
-                    "exam_type": report.get("exam_type"),
-                    "radiologue_id": report.get("radiologue_id"),
-                    "doctor_id": report.get("doctor_id"),
-                    "created_at": report.get("created_at"),
-                    "findings": report.get("findings"),
-                    "conclusion": report.get("conclusion"),
-                }
-            )
-
-        return {
-            "prescriptions": formatted_prescriptions,
-            "medical_records": formatted_records,
-            "radiology_reports": formatted_reports,
+        # Send data request message via RabbitMQ
+        request_data = {
+            "patient_id": patient_id,
+            "system_id": system_id,
+            "data_type": data_type,
+            "date_range": date_range,
         }
 
-    except Exception as e:
-        logger_service.error(f"Error retrieving medical history: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        # This would publish a request that would be handled asynchronously
+        request_sent = rabbitmq_client.publish_external_data_request(request_data)
 
-
-@router.get(
-    "/prescriptions",
-    responses={500: {"model": ErrorResponse}},
-)
-async def get_prescriptions(user_info: Dict = Depends(get_current_patient)):
-    """Get patient's prescriptions"""
-    try:
-        patient_id = user_info.get("user_id")
-
-        # Get prescriptions
-        prescriptions = list(
-            prescriptions_collection.find({"patient_id": patient_id}).sort(
-                "created_at", -1
+        if request_sent:
+            return MessageResponse(
+                message=f"Data request for {data_type} submitted successfully. "
+                        + "You will be notified when the data is available."
             )
-        )
-
-        # Format the data
-        formatted_prescriptions = []
-        for prescription in prescriptions:
-            formatted_prescriptions.append(
-                {
-                    "id": str(prescription.get("_id")),
-                    "doctor_id": prescription.get("doctor_id"),
-                    "created_at": prescription.get("created_at"),
-                    "status": prescription.get("status"),
-                    "medications": prescription.get("medications", []),
-                }
-            )
-
-        return {"prescriptions": formatted_prescriptions}
-
+        else:
+            raise HTTPException(status_code=500, detail="Failed to submit data request")
     except Exception as e:
-        logger_service.error(f"Error retrieving prescriptions: {e}")
+        logger_service.error(f"Error requesting external data: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
