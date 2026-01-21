@@ -194,7 +194,7 @@ dependencies = [
     "tzdata==2025.1 ; python_full_version >= '3.10' and python_full_version < '4'",
     "unstructured-client==0.29.0 ; python_full_version >= '3.10' and python_full_version < '4'",
     "unstructured[md]==0.16.20 ; python_full_version >= '3.10' and python_full_version < '4'",
-    "urllib3==2.5.0 ; python_full_version >= '3.10' and python_full_version < '4'",
+    "urllib3==2.6.3; python_full_version >= '3.10' and python_full_version < '4'",
     "uvicorn[standard]==0.34.0 ; python_full_version >= '3.10' and python_full_version < '4'",
     "uvloop==0.21.0 ; python_full_version >= '3.10' and python_full_version < '4' and platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'",
     "watchdog==6.0.0 ; python_full_version >= '3.10' and python_full_version < '4' and sys_platform != 'darwin'",
