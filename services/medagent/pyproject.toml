@@ -60,15 +60,6 @@ dependencies = [
     "pyarrow>=10.0.0",
 ]
 
-[project.optional-dependencies]
-dev = [
-    "pytest",
-    "black",
-    "isort",
-    "flake8",
-    "mypy",
-]
-
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["medrax*"]
