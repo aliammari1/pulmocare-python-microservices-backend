@@ -80,7 +80,10 @@ async def get_current_user(
         ) from e
 
 
-async def get_current_doctor(user_info: Annotated[dict, Depends(get_current_user)]):
+CurrentUser = Annotated[dict, Depends(get_current_user)]
+
+
+async def get_current_doctor(user_info: CurrentUser):
     """
     FastAPI dependency for checking if the user has the doctor role.
 
@@ -102,7 +105,7 @@ async def get_current_doctor(user_info: Annotated[dict, Depends(get_current_user
     return user_info
 
 
-async def get_current_patient(user_info: Annotated[dict, Depends(get_current_user)]):
+async def get_current_patient(user_info: CurrentUser):
     """
     FastAPI dependency for checking if the user has the patient role.
 
@@ -125,7 +128,7 @@ async def get_current_patient(user_info: Annotated[dict, Depends(get_current_use
     return user_info
 
 
-async def get_current_admin(user_info: Annotated[dict, Depends(get_current_user)]):
+async def get_current_admin(user_info: CurrentUser):
     """
     FastAPI dependency for checking if the user has the admin role.
 

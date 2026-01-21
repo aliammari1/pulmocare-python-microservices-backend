@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
 
 from middleware.auth_middleware import (
-    get_current_doctor,
-    get_current_patient,
-    get_current_user,
+    CurrentUser,
 )
 from models.appointment import (
     AppointmentStatus,
@@ -18,14 +18,14 @@ router = APIRouter()
 @router.get(
     "/doctor/{doctor_id}",
     response_model=PaginatedAppointmentResponse,
-    dependencies=[Depends(get_current_doctor)],
+    dependencies=[CurrentUser],
 )
 async def get_doctor_appointments(
-    doctor_id: str,
-    status: AppointmentStatus | None = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    doctor_id: Annotated[str, Query(..., description="The ID of the doctor whose appointments to retrieve")],
+    page: Annotated[int, Query(1, ge=1)],
+    limit: Annotated[int, Query(10, ge=1, le=100)],
+    current_user: CurrentUser,
+    status: Annotated[AppointmentStatus | None, Query(None)],
 ):
     """Get appointments for a specific doctor"""
     logger_service.info(f"Getting appointments for doctor {doctor_id}")
@@ -52,14 +52,14 @@ async def get_doctor_appointments(
 @router.get(
     "/patient/{patient_id}",
     response_model=PaginatedAppointmentResponse,
-    dependencies=[Depends(get_current_patient)],
+    dependencies=[CurrentUser],
 )
 async def get_patient_appointments(
-    patient_id: str,
-    status: AppointmentStatus | None = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    patient_id: Annotated[str, Query(..., description="The ID of the patient whose appointments to retrieve")],
+    current_user: CurrentUser,
+    status: Annotated[AppointmentStatus | None, Query(None)] = None,
+    page: Annotated[int, Query(1, ge=1)] = 1,
+    limit: Annotated[int, Query(10, ge=1, le=100)] = 10,
 ):
     """Get appointments for a specific patient"""
     logger_service.info(f"Getting appointments for patient {patient_id}")
@@ -86,15 +86,15 @@ async def get_patient_appointments(
 @router.get(
     "/doctor/{doctor_id}/patient/{patient_id}",
     response_model=PaginatedAppointmentResponse,
-    dependencies=[Depends(get_current_doctor)],
+    dependencies=[CurrentUser],
 )
 async def get_doctor_patient_appointments(
-    doctor_id: str,
-    patient_id: str,
-    status: AppointmentStatus | None = None,
-    page: int = Query(1, ge=1),
-    limit: int = Query(10, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    doctor_id: Annotated[str, Query(..., description="The ID of the doctor whose appointments to retrieve")],
+    patient_id: Annotated[str, Query(..., description="The ID of the patient whose appointments to retrieve")],
+    current_user: CurrentUser,
+    status: Annotated[AppointmentStatus | None, Query(None)] = None,
+    page: Annotated[int, Query(1, ge=1)] = 1,
+    limit: Annotated[int, Query(10, ge=1, le=100)] = 10,
 ):
     """Get appointments between a specific doctor and patient"""
     logger_service.info(f"Getting appointments between doctor {doctor_id} and patient {patient_id}")

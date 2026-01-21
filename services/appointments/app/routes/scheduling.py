@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
-from middleware.auth_middleware import get_current_user
+from middleware.auth_middleware import CurrentUser
 from models.appointment import ProviderSchedule, ProviderType, TimeSlot
 from services.appointment_service import AppointmentService
 from services.logger_service import logger_service
@@ -12,12 +13,12 @@ router = APIRouter()
 
 @router.get("/available-slots", response_model=list[TimeSlot])
 async def get_available_slots(
-    provider_id: str | None = Query(None, description="Provider ID to check availability"),
-    provider_type: ProviderType | None = Query(None, description="Type of provider (doctor or radiologist)"),
-    start_date: datetime = Query(..., description="Start date for availability search"),
-    end_date: datetime | None = Query(None, description="End date for availability search"),
-    duration_minutes: int = Query(30, description="Duration of the appointment in minutes"),
-    current_user: dict = Depends(get_current_user),
+    provider_id: Annotated[str | None, Query(None, description="Provider ID to check availability")],
+    provider_type: Annotated[ProviderType | None, Query(None, description="Type of provider (doctor or radiologist)")],
+    start_date: Annotated[datetime, Query(..., description="Start date for availability search")],
+    end_date: Annotated[datetime | None, Query(None, description="End date for availability search")],
+    duration_minutes: Annotated[int, Query(30, description="Duration of the appointment in minutes")],
+    current_user: CurrentUser,
 ):
     """Get available appointment slots for a provider or provider type"""
     logger_service.info(f"Checking available slots for provider type {provider_type}")
@@ -40,8 +41,8 @@ async def get_available_slots(
 
 @router.get("/provider-schedule/{provider_id}", response_model=ProviderSchedule)
 async def get_provider_schedule(
-    provider_id: str = Path(..., description="The ID of the provider"),
-    current_user: dict = Depends(get_current_user),
+    provider_id: Annotated[str, Path(..., description="The ID of the provider")],
+    current_user: CurrentUser,
 ):
     """Get a provider's schedule configuration"""
     logger_service.info(f"Getting schedule for provider {provider_id}")
@@ -61,8 +62,8 @@ async def get_provider_schedule(
 @router.put("/provider-schedule/{provider_id}", response_model=ProviderSchedule)
 async def update_provider_schedule(
     provider_schedule: ProviderSchedule,
-    provider_id: str = Path(..., description="The ID of the provider"),
-    current_user: dict = Depends(get_current_user),
+    provider_id: Annotated[str, Path(..., description="The ID of the provider")],
+    current_user: CurrentUser,
 ):
     """Update a provider's schedule configuration"""
     logger_service.info(f"Updating schedule for provider {provider_id}")

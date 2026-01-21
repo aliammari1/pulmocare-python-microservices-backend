@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, HTTPException, Path, Query, status
 
 from middleware.auth_middleware import (
-    get_current_user,
+    CurrentUser,
 )
 from models.appointment import (
     Appointment,
@@ -19,7 +20,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Appointment, status_code=status.HTTP_201_CREATED)
-async def create_appointment(appointment: AppointmentCreate, current_user: dict = Depends(get_current_user)):
+async def create_appointment(appointment: AppointmentCreate, current_user: CurrentUser):
     """Create a new appointment. Only patients can create for themselves, doctors for their patients, admin for anyone."""
     roles = current_user.get("roles", [])
     user_id = current_user.get("user_id")
@@ -47,8 +48,8 @@ async def create_appointment(appointment: AppointmentCreate, current_user: dict 
 
 @router.get("/{appointment_id}", response_model=Appointment)
 async def get_appointment(
-    appointment_id: str = Path(..., description="The ID of the appointment to retrieve"),
-    current_user: dict = Depends(get_current_user),
+    appointment_id: Annotated[str, Path(..., description="The ID of the appointment to retrieve")],
+    current_user: CurrentUser,
 ):
     """Get a specific appointment by ID"""
     logger_service.info(f"Retrieving appointment {appointment_id}")
@@ -66,14 +67,14 @@ async def get_appointment(
 @router.get("/", response_model=PaginatedAppointmentResponse)
 @router.get("", response_model=PaginatedAppointmentResponse)  # Also match URL without trailing slash
 async def list_appointments(
-    patient_id: str | None = Query(None, description="Filter by patient ID"),
-    provider_id: str | None = Query(None, description="Filter by provider ID"),
-    status: AppointmentStatus | None = Query(None, description="Filter by appointment status"),
-    start_date: datetime | None = Query(None, description="Filter by appointments after this date"),
-    end_date: datetime | None = Query(None, description="Filter by appointments before this date"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(10, ge=1, le=100, description="Items per page"),
-    current_user: dict = Depends(get_current_user),
+    patient_id: Annotated[str | None, Query(None, description="Filter by patient ID")],
+    provider_id: Annotated[str | None, Query(None, description="Filter by provider ID")],
+    status: Annotated[AppointmentStatus | None, Query(None, description="Filter by appointment status")],
+    start_date: Annotated[datetime | None, Query(None, description="Filter by appointments after this date")],
+    end_date: Annotated[datetime | None, Query(None, description="Filter by appointments before this date")],
+    page: Annotated[int, Query(1, ge=1, description="Page number")],
+    limit: Annotated[int, Query(10, ge=1, le=100, description="Items per page")],
+    current_user: CurrentUser,
 ):
     """List appointments with optional filters"""
     logger_service.info("Listing appointments with filters")
@@ -81,7 +82,7 @@ async def list_appointments(
 
     # Default to next 30 days if no date range specified
     if not start_date:
-        start_date = datetime.utcnow()
+        start_date = datetime.now(UTC)
     if not end_date:
         end_date = start_date + timedelta(days=30)
 
@@ -101,8 +102,8 @@ async def list_appointments(
 @router.put("/{appointment_id}", response_model=Appointment)
 async def update_appointment(
     appointment_update: AppointmentUpdate,
-    appointment_id: str = Path(..., description="The ID of the appointment to update"),
-    current_user: dict = Depends(get_current_user),
+    appointment_id: Annotated[str, Path(..., description="The ID of the appointment to update")],
+    current_user: CurrentUser,
 ):
     """Update an existing appointment"""
     logger_service.info(f"Updating appointment {appointment_id}")
@@ -121,8 +122,8 @@ async def update_appointment(
 
 @router.delete("/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_appointment(
-    appointment_id: str = Path(..., description="The ID of the appointment to delete"),
-    current_user: dict = Depends(get_current_user),
+    appointment_id: Annotated[str, Path(..., description="The ID of the appointment to delete")],
+    current_user: CurrentUser,
 ):
     """Cancel an appointment"""
     logger_service.info(f"Cancelling appointment {appointment_id}")

@@ -44,7 +44,7 @@ class MedicalFile(BaseModel):
     filename: str
     file_type: str
     file_url: str
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     uploaded_by: str
     size: int | None = None
     description: str | None = None
@@ -102,25 +102,9 @@ class Appointment(AppointmentBase):
 
     appointment_id: str = Field(default_factory=lambda: str(uuid4()))
     status: AppointmentStatus = AppointmentStatus.PENDING  # Changed default to PENDING
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     medical_files: list[MedicalFile] = []
-
-    def to_json(self) -> dict[str, Any]:
-        """Convert to format expected by frontend"""
-        return {
-            "id": self.appointment_id,
-            "patientId": self.patient_id,
-            "doctorId": self.provider_id,
-            "scheduledTime": self.appointment_date.isoformat(),
-            "status": self.status.value,
-            "type": self.appointment_type,
-            "isVirtual": self.virtual,
-            "reason": self.reason,
-            "notes": self.notes,
-            "duration": self.duration_minutes,
-            "medicalFiles": [file.dict() for file in self.medical_files],
-        }
 
 
 class ProviderAvailability(BaseModel):
@@ -130,8 +114,8 @@ class ProviderAvailability(BaseModel):
     provider_type: ProviderType
     weekly_schedule: dict[str, list[dict[str, Any]]]  # Day -> list of time slots
     exceptions: list[dict[str, Any]]  # Special dates (holidays, time off)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TimeSlot(BaseModel):
@@ -155,7 +139,7 @@ class AppointmentNotification(BaseModel):
     message: str
     delivered: bool = False
     read: bool = False
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class WorkHours(BaseModel):
@@ -182,7 +166,7 @@ class ProviderSchedule(BaseModel):
     provider_type: ProviderType
     work_hours: dict[str, WorkHours]  # Day of week (0-6) -> work hours
     exceptions: list[dict[str, Any]] = []  # Special dates (holidays, time off)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
@@ -221,13 +205,3 @@ class PaginatedAppointmentResponse(BaseModel):
     page: int
     limit: int
     pages: int
-
-    def to_json(self) -> dict[str, Any]:
-        """Convert to format expected by frontend"""
-        return {
-            "items": [item.to_json() for item in self.items],
-            "total": self.total,
-            "page": self.page,
-            "limit": self.limit,
-            "pages": self.pages,
-        }
