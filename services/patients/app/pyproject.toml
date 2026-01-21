@@ -14,7 +14,7 @@ dependencies = [
     "dnspython==2.7.0",
     "fastapi[standard]==0.115.12",
     "itsdangerous==2.2.0",
-    "jinja2==3.1.5",
+    "jinja2==3.1.6",
     "markupsafe==3.0.2",
     "numpy>=2.4.1",
     "opentelemetry-api==1.31.0",
