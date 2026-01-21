@@ -17,19 +17,13 @@ def generate_ordonnance_pdf(ordonnance):
     story = []
 
     # Add header
-    header_style = ParagraphStyle(
-        "CustomHeader", parent=styles["Heading1"], fontSize=16, spaceAfter=30
-    )
+    header_style = ParagraphStyle("CustomHeader", parent=styles["Heading1"], fontSize=16, spaceAfter=30)
     story.append(Paragraph("Ordonnance Médicale", header_style))
     story.append(Spacer(1, 12))
 
     # Add content
     for medicament in ordonnance.medicaments:
-        story.append(
-            Paragraph(
-                f"- {medicament['nom']}: {medicament['posologie']}", styles["Normal"]
-            )
-        )
+        story.append(Paragraph(f"- {medicament['nom']}: {medicament['posologie']}", styles["Normal"]))
         story.append(Spacer(1, 6))
 
     doc.build(story)

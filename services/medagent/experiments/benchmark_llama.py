@@ -6,13 +6,12 @@ import re
 import socket
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Any
 
 import backoff
 import httpx
 import requests
 from openai import OpenAI
-from tenacity import retry, wait_exponential, stop_after_attempt
 
 # Configure model settings
 MODEL_NAME = "meta-llama/llama-3.2-90b-vision-instruct"
@@ -105,12 +104,12 @@ def initialize_client() -> OpenAI:
     max_time=300,  # Maximum total time to try in seconds
 )
 def create_multimodal_request(
-        question_data: Dict[str, Any],
-        case_details: Dict[str, Any],
-        case_id: str,
-        question_id: str,
-        client: OpenAI,
-) -> Optional[Any]:
+    question_data: dict[str, Any],
+    case_details: dict[str, Any],
+    case_id: str,
+    question_id: str,
+    client: OpenAI,
+) -> Any | None:
     """Create and send a multimodal request to the model.
 
     Args:
@@ -151,7 +150,7 @@ Examples of invalid responses:
 
     prompt = f"""Given the following medical case:
 Please answer this multiple choice question:
-{question_data['question']}
+{question_data["question"]}
 Base your answer only on the provided images and case information."""
 
     # Parse required figures
@@ -196,7 +195,7 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                       or subfig.get("label", "").lower() == figure_letter.lower()
+                    or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
@@ -289,12 +288,12 @@ Base your answer only on the provided images and case information."""
         return response
 
     except ConnectionError as e:
-        print(f"Connection error for case {case_id}, question {question_id}: {str(e)}")
+        print(f"Connection error for case {case_id}, question {question_id}: {e!s}")
         print("Retrying after a longer delay...")
         time.sleep(30)  # Add a longer delay before retry
         raise
     except TimeoutError as e:
-        print(f"Timeout error for case {case_id}, question {question_id}: {str(e)}")
+        print(f"Timeout error for case {case_id}, question {question_id}: {e!s}")
         print("Retrying with increased timeout...")
         raise
     except Exception as e:
@@ -321,7 +320,7 @@ Base your answer only on the provided images and case information."""
         raise
 
 
-def extract_answer(response_text: str) -> Optional[str]:
+def extract_answer(response_text: str) -> str | None:
     """Extract single letter answer from model response.
 
     Args:
@@ -349,7 +348,7 @@ def extract_answer(response_text: str) -> Optional[str]:
     return None
 
 
-def validate_answer(response_text: str) -> Optional[str]:
+def validate_answer(response_text: str) -> str | None:
     """Enforce strict single-letter response format.
 
     Args:
@@ -373,7 +372,7 @@ def validate_answer(response_text: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def load_benchmark_questions(case_id: str) -> List[str]:
+def load_benchmark_questions(case_id: str) -> list[str]:
     """Find all question files for a given case ID.
 
     Args:
@@ -401,7 +400,7 @@ def count_total_questions() -> Tuple[int, int]:
 
 
 def main():
-    with open("../data/eurorad_metadata.json", "r") as file:
+    with open("../data/eurorad_metadata.json") as file:
         data = json.load(file)
 
     client = initialize_client()
@@ -421,7 +420,7 @@ def main():
 
         cases_processed += 1
         for question_file in question_files:
-            with open(question_file, "r") as file:
+            with open(question_file) as file:
                 question_data = json.load(file)
                 question_id = os.path.basename(question_file).split(".")[0]
 
@@ -443,7 +442,7 @@ def main():
             print(f"Model Answer: {response.choices[0].message.content}")
             print(f"Correct Answer: {question_data['answer']}\n")
 
-    print(f"\nBenchmark Summary:")
+    print("\nBenchmark Summary:")
     print(f"Total Cases Processed: {cases_processed}")
     print(f"Total Questions Processed: {questions_processed}")
     print(f"Total Questions Skipped: {skipped_questions}")

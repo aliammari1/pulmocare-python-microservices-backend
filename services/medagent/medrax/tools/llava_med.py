@@ -1,22 +1,23 @@
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any
 
 import torch
-from PIL import Image
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from PIL import Image
+from pydantic import BaseModel, Field
+
 from medrax.llava.constants import (
-    IMAGE_TOKEN_INDEX,
-    DEFAULT_IMAGE_TOKEN,
-    DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    IMAGE_TOKEN_INDEX,
 )
 from medrax.llava.conversation import conv_templates
-from medrax.llava.mm_utils import tokenizer_image_token, process_images
+from medrax.llava.mm_utils import process_images, tokenizer_image_token
 from medrax.llava.model.builder import load_pretrained_model
-from pydantic import BaseModel, Field
 
 
 class LlavaMedInput(BaseModel):
@@ -25,7 +26,7 @@ class LlavaMedInput(BaseModel):
     question: str = Field(
         ..., description="The question to ask about the medical image"
     )
-    image_path: Optional[str] = Field(
+    image_path: str | None = Field(
         None,
         description="Path to the medical image file (optional), only supports JPG or PNG images",
     )
@@ -45,22 +46,22 @@ class LlavaMedTool(BaseTool):
         "While it can process chest X-rays, it may not be as reliable for detailed chest X-ray analysis. "
         "Input should be a question and optionally a path to a medical image file."
     )
-    args_schema: Type[BaseModel] = LlavaMedInput
+    args_schema: type[BaseModel] = LlavaMedInput
     tokenizer: Any = None
     model: Any = None
     image_processor: Any = None
     context_len: int = 200000
 
     def __init__(
-            self,
-            model_path: str = "microsoft/llava-med-v1.5-mistral-7b",
-            cache_dir: str = "./model-weights",
-            low_cpu_mem_usage: bool = True,
-            torch_dtype: torch.dtype = torch.bfloat16,
-            device: str = "cuda",
-            load_in_4bit: bool = False,
-            load_in_8bit: bool = False,
-            **kwargs,
+        self,
+        model_path: str = "microsoft/llava-med-v1.5-mistral-7b",
+        cache_dir: str = "./model-weights",
+        low_cpu_mem_usage: bool = True,
+        torch_dtype: torch.dtype = torch.bfloat16,
+        device: str = "cuda",
+        load_in_4bit: bool = False,
+        load_in_8bit: bool = False,
+        **kwargs,
     ):
         super().__init__()
         self.tokenizer, self.model, self.image_processor, self.context_len = (
@@ -80,15 +81,15 @@ class LlavaMedTool(BaseTool):
         self.model.eval()
 
     def _process_input(
-            self, question: str, image_path: Optional[str] = None
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        self, question: str, image_path: str | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor | None]:
         if self.model.config.mm_use_im_start_end:
             question = (
-                    DEFAULT_IM_START_TOKEN
-                    + DEFAULT_IMAGE_TOKEN
-                    + DEFAULT_IM_END_TOKEN
-                    + "\n"
-                    + question
+                DEFAULT_IM_START_TOKEN
+                + DEFAULT_IMAGE_TOKEN
+                + DEFAULT_IM_END_TOKEN
+                + "\n"
+                + question
             )
         else:
             question = DEFAULT_IMAGE_TOKEN + "\n" + question
@@ -117,11 +118,11 @@ class LlavaMedTool(BaseTool):
         return input_ids, image_tensor
 
     def _run(
-            self,
-            question: str,
-            image_path: Optional[str] = None,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
+        self,
+        question: str,
+        image_path: str | None = None,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[str, dict]:
         """Answer a medical question, optionally based on an input image.
 
         Args:
@@ -162,18 +163,18 @@ class LlavaMedTool(BaseTool):
             }
             return output, metadata
         except Exception as e:
-            return f"Error generating answer: {str(e)}", {
+            return f"Error generating answer: {e!s}", {
                 "question": question,
                 "image_path": image_path,
                 "analysis_status": "failed",
             }
 
     async def _arun(
-            self,
-            question: str,
-            image_path: Optional[str] = None,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
+        self,
+        question: str,
+        image_path: str | None = None,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[str, dict]:
         """Asynchronously answer a medical question, optionally based on an input image.
 
         This method currently calls the synchronous version, as the model inference

@@ -1,7 +1,6 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Optional
 
 
 def get_latest_log() -> str:
@@ -124,9 +123,9 @@ def determine_model_type(entry: dict) -> str:
 
 
 def print_log_entry(
-        log_file: Optional[str] = None,
-        num_entries: Optional[int] = None,
-        model_filter: Optional[str] = None,
+    log_file: str | None = None,
+    num_entries: int | None = None,
+    model_filter: str | None = None,
 ) -> None:
     """Print log entries from the specified log file or the latest log file.
 
@@ -143,7 +142,7 @@ def print_log_entry(
     total_entries = 0
     filtered_entries = 0
 
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         for line in f:
             if line.startswith("HTTP"):
                 continue
@@ -174,7 +173,7 @@ def print_log_entry(
                 print(f"Error processing entry: {e}")
                 continue
 
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"Total entries: {total_entries}")
     print(f"Entries printed: {entries_printed}")
     if model_filter:

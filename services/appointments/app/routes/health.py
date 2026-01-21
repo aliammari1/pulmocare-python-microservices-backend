@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+
 from services.logger_service import logger_service
 
 router = APIRouter()

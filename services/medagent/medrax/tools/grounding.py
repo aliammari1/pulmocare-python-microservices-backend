@@ -1,16 +1,16 @@
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type, Any
+from typing import Any
 
 import matplotlib.pyplot as plt
 import torch
-from PIL import Image
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from PIL import Image
 from pydantic import BaseModel, Field
 from transformers import AutoModelForCausalLM, AutoProcessor, BitsAndBytesConfig
 
@@ -48,7 +48,7 @@ class XRayPhraseGroundingTool(BaseTool):
         "a visualization of the finding's location, and confidence metadata. "
         "Example input: {'image_path': '/path/to/xray.png', 'phrase': 'Pleural effusion', 'max_new_tokens': 300}"
     )
-    args_schema: Type[BaseModel] = XRayPhraseGroundingInput
+    args_schema: type[BaseModel] = XRayPhraseGroundingInput
 
     model: Any = None
     processor: Any = None
@@ -56,13 +56,13 @@ class XRayPhraseGroundingTool(BaseTool):
     temp_dir: Path = None
 
     def __init__(
-            self,
-            model_path: str = "microsoft/maira-2",
-            cache_dir: Optional[str] = None,
-            temp_dir: Optional[str] = None,
-            load_in_4bit: bool = False,
-            load_in_8bit: bool = False,
-            device: Optional[str] = "cuda",
+        self,
+        model_path: str = "microsoft/maira-2",
+        cache_dir: str | None = None,
+        temp_dir: str | None = None,
+        load_in_4bit: bool = False,
+        load_in_8bit: bool = False,
+        device: str | None = "cuda",
     ):
         """Initialize the XRay Phrase Grounding Tool."""
         super().__init__()
@@ -101,10 +101,10 @@ class XRayPhraseGroundingTool(BaseTool):
         self.temp_dir.mkdir(exist_ok=True)
 
     def _visualize_bboxes(
-            self,
-            image: Image.Image,
-            bboxes: List[Tuple[float, float, float, float]],
-            phrase: str,
+        self,
+        image: Image.Image,
+        bboxes: list[tuple[float, float, float, float]],
+        phrase: str,
     ) -> str:
         """Create and save visualization of multiple bounding boxes on the image."""
         plt.figure(figsize=(12, 12))
@@ -136,12 +136,12 @@ class XRayPhraseGroundingTool(BaseTool):
         return str(viz_path)
 
     def _run(
-            self,
-            image_path: str,
-            phrase: str,
-            max_new_tokens: int = 300,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, Any], Dict]:
+        self,
+        image_path: str,
+        phrase: str,
+        max_new_tokens: int = 300,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, Any], dict]:
         """Ground a medical finding phrase in an X-ray image.
 
         Args:
@@ -248,10 +248,10 @@ class XRayPhraseGroundingTool(BaseTool):
             return output, metadata
 
     async def _arun(
-            self,
-            image_path: str,
-            phrase: str,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, Any], Dict]:
+        self,
+        image_path: str,
+        phrase: str,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, Any], dict]:
         """Asynchronous version of _run."""
         return self._run(image_path, phrase, run_manager)

@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional
-
 from fastapi import UploadFile
 from pydantic import BaseModel, Field
 
@@ -7,13 +5,13 @@ from pydantic import BaseModel, Field
 class FileMetadata(BaseModel):
     """Metadata for a file"""
 
-    patient_id: Optional[str] = None
-    doctor_id: Optional[str] = None
-    study_id: Optional[str] = None
-    modality: Optional[str] = None
-    description: Optional[str] = None
-    tags: Optional[List[str]] = Field(default_factory=list)
-    custom_data: Optional[Dict] = Field(default_factory=dict)
+    patient_id: str | None = None
+    doctor_id: str | None = None
+    study_id: str | None = None
+    modality: str | None = None
+    description: str | None = None
+    tags: list[str] | None = Field(default_factory=list)
+    custom_data: dict | None = Field(default_factory=dict)
 
 
 class FileInfo(BaseModel):
@@ -21,12 +19,12 @@ class FileInfo(BaseModel):
 
     bucket: str
     object_name: str
-    filename: Optional[str] = None
-    content_type: Optional[str] = None
+    filename: str | None = None
+    content_type: str | None = None
     size: int
     last_modified: str
-    download_url: Optional[str] = None
-    metadata: Optional[Dict] = None
+    download_url: str | None = None
+    metadata: dict | None = None
 
 
 class FileResponse(BaseModel):
@@ -38,21 +36,21 @@ class FileResponse(BaseModel):
     content_type: str
     size: int
     url: str
-    metadata: Dict = Field(default_factory=dict)
-    created_at: Optional[str] = None
-    download_url: Optional[str] = None  # Add this field
+    metadata: dict = Field(default_factory=dict)
+    created_at: str | None = None
+    download_url: str | None = None  # Add this field
 
 
 class FileListResponse(BaseModel):
     """Response model for listing files"""
 
-    files: List[FileInfo]
-    folders: List[Dict[str, str]]
+    files: list[FileInfo]
+    folders: list[dict[str, str]]
     total_files: int
     total_folders: int
-    marker: Optional[str] = None
+    marker: str | None = None
     bucket: str
-    prefix: Optional[str] = None
+    prefix: str | None = None
 
 
 class FileRequest(BaseModel):
@@ -60,5 +58,5 @@ class FileRequest(BaseModel):
 
     file: UploadFile = (None,)
     bucket: str = ("",)
-    folder: Optional[str] = (None,)
-    metadata: Optional[dict] = (None,)
+    folder: str | None = (None,)
+    metadata: dict | None = (None,)

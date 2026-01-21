@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 
 import pika
+
 from services.logger_service import logger_service
 from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
 
@@ -20,9 +21,7 @@ class RabbitMQClient:
         """Initialize RabbitMQ connection and channel"""
         try:
             # Create connection parameters
-            credentials = pika.PlainCredentials(
-                self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS
-            )
+            credentials = pika.PlainCredentials(self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS)
 
             parameters = pika.ConnectionParameters(
                 host=self.config.RABBITMQ_HOST,
@@ -36,13 +35,9 @@ class RabbitMQClient:
             self.channel = self.connection.channel()
 
             # Declare exchanges
-            self.channel.exchange_declare(
-                exchange="medical.events", exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.events", exchange_type="topic", durable=True)
 
-            self.channel.exchange_declare(
-                exchange="medical.reports", exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.reports", exchange_type="topic", durable=True)
 
             # Declare queues
             self.channel.queue_declare(queue="report.analysis", durable=True)
@@ -65,7 +60,7 @@ class RabbitMQClient:
             logger_service.info("Successfully connected to RabbitMQ")
 
         except Exception as e:
-            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            logger_service.error(f"Failed to connect to RabbitMQ: {e!s}")
             raise
 
     def publish_message(self, exchange, routing_key, message, correlation_id=None):
@@ -95,18 +90,14 @@ class RabbitMQClient:
             )
 
             # Record metrics
-            RABBITMQ_MESSAGES_PUBLISHED.labels(
-                exchange=exchange, routing_key=routing_key
-            ).inc()
+            RABBITMQ_MESSAGES_PUBLISHED.labels(exchange=exchange, routing_key=routing_key).inc()
 
-            RABBITMQ_PUBLISH_LATENCY.labels(
-                exchange=exchange, routing_key=routing_key
-            ).observe(time.time() - start_time)
+            RABBITMQ_PUBLISH_LATENCY.labels(exchange=exchange, routing_key=routing_key).observe(time.time() - start_time)
 
             logger_service.debug(f"Published message to {exchange}:{routing_key}")
 
         except Exception as e:
-            logger_service.error(f"Failed to publish message: {str(e)}")
+            logger_service.error(f"Failed to publish message: {e!s}")
             raise
 
     def publish_report_created(self, report_id):

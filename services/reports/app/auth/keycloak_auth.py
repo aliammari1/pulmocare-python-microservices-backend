@@ -1,5 +1,4 @@
 import os
-from typing import Dict
 
 import requests
 from fastapi import Depends, HTTPException, status
@@ -15,9 +14,7 @@ class KeycloakAuth:
 
     def __init__(self):
         """Initialize the Keycloak authentication client."""
-        self.auth_service_url = os.getenv(
-            "AUTH_SERVICE_URL", "http://auth-service:8086"
-        )
+        self.auth_service_url = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8086")
         print(f"Using auth service at: {self.auth_service_url}")
 
     async def verify_token(self, token: str):
@@ -31,18 +28,14 @@ class KeycloakAuth:
             Token verification result
         """
         try:
-            response = requests.post(
-                f"{self.auth_service_url}/api/auth/token/verify", json={"token": token}
-            )
+            response = requests.post(f"{self.auth_service_url}/api/auth/token/verify", json={"token": token})
             response.raise_for_status()
             return response.json()
         except Exception as e:
-            print(f"Token verification error: {str(e)}")
+            print(f"Token verification error: {e!s}")
             raise
 
-    async def get_current_user(
-            self, credentials: HTTPAuthorizationCredentials = Depends(security)
-    ):
+    async def get_current_user(self, credentials: HTTPAuthorizationCredentials = Depends(security)):
         """
         FastAPI dependency for extracting and validating the token from the request.
 
@@ -68,14 +61,14 @@ class KeycloakAuth:
 
             return verification
         except Exception as e:
-            print(f"Authentication error: {str(e)}")
+            print(f"Authentication error: {e!s}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid authentication credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-    async def get_current_doctor(self, user_info: Dict = Depends(get_current_user)):
+    async def get_current_doctor(self, user_info: dict = Depends(get_current_user)):
         """
         FastAPI dependency for checking if the user has the doctor role.
 
@@ -96,7 +89,7 @@ class KeycloakAuth:
             )
         return user_info
 
-    async def get_current_patient(self, user_info: Dict = Depends(get_current_user)):
+    async def get_current_patient(self, user_info: dict = Depends(get_current_user)):
         """
         FastAPI dependency for checking if the user has the patient role.
 
@@ -117,9 +110,7 @@ class KeycloakAuth:
             )
         return user_info
 
-    async def get_current_radiologist(
-            self, user_info: Dict = Depends(get_current_user)
-    ):
+    async def get_current_radiologist(self, user_info: dict = Depends(get_current_user)):
         """
         FastAPI dependency for checking if the user has the radiologist role.
 

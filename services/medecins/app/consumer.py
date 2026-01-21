@@ -16,9 +16,7 @@ def handle_appointment_request(ch, method, properties, body):
 
         # Store in Redis
         redis_client = RedisClient(Config)
-        appointment_id = message.get(
-            "appointment_id", str(datetime.utcnow().timestamp())
-        )
+        appointment_id = message.get("appointment_id", str(datetime.utcnow().timestamp()))
 
         # Structure the data
         appointment_data = {
@@ -33,9 +31,7 @@ def handle_appointment_request(ch, method, properties, body):
         }
 
         # Store in Redis with expiration of 30 days (2592000 seconds)
-        redis_client.client.setex(
-            f"appointment:{appointment_id}", 2592000, json.dumps(appointment_data)
-        )
+        redis_client.client.setex(f"appointment:{appointment_id}", 2592000, json.dumps(appointment_data))
 
         # Add to doctor's appointment list
         doctor_id = message.get("doctor_id")
@@ -45,9 +41,7 @@ def handle_appointment_request(ch, method, properties, body):
         # Add to patient's appointment list
         patient_id = message.get("patient_id")
         if patient_id:
-            redis_client.client.sadd(
-                f"patient:{patient_id}:appointments", appointment_id
-            )
+            redis_client.client.sadd(f"patient:{patient_id}:appointments", appointment_id)
 
         # Acknowledge message
         ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -80,9 +74,7 @@ def handle_report_notification(ch, method, properties, body):
         }
 
         # Store in Redis with expiration of 30 days
-        redis_client.client.setex(
-            f"report_notification:{report_id}", 2592000, json.dumps(report_data)
-        )
+        redis_client.client.setex(f"report_notification:{report_id}", 2592000, json.dumps(report_data))
 
         # Add to doctor's report list
         doctor_id = message.get("doctor_id")
@@ -103,9 +95,7 @@ def handle_radiology_report_completed(ch, method, properties, body):
     try:
         # Parse message
         message = json.loads(body)
-        logger_service.info(
-            f"Received radiology report completed notification: {message}"
-        )
+        logger_service.info(f"Received radiology report completed notification: {message}")
 
         # Store in Redis
         redis_client = RedisClient(Config)
@@ -124,9 +114,7 @@ def handle_radiology_report_completed(ch, method, properties, body):
         }
 
         # Store in Redis with expiration of 30 days
-        redis_client.client.set(
-            f"radiology_report:{report_id}", json.dumps(radiology_data), ex=2592000
-        )
+        redis_client.client.set(f"radiology_report:{report_id}", json.dumps(radiology_data), ex=2592000)
 
         # Add to doctor's radiology reports list
         doctor_id = message.get("doctor_id")
@@ -151,9 +139,7 @@ def handle_prescription_notification(ch, method, properties, body):
 
         # Store in Redis
         redis_client = RedisClient(Config)
-        prescription_id = message.get(
-            "prescription_id", str(datetime.utcnow().timestamp())
-        )
+        prescription_id = message.get("prescription_id", str(datetime.utcnow().timestamp()))
 
         # Structure the data
         prescription_data = {
@@ -175,9 +161,7 @@ def handle_prescription_notification(ch, method, properties, body):
         # Add to doctor's prescription notifications list
         doctor_id = message.get("doctor_id")
         if doctor_id and doctor_id != "unknown":
-            redis_client.client.sadd(
-                f"doctor:{doctor_id}:prescriptions", prescription_id
-            )
+            redis_client.client.sadd(f"doctor:{doctor_id}:prescriptions", prescription_id)
 
         # Acknowledge message
         ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -197,24 +181,16 @@ def main():
         # Set up consumers for different queues
 
         # Appointment requests
-        rabbitmq_client.consume_messages(
-            "appointment.requests", handle_appointment_request
-        )
+        rabbitmq_client.consume_messages("appointment.requests", handle_appointment_request)
 
         # Report notifications
-        rabbitmq_client.consume_messages(
-            "doctor.notifications", handle_report_notification
-        )
+        rabbitmq_client.consume_messages("doctor.notifications", handle_report_notification)
 
         # Radiology report completions
-        rabbitmq_client.consume_messages(
-            "doctor.radiology.reports", handle_radiology_report_completed
-        )
+        rabbitmq_client.consume_messages("doctor.radiology.reports", handle_radiology_report_completed)
 
         # Prescription events
-        rabbitmq_client.consume_messages(
-            "prescription.events", handle_prescription_notification
-        )
+        rabbitmq_client.consume_messages("prescription.events", handle_prescription_notification)
 
         # Start consuming (this is a blocking call)
         logger_service.info("Starting to consume messages. Press CTRL+C to exit.")

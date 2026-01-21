@@ -1,17 +1,15 @@
 from datetime import datetime, timedelta
-from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+
 from middleware.auth_middleware import (
     get_current_user,
-    get_current_patient,
-    get_current_doctor,
 )
 from models.appointment import (
-    AppointmentCreate,
     Appointment,
-    AppointmentUpdate,
+    AppointmentCreate,
     AppointmentStatus,
+    AppointmentUpdate,
     PaginatedAppointmentResponse,
 )
 from services.appointment_service import AppointmentService
@@ -21,9 +19,7 @@ router = APIRouter()
 
 
 @router.post("/", response_model=Appointment, status_code=status.HTTP_201_CREATED)
-async def create_appointment(
-        appointment: AppointmentCreate, current_user: dict = Depends(get_current_user)
-):
+async def create_appointment(appointment: AppointmentCreate, current_user: dict = Depends(get_current_user)):
     """Create a new appointment. Only patients can create for themselves, doctors for their patients, admin for anyone."""
     roles = current_user.get("roles", [])
     user_id = current_user.get("user_id")
@@ -43,9 +39,7 @@ async def create_appointment(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have permission to create appointments.",
         )
-    logger_service.info(
-        f"Creating new appointment for patient {appointment.patient_id} by user {user_id}"
-    )
+    logger_service.info(f"Creating new appointment for patient {appointment.patient_id} by user {user_id}")
     appointment_service = AppointmentService()
     result = await appointment_service.create_appointment(appointment, current_user)
     return result
@@ -53,10 +47,8 @@ async def create_appointment(
 
 @router.get("/{appointment_id}", response_model=Appointment)
 async def get_appointment(
-        appointment_id: str = Path(
-            ..., description="The ID of the appointment to retrieve"
-        ),
-        current_user: dict = Depends(get_current_user),
+    appointment_id: str = Path(..., description="The ID of the appointment to retrieve"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Get a specific appointment by ID"""
     logger_service.info(f"Retrieving appointment {appointment_id}")
@@ -72,24 +64,16 @@ async def get_appointment(
 
 
 @router.get("/", response_model=PaginatedAppointmentResponse)
-@router.get(
-    "", response_model=PaginatedAppointmentResponse
-)  # Also match URL without trailing slash
+@router.get("", response_model=PaginatedAppointmentResponse)  # Also match URL without trailing slash
 async def list_appointments(
-        patient_id: Optional[str] = Query(None, description="Filter by patient ID"),
-        provider_id: Optional[str] = Query(None, description="Filter by provider ID"),
-        status: Optional[AppointmentStatus] = Query(
-            None, description="Filter by appointment status"
-        ),
-        start_date: Optional[datetime] = Query(
-            None, description="Filter by appointments after this date"
-        ),
-        end_date: Optional[datetime] = Query(
-            None, description="Filter by appointments before this date"
-        ),
-        page: int = Query(1, ge=1, description="Page number"),
-        limit: int = Query(10, ge=1, le=100, description="Items per page"),
-        current_user: dict = Depends(get_current_user),
+    patient_id: str | None = Query(None, description="Filter by patient ID"),
+    provider_id: str | None = Query(None, description="Filter by provider ID"),
+    status: AppointmentStatus | None = Query(None, description="Filter by appointment status"),
+    start_date: datetime | None = Query(None, description="Filter by appointments after this date"),
+    end_date: datetime | None = Query(None, description="Filter by appointments before this date"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    current_user: dict = Depends(get_current_user),
 ):
     """List appointments with optional filters"""
     logger_service.info("Listing appointments with filters")
@@ -116,17 +100,15 @@ async def list_appointments(
 
 @router.put("/{appointment_id}", response_model=Appointment)
 async def update_appointment(
-        appointment_update: AppointmentUpdate,
-        appointment_id: str = Path(..., description="The ID of the appointment to update"),
-        current_user: dict = Depends(get_current_user),
+    appointment_update: AppointmentUpdate,
+    appointment_id: str = Path(..., description="The ID of the appointment to update"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Update an existing appointment"""
     logger_service.info(f"Updating appointment {appointment_id}")
     appointment_service = AppointmentService()
 
-    updated_appointment = await appointment_service.update_appointment(
-        appointment_id, appointment_update
-    )
+    updated_appointment = await appointment_service.update_appointment(appointment_id, appointment_update)
 
     if not updated_appointment:
         raise HTTPException(
@@ -139,8 +121,8 @@ async def update_appointment(
 
 @router.delete("/{appointment_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_appointment(
-        appointment_id: str = Path(..., description="The ID of the appointment to delete"),
-        current_user: dict = Depends(get_current_user),
+    appointment_id: str = Path(..., description="The ID of the appointment to delete"),
+    current_user: dict = Depends(get_current_user),
 ):
     """Cancel an appointment"""
     logger_service.info(f"Cancelling appointment {appointment_id}")
@@ -153,5 +135,3 @@ async def delete_appointment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Appointment with ID {appointment_id} not found",
         )
-
-    return None

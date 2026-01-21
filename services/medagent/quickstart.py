@@ -8,7 +8,7 @@ from datetime import datetime
 import openai
 import requests
 from datasets import load_dataset
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Initialize global variables
 logger = logging.getLogger("benchmark")
@@ -39,7 +39,7 @@ def encode_image(image_path):
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode("utf-8")
     except Exception as e:
-        print(f"Error encoding image {image_path}: {str(e)}")
+        print(f"Error encoding image {image_path}: {e!s}")
         return None
 
 
@@ -50,7 +50,7 @@ def encode_image_url(image_url):
         response.raise_for_status()
         return base64.b64encode(response.content).decode("utf-8")
     except Exception as e:
-        print(f"Error encoding image from URL {image_url}: {str(e)}")
+        print(f"Error encoding image from URL {image_url}: {e!s}")
         return None
 
 
@@ -67,7 +67,7 @@ def create_multimodal_request(example, client, use_urls=False, shutdown_event=No
     """
     prompt = f"""Given the following medical case:
 Please answer this multiple choice question:
-{example['question']}
+{example["question"]}
 Base your answer only on the provided images and case information."""
 
     content = [{"type": "text", "text": prompt}]
@@ -200,15 +200,15 @@ Base your answer only on the provided images and case information."""
         }
         logger.info(json.dumps(log_entry))
         print(
-            f"Error processing question {example.get('question_id', 'unknown')}: {str(e)}"
+            f"Error processing question {example.get('question_id', 'unknown')}: {e!s}"
         )
         raise
 
 
 def main():
+    import argparse
     import signal
     import threading
-    import argparse
 
     # Add command line argument parsing
     parser = argparse.ArgumentParser(description="Run medical image analysis benchmark")
@@ -307,7 +307,7 @@ def main():
         print(f"Model Answer: {response.choices[0].message.content}")
         print(f"Correct Answer: {example['answer']}\n")
 
-    print(f"\nBenchmark Summary:")
+    print("\nBenchmark Summary:")
     print(f"Total Examples Processed: {processed}")
     print(f"Total Examples Skipped: {skipped}")
 

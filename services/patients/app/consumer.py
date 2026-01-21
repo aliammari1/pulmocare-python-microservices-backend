@@ -18,15 +18,13 @@ def handle_medical_update(ch, method, properties, body):
         update_type = method.routing_key.split(".")[-1]
 
         # Log that we've processed it
-        logger_service.info(
-            f"Processed {update_type} medical update for patient {patient_id}"
-        )
+        logger_service.info(f"Processed {update_type} medical update for patient {patient_id}")
 
         # Here we'll just forward to a notification stream using RabbitMQ
         rabbitmq_client = RabbitMQClient(Config)
         rabbitmq_client.publish_patient_update(
             patient_id=patient_id,
-            update_type=f"medical_update_processed",
+            update_type="medical_update_processed",
             data={
                 "original_update_type": update_type,
                 "processed_at": datetime.utcnow().isoformat(),
@@ -57,9 +55,7 @@ def handle_appointment_response(ch, method, properties, body):
         status = message.get("status")
 
         # Log the appointment response
-        logger_service.info(
-            f"Appointment {appointment_id} for patient {patient_id} with doctor {doctor_id} status: {status}"
-        )
+        logger_service.info(f"Appointment {appointment_id} for patient {patient_id} with doctor {doctor_id} status: {status}")
 
         # Forward the response as a notification to the patient
         rabbitmq_client = RabbitMQClient(Config)
@@ -98,9 +94,7 @@ def handle_prescription_notification(ch, method, properties, body):
         action = message.get("action")
 
         # Log that we've processed the notification
-        logger_service.info(
-            f"Processed prescription {prescription_id} {action} notification for patient {patient_id}"
-        )
+        logger_service.info(f"Processed prescription {prescription_id} {action} notification for patient {patient_id}")
 
         # Send a patient notification via RabbitMQ
         rabbitmq_client = RabbitMQClient(Config)
@@ -144,19 +138,13 @@ def main():
         # Set up consumers for different queues
 
         # Medical updates
-        rabbitmq_client.consume_messages(
-            "patients.medical_updates", handle_medical_update
-        )
+        rabbitmq_client.consume_messages("patients.medical_updates", handle_medical_update)
 
         # Appointment responses
-        rabbitmq_client.consume_messages(
-            "patients.appointments", handle_appointment_response
-        )
+        rabbitmq_client.consume_messages("patients.appointments", handle_appointment_response)
 
         # Prescription notifications
-        rabbitmq_client.consume_messages(
-            "patients.prescriptions", handle_prescription_notification
-        )
+        rabbitmq_client.consume_messages("patients.prescriptions", handle_prescription_notification)
 
         # Start consuming (this is a blocking call)
         logger_service.info("Starting to consume messages. Press CTRL+C to exit.")

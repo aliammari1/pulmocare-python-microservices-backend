@@ -9,13 +9,13 @@ import json
 import threading
 import time
 from enum import Enum, auto
-from typing import List
 
 import numpy as np
 import requests
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
+
 from medrax.llava.constants import CONTROLLER_HEART_BEAT_EXPIRATION
 from medrax.llava.utils import build_logger, server_error_msg
 
@@ -38,7 +38,7 @@ class DispatchMethod(Enum):
 
 @dataclasses.dataclass
 class WorkerInfo:
-    model_names: List[str]
+    model_names: list[str]
     speed: int
     queue_length: int
     check_heart_beat: bool
@@ -65,7 +65,7 @@ class Controller:
         logger.info("Init controller")
 
     def register_worker(
-            self, worker_name: str, check_heart_beat: bool, worker_status: dict
+        self, worker_name: str, check_heart_beat: bool, worker_status: dict
     ):
         if worker_name not in self.worker_info:
             logger.info(f"Register a new worker: {worker_name}")

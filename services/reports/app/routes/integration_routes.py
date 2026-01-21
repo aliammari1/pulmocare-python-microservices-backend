@@ -1,16 +1,15 @@
 # Additional imports at the top of the file
 import uuid
 from datetime import datetime
-from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
+
+from config import Config
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
 from services.report_service import ReportService
-
-from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
 
@@ -21,9 +20,9 @@ report_service = ReportService(mongodb_client, None, rabbitmq_client)
 
 
 class AnalysisSummaryRequest(BaseModel):
-    report_ids: List[str]
-    summary_type: Optional[str] = "general"
-    requester_id: Optional[str] = None
+    report_ids: list[str]
+    summary_type: str | None = "general"
+    requester_id: str | None = None
 
 
 @router.post(
@@ -31,8 +30,8 @@ class AnalysisSummaryRequest(BaseModel):
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def analyze_report(
-        report_id: str = Query(..., description="ID of the report to analyze"),
-        request: Request = None,
+    report_id: str = Query(..., description="ID of the report to analyze"),
+    request: Request = None,
 ):
     """Queue a report for analysis"""
     try:
@@ -55,15 +54,13 @@ async def analyze_report(
         if result:
             return {"message": "Report queued for analysis", "report_id": report_id}
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to queue report for analysis"
-            )
+            raise HTTPException(status_code=500, detail="Failed to queue report for analysis")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error queueing report for analysis: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
@@ -95,16 +92,14 @@ async def get_report_analysis(report_id: str, request: Request = None):
         raise
     except Exception as e:
         logger_service.error(f"Error retrieving report analysis: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.post(
     "/create-analysis-summary",
     status_code=status.HTTP_202_ACCEPTED,
 )
-async def create_analysis_summary(
-        data: AnalysisSummaryRequest, request: Request = None
-):
+async def create_analysis_summary(data: AnalysisSummaryRequest, request: Request = None):
     """Create a summary of analysis reports"""
     try:
         if not data.report_ids:
@@ -119,7 +114,7 @@ async def create_analysis_summary(
         raise
     except Exception as e:
         logger_service.error(f"Error queueing summary generation: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 async def health_check():

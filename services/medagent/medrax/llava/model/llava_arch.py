@@ -18,12 +18,13 @@ from abc import ABC, abstractmethod
 from glob import glob
 
 import torch
+
 from medrax.llava.constants import (
+    DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
     IGNORE_INDEX,
     IMAGE_TOKEN_INDEX,
-    DEFAULT_IMAGE_PATCH_TOKEN,
-    DEFAULT_IM_START_TOKEN,
-    DEFAULT_IM_END_TOKEN,
 )
 
 from .multimodal_encoder.builder import build_vision_tower
@@ -139,22 +140,22 @@ class LlavaMetaForCausalLM(ABC):
         return image_features
 
     def prepare_inputs_labels_for_multimodal(
-            self,
-            input_ids,
-            position_ids,
-            attention_mask,
-            past_key_values,
-            labels,
-            images,
-            image_sizes=None,
+        self,
+        input_ids,
+        position_ids,
+        attention_mask,
+        past_key_values,
+        labels,
+        images,
+        image_sizes=None,
     ):
         vision_tower = self.get_vision_tower()
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             if (
-                    past_key_values is not None
-                    and vision_tower is not None
-                    and images is not None
-                    and input_ids.shape[1] == 1
+                past_key_values is not None
+                and vision_tower is not None
+                and images is not None
+                and input_ids.shape[1] == 1
             ):
                 target_shape = past_key_values[-1][-1].shape[-2] + 1
                 attention_mask = torch.cat(
@@ -192,7 +193,7 @@ class LlavaMetaForCausalLM(ABC):
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
-                self.config, "mm_use_im_start_end", False
+            self.config, "mm_use_im_start_end", False
         ):
             raise NotImplementedError
 
@@ -242,9 +243,9 @@ class LlavaMetaForCausalLM(ABC):
                 continue
 
             image_token_indices = (
-                    [-1]
-                    + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist()
-                    + [cur_input_ids.shape[0]]
+                [-1]
+                + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist()
+                + [cur_input_ids.shape[0]]
             )
             cur_input_ids_noim = []
             cur_labels = labels[batch_idx]
@@ -252,11 +253,11 @@ class LlavaMetaForCausalLM(ABC):
             for i in range(len(image_token_indices) - 1):
                 cur_input_ids_noim.append(
                     cur_input_ids[
-                    image_token_indices[i] + 1: image_token_indices[i + 1]
+                        image_token_indices[i] + 1 : image_token_indices[i + 1]
                     ]
                 )
                 cur_labels_noim.append(
-                    cur_labels[image_token_indices[i] + 1: image_token_indices[i + 1]]
+                    cur_labels[image_token_indices[i] + 1 : image_token_indices[i + 1]]
                 )
 
             split_sizes = [x.shape[0] for x in cur_labels_noim]
@@ -320,7 +321,7 @@ class LlavaMetaForCausalLM(ABC):
         )
 
         for i, (cur_new_embed, cur_new_labels) in enumerate(
-                zip(new_input_embeds, new_labels)
+            zip(new_input_embeds, new_labels)
         ):
             cur_len = cur_new_embed.shape[0]
             if getattr(self.config, "tokenizer_padding_side", "right") == "left":
@@ -426,8 +427,8 @@ class LlavaMetaForCausalLM(ABC):
                 assert num_new_tokens == 2
                 if input_embeddings.shape == embed_tokens_weight.shape:
                     input_embeddings[-num_new_tokens:] = embed_tokens_weight[
-                                                         -num_new_tokens:
-                                                         ]
+                        -num_new_tokens:
+                    ]
                 elif embed_tokens_weight.shape[0] == num_new_tokens:
                     input_embeddings[-num_new_tokens:] = embed_tokens_weight
                 else:

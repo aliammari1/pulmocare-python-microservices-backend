@@ -1,9 +1,9 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from enum import Enum
-from typing import List, Optional, Dict, Any
+from typing import Any
 from uuid import uuid4
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 class AppointmentStatus(str, Enum):
@@ -46,8 +46,8 @@ class MedicalFile(BaseModel):
     file_url: str
     uploaded_at: datetime = Field(default_factory=datetime.utcnow)
     uploaded_by: str
-    size: Optional[int] = None
-    description: Optional[str] = None
+    size: int | None = None
+    description: str | None = None
 
 
 class AppointmentType(BaseModel):
@@ -70,31 +70,31 @@ class AppointmentBase(BaseModel):
     appointment_type: str  # Use AppointmentTypeEnum values
     appointment_date: datetime
     duration_minutes: int = 30
-    reason: Optional[str] = None  # Added to match frontend
-    notes: Optional[str] = None
+    reason: str | None = None  # Added to match frontend
+    notes: str | None = None
     virtual: bool = False
-    meeting_link: Optional[str] = None
+    meeting_link: str | None = None
 
 
 class AppointmentCreate(AppointmentBase):
     """Create appointment model"""
 
-    recurring_series_id: Optional[str] = None
-    medical_file_ids: Optional[List[str]] = None  # Added to match frontend
+    recurring_series_id: str | None = None
+    medical_file_ids: list[str] | None = None  # Added to match frontend
 
 
 class AppointmentUpdate(BaseModel):
     """Update appointment model with all fields optional"""
 
-    provider_id: Optional[str] = None
-    appointment_date: Optional[datetime] = None
-    duration_minutes: Optional[int] = None
-    reason: Optional[str] = None  # Added to match frontend
-    notes: Optional[str] = None
-    status: Optional[AppointmentStatus] = None
-    virtual: Optional[bool] = None
-    meeting_link: Optional[str] = None
-    medical_file_ids: Optional[List[str]] = None  # Added to match frontend
+    provider_id: str | None = None
+    appointment_date: datetime | None = None
+    duration_minutes: int | None = None
+    reason: str | None = None  # Added to match frontend
+    notes: str | None = None
+    status: AppointmentStatus | None = None
+    virtual: bool | None = None
+    meeting_link: str | None = None
+    medical_file_ids: list[str] | None = None  # Added to match frontend
 
 
 class Appointment(AppointmentBase):
@@ -104,17 +104,9 @@ class Appointment(AppointmentBase):
     status: AppointmentStatus = AppointmentStatus.PENDING  # Changed default to PENDING
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    medical_files: List[MedicalFile] = []  # Added to match frontend
+    medical_files: list[MedicalFile] = []
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
-
-    @validator("updated_at", always=True)
-    def set_updated_at(cls, v, values):
-        """Set updated_at to current time when updating"""
-        return datetime.utcnow()
-
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to format expected by frontend"""
         return {
             "id": self.appointment_id,
@@ -136,8 +128,8 @@ class ProviderAvailability(BaseModel):
 
     provider_id: str
     provider_type: ProviderType
-    weekly_schedule: Dict[str, List[Dict[str, Any]]]  # Day -> list of time slots
-    exceptions: List[Dict[str, Any]]  # Special dates (holidays, time off)
+    weekly_schedule: dict[str, list[dict[str, Any]]]  # Day -> list of time slots
+    exceptions: list[dict[str, Any]]  # Special dates (holidays, time off)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
@@ -171,30 +163,27 @@ class WorkHours(BaseModel):
 
     start: int  # Hour of day (0-23)
     end: int  # Hour of day (0-23)
-    break_start: Optional[int] = None  # Optional break start hour
-    break_end: Optional[int] = None  # Optional break end hour
+    break_start: int | None = None  # Optional break start hour
+    break_end: int | None = None  # Optional break end hour
 
 
 class ScheduleConfiguration(BaseModel):
     """Schedule configuration for a provider"""
 
     provider_id: str
-    work_hours: Dict[str, WorkHours]  # Day of week (0-6) -> work hours
+    work_hours: dict[str, WorkHours]  # Day of week (0-6) -> work hours
 
 
 class ProviderSchedule(BaseModel):
     """Provider schedule model"""
 
     provider_id: str
-    provider_name: Optional[str] = None
+    provider_name: str | None = None
     provider_type: ProviderType
-    work_hours: Dict[str, WorkHours]  # Day of week (0-6) -> work hours
-    exceptions: List[Dict[str, Any]] = []  # Special dates (holidays, time off)
+    work_hours: dict[str, WorkHours]  # Day of week (0-6) -> work hours
+    exceptions: list[dict[str, Any]] = []  # Special dates (holidays, time off)
     created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
-
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class RecurrenceType(str, Enum):
@@ -218,25 +207,22 @@ class RecurringAppointment(BaseModel):
     end_date: datetime
     recurrence_type: RecurrenceType
     occurrences: int
-    days_of_week: Optional[List[int]] = None  # 0-6 for weekly recurrence
-    day_of_month: Optional[int] = None  # 1-31 for monthly recurrence
-    notes: Optional[str] = None
+    days_of_week: list[int] | None = None
+    day_of_month: int | None = None
+    notes: str | None = None
     virtual: bool = False
 
 
 class PaginatedAppointmentResponse(BaseModel):
     """Paginated response model for appointments"""
 
-    items: List[Appointment]
+    items: list[Appointment]
     total: int
     page: int
     limit: int
     pages: int
 
-    class Config:
-        json_encoders = {datetime: lambda v: v.isoformat()}
-
-    def to_json(self) -> Dict[str, Any]:
+    def to_json(self) -> dict[str, Any]:
         """Convert to format expected by frontend"""
         return {
             "items": [item.to_json() for item in self.items],

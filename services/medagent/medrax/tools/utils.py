@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional, Type, Dict, Tuple
 
 import matplotlib.pyplot as plt
 import skimage.io
@@ -18,16 +17,16 @@ class ImageVisualizerInput(BaseModel):
         ...,
         description="Path to the image file to display, only supports JPG or PNG images",
     )
-    title: Optional[str] = Field(
+    title: str | None = Field(
         None, description="Optional title to display above the image"
     )
-    description: Optional[str] = Field(
+    description: str | None = Field(
         None, description="Optional description to display below the image"
     )
-    figsize: Optional[tuple] = Field(
+    figsize: tuple | None = Field(
         (10, 10), description="Optional figure size as (width, height) in inches"
     )
-    cmap: Optional[str] = Field(
+    cmap: str | None = Field(
         "rgb", description="Optional colormap to use for displaying the image"
     )
 
@@ -41,15 +40,15 @@ class ImageVisualizerTool(BaseTool):
         "Input: Path to image file and optional display parameters. "
         "Output: Dict with image path and metadata."
     )
-    args_schema: Type[BaseModel] = ImageVisualizerInput
+    args_schema: type[BaseModel] = ImageVisualizerInput
 
     def _display_image(
-            self,
-            image_path: str,
-            title: Optional[str] = None,
-            description: Optional[str] = None,
-            figsize: tuple = (10, 10),
-            cmap: str = "rgb",
+        self,
+        image_path: str,
+        title: str | None = None,
+        description: str | None = None,
+        figsize: tuple = (10, 10),
+        cmap: str = "rgb",
     ) -> None:
         """Display an image with optional annotations."""
         plt.figure(figsize=figsize)
@@ -80,13 +79,13 @@ class ImageVisualizerTool(BaseTool):
         plt.show()
 
     def _run(
-            self,
-            image_path: str,
-            title: Optional[str] = None,
-            description: Optional[str] = None,
-            figsize: tuple = (10, 10),
-            cmap: str = "rgb",
-            run_manager: Optional[CallbackManagerForToolRun] = None,
+        self,
+        image_path: str,
+        title: str | None = None,
+        description: str | None = None,
+        figsize: tuple = (10, 10),
+        cmap: str = "rgb",
+        run_manager: CallbackManagerForToolRun | None = None,
     ) -> dict:
         """
         Display an image to the user with optional annotations.
@@ -132,13 +131,13 @@ class ImageVisualizerTool(BaseTool):
             )
 
     async def _arun(
-            self,
-            image_path: str,
-            title: Optional[str] = None,
-            description: Optional[str] = None,
-            figsize: tuple = (10, 10),
-            cmap: str = "rgb",
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, any], Dict]:
+        self,
+        image_path: str,
+        title: str | None = None,
+        description: str | None = None,
+        figsize: tuple = (10, 10),
+        cmap: str = "rgb",
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, any], dict]:
         """Async version of _run."""
         return self._run(image_path, title, description, figsize, cmap)

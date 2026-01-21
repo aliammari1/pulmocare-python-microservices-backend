@@ -1,6 +1,5 @@
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
 
 from pydantic import BaseModel, Field, validator
 
@@ -25,8 +24,8 @@ class Point(BaseModel):
 
 class Annotation(BaseModel):
     type: AnnotationType
-    points: Optional[List[Point]] = None
-    text: Optional[str] = None
+    points: list[Point] | None = None
+    text: str | None = None
     timestamp: datetime
 
     @validator("points")
@@ -46,9 +45,7 @@ class Finding(BaseModel):
     condition: str = Field(..., description="Medical condition identified")
     severity: Severity
     description: str = Field(..., description="Detailed description of the finding")
-    confidence_score: float = Field(
-        ..., ge=0, le=100, description="Confidence score (0-100)"
-    )
+    confidence_score: float = Field(..., ge=0, le=100, description="Confidence score (0-100)")
     probability: float = Field(..., ge=0, le=1, description="Probability (0-1)")
 
 
@@ -66,7 +63,7 @@ class TechnicalDetails(BaseModel):
 
 
 class Analysis(BaseModel):
-    findings: List[Finding]
+    findings: list[Finding]
     technical_details: TechnicalDetails
 
 
@@ -75,9 +72,9 @@ class Report(BaseModel):
     content: str = Field(..., min_length=1)
     patient_id: str = Field(..., description="ID of the patient")
     doctor_id: str = Field(..., description="ID of the doctor")
-    analysis: Optional[Analysis] = None
-    annotations: Optional[List[Annotation]] = None
-    tags: Optional[List[str]] = None
+    analysis: Analysis | None = None
+    annotations: list[Annotation] | None = None
+    tags: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 

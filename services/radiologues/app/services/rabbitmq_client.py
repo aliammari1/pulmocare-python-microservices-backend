@@ -2,16 +2,15 @@ import json
 import os
 import time
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 import pika
 import pika.exceptions
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exchange_type import ExchangeType
+
 from services.logger_service import logger_service
 from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
-
-from config import Config
 
 
 def track_rabbitmq_metrics(func):
@@ -26,7 +25,7 @@ def track_rabbitmq_metrics(func):
             RABBITMQ_MESSAGES_PUBLISHED.add(1)
             return result
         except Exception as e:
-            logger_service.error(f"RabbitMQ error: {str(e)}")
+            logger_service.error(f"RabbitMQ error: {e!s}")
             return False
 
     return wrapper
@@ -126,9 +125,7 @@ class RabbitMQClient:
         return self.channel
 
     @track_rabbitmq_metrics
-    def publish_message(
-            self, exchange: str, routing_key: str, message: Dict[str, Any]
-    ) -> bool:
+    def publish_message(self, exchange: str, routing_key: str, message: dict[str, Any]) -> bool:
         """
         Publish a message to RabbitMQ.
 
@@ -165,9 +162,7 @@ class RabbitMQClient:
                 ),
             )
 
-            logger_service.info(
-                f"Published message to exchange={exchange}, routing_key={routing_key}"
-            )
+            logger_service.info(f"Published message to exchange={exchange}, routing_key={routing_key}")
             return True
 
         except Exception as e:
@@ -188,26 +183,22 @@ class RabbitMQClient:
                     ),
                 )
 
-                logger_service.info(
-                    f"Successfully republished message after reconnect to {exchange}, routing_key={routing_key}"
-                )
+                logger_service.info(f"Successfully republished message after reconnect to {exchange}, routing_key={routing_key}")
                 return True
             except Exception as retry_error:
-                logger_service.error(
-                    f"Failed to republish message after reconnect: {retry_error}"
-                )
+                logger_service.error(f"Failed to republish message after reconnect: {retry_error}")
                 return False
 
     def send_radiology_report(
-            self,
-            report_id: str,
-            doctor_id: str,
-            patient_id: str,
-            radiologist_id: str,
-            exam_type: str,
-            findings: str,
-            impression: str,
-            images_urls: list = None,
+        self,
+        report_id: str,
+        doctor_id: str,
+        patient_id: str,
+        radiologist_id: str,
+        exam_type: str,
+        findings: str,
+        impression: str,
+        images_urls: list = None,
     ) -> bool:
         """
         Send a radiology report to the reports exchange.
@@ -247,10 +238,10 @@ class RabbitMQClient:
         )
 
     def update_radiology_report_status(
-            self,
-            report_id: str,
-            status: str,
-            updated_by: str,
+        self,
+        report_id: str,
+        status: str,
+        updated_by: str,
     ) -> bool:
         """
         Update the status of a radiology report.
@@ -280,10 +271,10 @@ class RabbitMQClient:
         )
 
     def accept_radiology_examination(
-            self,
-            request_id: str,
-            radiologist_id: str,
-            estimated_completion_date: str = None,
+        self,
+        request_id: str,
+        radiologist_id: str,
+        estimated_completion_date: str = None,
     ) -> bool:
         """
         Accept a radiology examination request.
@@ -313,9 +304,7 @@ class RabbitMQClient:
             message=message,
         )
 
-    def reject_radiology_examination(
-            self, request_id: str, radiologist_id: str, reason: str
-    ) -> bool:
+    def reject_radiology_examination(self, request_id: str, radiologist_id: str, reason: str) -> bool:
         """
         Reject a radiology examination request.
 
@@ -345,12 +334,12 @@ class RabbitMQClient:
         )
 
     def send_notification(
-            self,
-            recipient_id: str,
-            recipient_type: str,
-            notification_type: str,
-            message: str,
-            data: Dict = None,
+        self,
+        recipient_id: str,
+        recipient_type: str,
+        notification_type: str,
+        message: str,
+        data: dict = None,
     ) -> bool:
         """
         Send a notification to a user.
@@ -451,13 +440,9 @@ class RabbitMQClient:
         """
         if self.channel and self.channel.is_open:
             self.channel.basic_reject(delivery_tag=delivery_tag, requeue=requeue)
-            logger_service.debug(
-                f"Rejected message with tag {delivery_tag}, requeue={requeue}"
-            )
+            logger_service.debug(f"Rejected message with tag {delivery_tag}, requeue={requeue}")
 
-    def notify_doctor_report_ready(
-            self, report_id: str, doctor_id: str, patient_id: str, exam_type: str
-    ):
+    def notify_doctor_report_ready(self, report_id: str, doctor_id: str, patient_id: str, exam_type: str):
         """Notify a doctor that a requested report is ready"""
         message = {
             "report_id": report_id,
@@ -470,7 +455,7 @@ class RabbitMQClient:
 
         return self.publish_message(
             exchange="medical.events",
-            routing_key=f"doctor.report.ready",
+            routing_key="doctor.report.ready",
             message=message,
         )
 

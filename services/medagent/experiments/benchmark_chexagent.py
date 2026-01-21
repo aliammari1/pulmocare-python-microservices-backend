@@ -39,12 +39,12 @@ def initialize_model() -> tuple[AutoModelForCausalLM, AutoTokenizer]:
 
 
 def create_inference_request(
-        question_data: dict,
-        case_details: dict,
-        case_id: str,
-        question_id: str,
-        model: AutoModelForCausalLM,
-        tokenizer: AutoTokenizer,
+    question_data: dict,
+    case_details: dict,
+    case_id: str,
+    question_id: str,
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
 ) -> str | None:
     """Create and execute an inference request for the CheXagent model.
 
@@ -81,7 +81,7 @@ Examples of invalid responses:
 
     prompt = f"""Given the following medical case:
 Please answer this multiple choice question:
-{question_data['question']}
+{question_data["question"]}
 Base your answer only on the provided images and case information."""
 
     # Parse required figures
@@ -123,7 +123,7 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                       or subfig.get("label", "").lower() == figure_letter.lower()
+                    or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
@@ -163,7 +163,7 @@ Base your answer only on the provided images and case information."""
                 max_new_tokens=512,
             )[0]
 
-        response = tokenizer.decode(output[input_ids.size(1): -1])
+        response = tokenizer.decode(output[input_ids.size(1) : -1])
         duration = time.time() - start_time
 
         # Clean response
@@ -192,7 +192,7 @@ Base your answer only on the provided images and case information."""
         return clean_answer
 
     except Exception as e:
-        print(f"Error processing case {case_id}, question {question_id}: {str(e)}")
+        print(f"Error processing case {case_id}, question {question_id}: {e!s}")
         log_entry = {
             "case_id": case_id,
             "question_id": question_id,
@@ -269,7 +269,7 @@ def count_total_questions() -> tuple[int, int]:
 
 def main():
     # Load the cases with local paths
-    with open("medrax/data/updated_cases.json", "r") as file:
+    with open("medrax/data/updated_cases.json") as file:
         data = json.load(file)
 
     # Initialize model and tokenizer
@@ -291,9 +291,9 @@ def main():
 
         cases_processed += 1
         for question_file in tqdm(
-                question_files, desc=f"Processing questions for case {case_id}", leave=False
+            question_files, desc=f"Processing questions for case {case_id}", leave=False
         ):
-            with open(question_file, "r") as file:
+            with open(question_file) as file:
                 question_data = json.load(file)
                 question_id = os.path.basename(question_file).split(".")[0]
 
@@ -310,7 +310,7 @@ def main():
             print(f"Model Answer: {answer}")
             print(f"Correct Answer: {question_data['answer']}")
 
-    print(f"\nInference Summary:")
+    print("\nInference Summary:")
     print(f"Total Cases Processed: {cases_processed}")
     print(f"Total Questions Processed: {questions_processed}")
     print(f"Total Questions Skipped: {skipped_questions}")

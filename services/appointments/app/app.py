@@ -66,7 +66,7 @@ async def startup_event():
         logger_service.info("Appointments service starting up")
 
     except Exception as e:
-        logger_service.error(f"Startup error: {str(e)}")
+        logger_service.error(f"Startup error: {e!s}")
         raise
 
 
@@ -78,7 +78,7 @@ async def start_appointment_consumers():
         await appointment_consumer.start_consuming()
         logger_service.info("Appointment message consumers started")
     except Exception as e:
-        logger_service.error(f"Error starting message consumers: {str(e)}")
+        logger_service.error(f"Error starting message consumers: {e!s}")
 
 
 async def close_database_client():
@@ -87,7 +87,7 @@ async def close_database_client():
         await mongodb_client.close_async()
         return True
     except Exception as e:
-        logger_service.error(f"Error closing database connection: {str(e)}")
+        logger_service.error(f"Error closing database connection: {e!s}")
         return False
 
 
@@ -110,13 +110,13 @@ async def shutdown_event():
         logger_service.info("Appointments service shutting down")
 
     except Exception as e:
-        logger_service.error(f"Shutdown error: {str(e)}")
+        logger_service.error(f"Shutdown error: {e!s}")
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler for the application"""
-    logger_service.error(f"Unhandled exception: {str(exc)}")
+    logger_service.error(f"Unhandled exception: {exc!s}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"message": "An unexpected error occurred"},
@@ -125,13 +125,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
-app.include_router(
-    appointments_router, prefix="/api/appointments", tags=["Appointments"]
-)
+app.include_router(appointments_router, prefix="/api/appointments", tags=["Appointments"])
 app.include_router(scheduling_router, prefix="/api/scheduling", tags=["Scheduling"])
-app.include_router(
-    integration_router, prefix="/api/integration/appointments", tags=["Integration"]
-)
+app.include_router(integration_router, prefix="/api/integration/appointments", tags=["Integration"])
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "8087"))

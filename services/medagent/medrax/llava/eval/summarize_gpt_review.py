@@ -2,7 +2,6 @@ import argparse
 from collections import defaultdict
 
 import pandas as pd
-
 import util
 
 
@@ -40,10 +39,10 @@ def main(args):
         result[q_type]["gpt4_score"] = util.get_avg(score_dict[1])
         result[q_type]["pred_score"] = util.get_avg(score_dict[2])
         result[q_type]["pred_relative_score"] = (
-                util.get_avg(
-                    [float(s2) / float(s1) for s1, s2 in zip(score_dict[1], score_dict[2])]
-                )
-                * 100
+            util.get_avg(
+                [float(s2) / float(s1) for s1, s2 in zip(score_dict[1], score_dict[2])]
+            )
+            * 100
         )
         result[q_type]["data_size"] = len(score_dict[1])
 

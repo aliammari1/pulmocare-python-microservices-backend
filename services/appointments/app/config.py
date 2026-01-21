@@ -46,24 +46,18 @@ class Config:
     MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE", "10"))
     MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS", "10000"))
     MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", "2000"))
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
-        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "2000")
-    )
+    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", "2000"))
 
     # Service Integration settings
     MEDECINS_SERVICE_HOST = os.getenv("MEDECINS_SERVICE_HOST", "medecins-service")
     MEDECINS_SERVICE_PORT = int(os.getenv("MEDECINS_SERVICE_PORT", "8081"))
     PATIENTS_SERVICE_HOST = os.getenv("PATIENTS_SERVICE_HOST", "patients-service")
-    PATIENTS_SERVICE_PORT = int(
-        os.getenv("PATIENTS_SERVICE_PORT", "8083")
-    )  # Updated to match the actual port
+    PATIENTS_SERVICE_PORT = int(os.getenv("PATIENTS_SERVICE_PORT", "8083"))  # Updated to match the actual port
 
     # Authentication settings
     AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://auth-service:8086")
     AUTH_SERVICE_CLIENT_ID = os.getenv("AUTH_SERVICE_CLIENT_ID", "pulmocare-api")
-    AUTH_SERVICE_CLIENT_SECRET = os.getenv(
-        "AUTH_SERVICE_CLIENT_SECRET", "pulmocare-secret"
-    )
+    AUTH_SERVICE_CLIENT_SECRET = os.getenv("AUTH_SERVICE_CLIENT_SECRET", "pulmocare-secret")
     AUTH_SERVICE_REALM = os.getenv("AUTH_SERVICE_REALM", "pulmocare")
 
     # RabbitMQ settings
@@ -95,12 +89,8 @@ class Config:
     OTEL_SERVICE_NAME = SERVICE_NAME
 
     # Circuit Breaker settings
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(
-        os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD")
-    )
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(
-        os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
-    )
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD"))
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT"))
 
     # Health Check settings
     HEALTH_CHECK_INTERVAL = os.getenv("HEALTH_CHECK_INTERVAL")
@@ -146,9 +136,7 @@ class Config:
             "RABBITMQ_HOST",
         ]
 
-        missing = [
-            setting for setting in required_settings if not getattr(cls, setting, None)
-        ]
+        missing = [setting for setting in required_settings if not getattr(cls, setting, None)]
 
         if missing:
             raise ValueError(f"Missing required configuration: {', '.join(missing)}")
@@ -158,9 +146,7 @@ class Config:
         """Get MongoDB connection URI with proper handling of special characters in password"""
         username = urllib.parse.quote_plus(cls.MONGODB_USERNAME)
         password = urllib.parse.quote_plus(cls.MONGODB_PASSWORD)
-        return (
-            f"mongodb://{username}:{password}@" f"{cls.MONGODB_HOST}:{cls.MONGODB_PORT}"
-        )
+        return f"mongodb://{username}:{password}@{cls.MONGODB_HOST}:{cls.MONGODB_PORT}"
 
     @classmethod
     def get_mongodb_validation_schema(cls):

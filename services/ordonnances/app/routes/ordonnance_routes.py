@@ -1,16 +1,16 @@
 import datetime
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import bson
 from bson import ObjectId
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from services.mongodb_client import MongoDBClient
-from services.pdf_service import generate_ordonnance_pdf
 
 from config import Config
+from services.mongodb_client import MongoDBClient
+from services.pdf_service import generate_ordonnance_pdf
 
 
 # Models
@@ -18,27 +18,27 @@ class Medicament(BaseModel):
     nom: str
     dosage: str
     duree: str
-    instructions: Optional[str] = None
+    instructions: str | None = None
 
 
 class OrdonnanceCreate(BaseModel):
     patient_id: str
     medecin_id: str
-    medicaments: List[Dict[str, str]]
-    clinique: Optional[str] = ""
-    specialite: Optional[str] = ""
+    medicaments: list[dict[str, str]]
+    clinique: str | None = ""
+    specialite: str | None = ""
 
 
 class OrdonnanceResponse(BaseModel):
     id: str
     patient_id: str
     medecin_id: str
-    medicaments: List[Dict[str, str]]
-    clinique: Optional[str] = ""
-    specialite: Optional[str] = ""
+    medicaments: list[dict[str, str]]
+    clinique: str | None = ""
+    specialite: str | None = ""
     date: str
-    has_pdf: Optional[bool] = False
-    pdf_filename: Optional[str] = None
+    has_pdf: bool | None = False
+    pdf_filename: str | None = None
 
 
 class StatusMessage(BaseModel):
@@ -58,9 +58,7 @@ db = MongoDBClient(Config).db
 
 
 # Endpoints
-@ordonnance_router.post(
-    "", response_model=Dict[str, str], status_code=status.HTTP_201_CREATED
-)
+@ordonnance_router.post("", response_model=dict[str, str], status_code=status.HTTP_201_CREATED)
 async def create_ordonnance(data: OrdonnanceCreate):
     try:
         # Create the ordonnance
@@ -85,7 +83,7 @@ async def create_ordonnance(data: OrdonnanceCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@ordonnance_router.get("/", response_model=List[Dict[str, Any]])
+@ordonnance_router.get("/", response_model=list[dict[str, Any]])
 async def get_ordonnances():
     ordonnances = list(db.ordonnances.find())
     for ord in ordonnances:
@@ -93,9 +91,7 @@ async def get_ordonnances():
     return ordonnances
 
 
-@ordonnance_router.get(
-    "/medecin/{medecin_id}/ordonnances", response_model=List[Dict[str, Any]]
-)
+@ordonnance_router.get("/medecin/{medecin_id}/ordonnances", response_model=list[dict[str, Any]])
 async def get_medecin_ordonnances(medecin_id: str):
     try:
         ordonnances = list(db.ordonnances.find({"medecin_id": medecin_id}))
@@ -116,7 +112,7 @@ async def get_medecin_ordonnances(medecin_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@ordonnance_router.post("/ordonnances/{id}/pdf", response_model=Dict[str, str])
+@ordonnance_router.post("/ordonnances/{id}/pdf", response_model=dict[str, str])
 async def save_ordonnance_pdf(id: str, pdf: UploadFile = File(...)):
     try:
         ordonnance = db.ordonnances.find_one({"_id": ObjectId(id)})
@@ -124,16 +120,14 @@ async def save_ordonnance_pdf(id: str, pdf: UploadFile = File(...)):
             raise HTTPException(status_code=404, detail="Ordonnance non trouvée")
 
         pdf_bytes = await pdf.read()
-        filename = pdf_service.save_pdf(
-            ordonnance["medecin_id"], pdf_bytes, str(ordonnance["_id"])
-        )
+        filename = pdf_service.save_pdf(ordonnance["medecin_id"], pdf_bytes, str(ordonnance["_id"]))
 
         return {"message": "PDF sauvegardé", "filename": filename}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@ordonnance_router.get("/ordonnance/{id}", response_model=Dict[str, Any])
+@ordonnance_router.get("/ordonnance/{id}", response_model=dict[str, Any])
 async def get_ordonnance(id: str):
     try:
         # Validate ObjectId format
@@ -155,10 +149,8 @@ async def get_ordonnance(id: str):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error fetching ordonnance {id}: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Erreur lors de la récupération de l'ordonnance"
-        )
+        print(f"Error fetching ordonnance {id}: {e!s}")
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération de l'ordonnance")
 
 
 @ordonnance_router.get("/{ordonnance_id}/pdf")
@@ -199,11 +191,7 @@ async def verify_ordonnance(id: str):
             raise HTTPException(status_code=404, detail="Ordonnance non trouvée")
 
         # Basic verification
-        is_valid = (
-                ordonnance.get("patient_id")
-                and ordonnance.get("medecin_id")
-                and ordonnance.get("medicaments")
-        )
+        is_valid = ordonnance.get("patient_id") and ordonnance.get("medecin_id") and ordonnance.get("medicaments")
 
         return {
             "status": "success",

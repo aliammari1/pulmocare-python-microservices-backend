@@ -140,14 +140,10 @@ def main():
         # Set up consumers for different queues
 
         # Report analysis results
-        rabbitmq_client.consume_messages(
-            "reports.analysis.results", handle_report_analysis_result
-        )
+        rabbitmq_client.consume_messages("reports.analysis.results", handle_report_analysis_result)
 
         # Summary generation results
-        rabbitmq_client.consume_messages(
-            "reports.summary.results", handle_summary_result
-        )
+        rabbitmq_client.consume_messages("reports.summary.results", handle_summary_result)
 
         # New report notifications
         rabbitmq_client.consume_messages("reports.new", handle_new_report)

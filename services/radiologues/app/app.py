@@ -1,13 +1,10 @@
 import os
-import os
 import threading
 
 import uvicorn
-from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fpdf import FPDF
 
 from config import Config
 from services.logger_service import logger_service

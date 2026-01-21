@@ -9,3 +9,4 @@ venv
 .pytest_cache
 .vscode/*
 node_modules
+.ruff_cache

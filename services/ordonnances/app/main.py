@@ -3,9 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from routes.ordonnance_routes import ordonnance_router
 
-app = FastAPI(
-    title="Ordonnances API", description="API pour la gestion des ordonnances médicales"
-)
+app = FastAPI(title="Ordonnances API", description="API pour la gestion des ordonnances médicales")
 
 # Configure CORS
 app.add_middleware(

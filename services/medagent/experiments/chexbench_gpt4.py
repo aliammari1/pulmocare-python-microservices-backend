@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any
 
 import openai
 from tqdm import tqdm
@@ -110,13 +110,13 @@ def encode_image(image_path: str) -> str:
 
             return encoded
     except Exception as e:
-        logger.error(f"Error reading/encoding image: {str(e)}")
+        logger.error(f"Error reading/encoding image: {e!s}")
         raise
 
 
 def create_single_request(
-        image_path: str, question: str, options: Dict[str, str]
-) -> List[Dict[str, Any]]:
+    image_path: str, question: str, options: dict[str, str]
+) -> list[dict[str, Any]]:
     """
     Create a single API request with image and question.
 
@@ -140,8 +140,8 @@ Please answer this multiple choice question:
 Question: {question}
 
 Options:
-A) {options['option_0']}
-B) {options['option_1']}
+A) {options["option_0"]}
+B) {options["option_1"]}
 
 Base your answer only on the provided image and select either A or B."""
 
@@ -173,9 +173,9 @@ Base your answer only on the provided image and select either A or B."""
 
         if DEBUG_MODE:
             log_messages = json.loads(json.dumps(messages))
-            log_messages[1]["content"][1]["image_url"][
-                "url"
-            ] = f"data:{mime_type};base64,[BASE64_IMAGE_TRUNCATED]"
+            log_messages[1]["content"][1]["image_url"]["url"] = (
+                f"data:{mime_type};base64,[BASE64_IMAGE_TRUNCATED]"
+            )
             logger.debug(
                 f"Complete API request payload:\n{json.dumps(log_messages, indent=2)}"
             )
@@ -183,7 +183,7 @@ Base your answer only on the provided image and select either A or B."""
         return messages
 
     except Exception as e:
-        logger.error(f"Error creating request: {str(e)}")
+        logger.error(f"Error creating request: {e!s}")
         raise
 
 
@@ -213,7 +213,7 @@ def check_answer(model_answer: str, correct_answer: int) -> bool:
     return model_index == correct_answer
 
 
-def save_results_to_json(results: List[Dict[str, Any]], output_dir: str) -> str:
+def save_results_to_json(results: list[dict[str, Any]], output_dir: str) -> str:
     """
     Save results to a JSON file with timestamp.
 
@@ -235,7 +235,7 @@ def save_results_to_json(results: List[Dict[str, Any]], output_dir: str) -> str:
     return output_file
 
 
-def calculate_accuracy(results: List[Dict[str, Any]]) -> tuple[float, int, int]:
+def calculate_accuracy(results: list[dict[str, Any]]) -> tuple[float, int, int]:
     """
     Calculate accuracy from results, handling error cases.
 
@@ -260,7 +260,7 @@ def calculate_accuracy(results: List[Dict[str, Any]]) -> tuple[float, int, int]:
     return accuracy, correct, total
 
 
-def calculate_batch_accuracy(results: List[Dict[str, Any]]) -> float:
+def calculate_batch_accuracy(results: list[dict[str, Any]]) -> float:
     """
     Calculate accuracy for the current batch.
 
@@ -274,18 +274,18 @@ def calculate_batch_accuracy(results: List[Dict[str, Any]]) -> float:
     if not valid_results:
         return 0.0
     return (
-            sum(1 for r in valid_results if r["output"]["is_correct"])
-            / len(valid_results)
-            * 100
+        sum(1 for r in valid_results if r["output"]["is_correct"])
+        / len(valid_results)
+        * 100
     )
 
 
 def process_batch(
-        data: List[Dict[str, Any]],
-        client: openai.OpenAI,
-        start_idx: int = 0,
-        batch_size: int = 50,
-) -> List[Dict[str, Any]]:
+    data: list[dict[str, Any]],
+    client: openai.OpenAI,
+    start_idx: int = 0,
+    batch_size: int = 50,
+) -> list[dict[str, Any]]:
     """
     Process a batch of examples and return results.
 
@@ -369,7 +369,7 @@ def process_batch(
             }
             batch_results.append(error_result)
             if DEBUG_MODE:
-                pbar.write(f"Error processing example {index}: {str(e)}")
+                pbar.write(f"Error processing example {index}: {e!s}")
 
         time.sleep(1)  # Rate limiting
 
@@ -393,7 +393,7 @@ def main() -> None:
             raise ValueError("OPENAI_API_KEY environment variable is not set.")
         client = openai.OpenAI(api_key=api_key)
 
-        with open(json_path, "r") as f:
+        with open(json_path) as f:
             data = json.load(f)
 
         subset_data = data[SUBSET]
@@ -424,7 +424,7 @@ def main() -> None:
         logger.info(f"Final results saved to: {output_file}")
 
     except Exception as e:
-        logger.error(f"Fatal error: {str(e)}")
+        logger.error(f"Fatal error: {e!s}")
         raise
 
 

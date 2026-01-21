@@ -3,6 +3,7 @@ import time
 
 from opentelemetry import metrics
 from opentelemetry.sdk.metrics import MeterProvider
+
 from services.logger_service import logger_service
 
 # Initialize OpenTelemetry meter provider
@@ -98,22 +99,18 @@ def track_rabbitmq_metrics(func):
 
             # Record metrics based on operation type
             if func.__name__ == "publish":
-                RABBITMQ_MESSAGES_PUBLISHED.add(
-                    1, {"exchange": exchange, "routing_key": routing_key}
-                )
+                RABBITMQ_MESSAGES_PUBLISHED.add(1, {"exchange": exchange, "routing_key": routing_key})
                 RABBITMQ_PUBLISH_LATENCY.record(
                     time.time() - start_time,
                     {"exchange": exchange, "routing_key": routing_key},
                 )
             elif func.__name__ == "basic_consume":
-                RABBITMQ_CONSUME_LATENCY.record(
-                    time.time() - start_time, {"queue": queue}
-                )
+                RABBITMQ_CONSUME_LATENCY.record(time.time() - start_time, {"queue": queue})
 
             return result
         except Exception as e:
             # Log the error but don't prevent it from propagating
-            logger_service.exception(f"Error in RabbitMQ operation: {str(e)}")
+            logger_service.exception(f"Error in RabbitMQ operation: {e!s}")
             raise
 
     return wrapper
@@ -128,15 +125,11 @@ def update_queue_metrics(channel, queue_name):
         consumer_count = queue.method.consumer_count
 
         # Update OpenTelemetry metrics
-        RABBITMQ_QUEUE_SIZE.add(
-            message_count - RABBITMQ_QUEUE_SIZE.get_value(), {"queue": queue_name}
-        )
-        RABBITMQ_CONSUMER_COUNT.add(
-            consumer_count - RABBITMQ_CONSUMER_COUNT.get_value(), {"queue": queue_name}
-        )
+        RABBITMQ_QUEUE_SIZE.add(message_count - RABBITMQ_QUEUE_SIZE.get_value(), {"queue": queue_name})
+        RABBITMQ_CONSUMER_COUNT.add(consumer_count - RABBITMQ_CONSUMER_COUNT.get_value(), {"queue": queue_name})
     except Exception as e:
         # Log but don't fail if we can't get metrics
-        logger_service.warning(f"Error updating queue metrics: {str(e)}")
+        logger_service.warning(f"Error updating queue metrics: {e!s}")
 
 
 def track_circuit_breaker_state(name: str, state: str):
@@ -149,7 +142,7 @@ def track_circuit_breaker_state(name: str, state: str):
         CIRCUIT_BREAKER_STATE.add(new_value - current_value, {"name": name})
         logger_service.debug(f"Circuit breaker '{name}' state changed to {state}")
     except Exception as e:
-        logger_service.warning(f"Error tracking circuit breaker state: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker state: {e!s}")
 
 
 def track_circuit_breaker_failure(name: str):
@@ -157,7 +150,7 @@ def track_circuit_breaker_failure(name: str):
     try:
         CIRCUIT_BREAKER_FAILURES.add(1, {"name": name})
     except Exception as e:
-        logger_service.warning(f"Error tracking circuit breaker failure: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker failure: {e!s}")
 
 
 def track_circuit_breaker_success(name: str):
@@ -165,7 +158,7 @@ def track_circuit_breaker_success(name: str):
     try:
         CIRCUIT_BREAKER_SUCCESS.add(1, {"name": name})
     except Exception as e:
-        logger_service.warning(f"Error tracking circuit breaker success: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker success: {e!s}")
 
 
 def track_circuit_breaker_rejection(name: str):
@@ -173,7 +166,7 @@ def track_circuit_breaker_rejection(name: str):
     try:
         CIRCUIT_BREAKER_REJECTED.add(1, {"name": name})
     except Exception as e:
-        logger_service.warning(f"Error tracking circuit breaker rejection: {str(e)}")
+        logger_service.warning(f"Error tracking circuit breaker rejection: {e!s}")
 
 
 def track_cache_metrics(hit: bool, cache_name: str):
@@ -184,7 +177,7 @@ def track_cache_metrics(hit: bool, cache_name: str):
         else:
             CACHE_MISSES.add(1, {"cache": cache_name})
     except Exception as e:
-        logger_service.warning(f"Error tracking cache metrics: {str(e)}")
+        logger_service.warning(f"Error tracking cache metrics: {e!s}")
 
 
 def track_dependency_status(service: str, is_available: bool):
@@ -194,9 +187,7 @@ def track_dependency_status(service: str, is_available: bool):
         new_value = 1 if is_available else 0
         SERVICE_DEPENDENCY_UP.add(new_value - current_value, {"service": service})
     except Exception as e:
-        logger_service.warning(
-            f"Error tracking dependency status for {service}: {str(e)}"
-        )
+        logger_service.warning(f"Error tracking dependency status for {service}: {e!s}")
 
 
 def track_dependency_request(func):
@@ -212,11 +203,9 @@ def track_dependency_request(func):
             result = func(*args, **kwargs)
             # Record successful dependency call
             track_dependency_status(service, True)
-            SERVICE_DEPENDENCY_LATENCY.record(
-                time.time() - start_time, {"service": service, "operation": operation}
-            )
+            SERVICE_DEPENDENCY_LATENCY.record(time.time() - start_time, {"service": service, "operation": operation})
             return result
-        except Exception as e:
+        except Exception:
             # Record failed dependency call
             track_dependency_status(service, False)
             raise

@@ -1,7 +1,6 @@
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Type
 
 import torch
 from diffusers import StableDiffusionPipeline
@@ -42,18 +41,18 @@ class ChestXRayGeneratorTool(BaseTool):
         "quality (num_inference_steps), and prompt adherence (guidance_scale). "
         "Output: Path to the generated X-ray image and generation metadata."
     )
-    args_schema: Type[BaseModel] = ChestXRayGeneratorInput
+    args_schema: type[BaseModel] = ChestXRayGeneratorInput
 
     model: StableDiffusionPipeline = None
     device: torch.device = None
     temp_dir: Path = None
 
     def __init__(
-            self,
-            model_path: str = "./model-weights/roentgen",
-            cache_dir: str = "./model-weights",
-            temp_dir: Optional[str] = None,
-            device: Optional[str] = "cuda",
+        self,
+        model_path: str = "./model-weights/roentgen",
+        cache_dir: str = "./model-weights",
+        temp_dir: str | None = None,
+        device: str | None = "cuda",
     ):
         """Initialize the chest X-ray generator tool."""
         super().__init__()
@@ -68,14 +67,14 @@ class ChestXRayGeneratorTool(BaseTool):
         self.temp_dir.mkdir(exist_ok=True)
 
     def _run(
-            self,
-            prompt: str,
-            num_inference_steps: int = 75,
-            guidance_scale: float = 4.0,
-            height: int = 512,
-            width: int = 512,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, str], Dict]:
+        self,
+        prompt: str,
+        num_inference_steps: int = 75,
+        guidance_scale: float = 4.0,
+        height: int = 512,
+        width: int = 512,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, str], dict]:
         """Generate a chest X-ray image from a text description.
 
         Args:
@@ -129,13 +128,13 @@ class ChestXRayGeneratorTool(BaseTool):
             )
 
     async def _arun(
-            self,
-            prompt: str,
-            num_inference_steps: int = 75,
-            guidance_scale: float = 4.0,
-            height: int = 512,
-            width: int = 512,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, str], Dict]:
+        self,
+        prompt: str,
+        num_inference_steps: int = 75,
+        guidance_scale: float = 4.0,
+        height: int = 512,
+        width: int = 512,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, str], dict]:
         """Async version of _run."""
         return self._run(prompt, num_inference_steps, guidance_scale, height, width)

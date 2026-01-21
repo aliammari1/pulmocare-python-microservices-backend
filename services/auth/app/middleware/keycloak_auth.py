@@ -1,12 +1,13 @@
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any
 
 import jwt
 import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt.algorithms import RSAAlgorithm
+
 from models.auth import Role
 
 # Security scheme for Swagger UI
@@ -19,9 +20,7 @@ class KeycloakMiddleware:
     This provides token validation and role-based access control.
     """
 
-    def __init__(
-            self, keycloak_url=None, realm=None, client_id=None, client_secret=None
-    ):
+    def __init__(self, keycloak_url=None, realm=None, client_id=None, client_secret=None):
         """
         Initialize the Keycloak middleware.
 
@@ -31,36 +30,26 @@ class KeycloakMiddleware:
             client_id: Client ID for the application
             client_secret: Client secret for the application
         """
-        self.keycloak_url = keycloak_url or os.getenv(
-            "KEYCLOAK_URL", "http://keycloak:8080"
-        )
+        self.keycloak_url = keycloak_url or os.getenv("KEYCLOAK_URL", "http://keycloak:8080")
 
         # Strip trailing '/auth' if present as newer Keycloak versions don't use this path
         if self.keycloak_url.endswith("/auth"):
-            print(
-                f"Detected '/auth' suffix in Keycloak URL, removing it for compatibility with newer versions"
-            )
+            print("Detected '/auth' suffix in Keycloak URL, removing it for compatibility with newer versions")
             self.keycloak_url = self.keycloak_url.removesuffix("/auth")
 
         self.realm = realm or os.getenv("KEYCLOAK_REALM", "pulmocare")
         self.client_id = client_id or os.getenv("KEYCLOAK_CLIENT_ID", "pulmocare-api")
-        self.client_secret = client_secret or os.getenv(
-            "KEYCLOAK_CLIENT_SECRET", "pulmocare-secret"
-        )
+        self.client_secret = client_secret or os.getenv("KEYCLOAK_CLIENT_SECRET", "pulmocare-secret")
 
         # Cache for public key to avoid repeated requests
         self._public_key = None
         self._jwks = None
 
         # Well-known endpoints
-        self.well_known_url = (
-            f"{self.keycloak_url}/realms/{self.realm}/.well-known/openid-configuration"
-        )
+        self.well_known_url = f"{self.keycloak_url}/realms/{self.realm}/.well-known/openid-configuration"
         self.token_introspection_url = f"{self.keycloak_url}/realms/{self.realm}/protocol/openid-connect/token/introspect"
 
-        print(
-            f"Keycloak middleware initialized for realm {self.realm} with URL {self.keycloak_url}"
-        )
+        print(f"Keycloak middleware initialized for realm {self.realm} with URL {self.keycloak_url}")
 
     def get_public_key(self, kid=None):
         """
@@ -85,7 +74,7 @@ class KeycloakMiddleware:
                 response.raise_for_status()
                 self._jwks = response.json()
             except Exception as e:
-                print(f"Error fetching JWKS: {str(e)}")
+                print(f"Error fetching JWKS: {e!s}")
                 raise
 
         # Find the key with matching kid
@@ -147,10 +136,10 @@ class KeycloakMiddleware:
             print("Token expired")
             raise
         except jwt.InvalidTokenError as e:
-            print(f"Invalid token: {str(e)}")
+            print(f"Invalid token: {e!s}")
             raise
         except Exception as e:
-            print(f"Error verifying token: {str(e)}")
+            print(f"Error verifying token: {e!s}")
             raise
 
     def introspect_token(self, token):
@@ -181,14 +170,14 @@ class KeycloakMiddleware:
 
             return result
         except Exception as e:
-            print(f"Error introspecting token: {str(e)}")
+            print(f"Error introspecting token: {e!s}")
             raise
 
     async def get_current_user(
-            self,
-            credentials: HTTPAuthorizationCredentials = Depends(security),
-            required_roles: List[Role] = None,
-    ) -> Dict[str, Any]:
+        self,
+        credentials: HTTPAuthorizationCredentials = Depends(security),
+        required_roles: list[Role] = None,
+    ) -> dict[str, Any]:
         """
         FastAPI dependency to get the current authenticated user.
 
@@ -237,11 +226,11 @@ class KeycloakMiddleware:
         except jwt.InvalidTokenError as e:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Invalid token: {str(e)}",
+                detail=f"Invalid token: {e!s}",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         except Exception as e:
-            print(f"Authentication error: {str(e)}")
+            print(f"Authentication error: {e!s}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication failed",

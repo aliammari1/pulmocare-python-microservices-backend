@@ -6,7 +6,7 @@ import time
 from datetime import datetime
 
 import openai
-from tenacity import retry, wait_exponential, stop_after_attempt
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 model_name = "chatgpt-4o-latest"
 temperature = 0.2
@@ -15,7 +15,7 @@ logging.basicConfig(filename=log_filename, level=logging.INFO, format="%(message
 
 
 def calculate_cost(
-        prompt_tokens: int, completion_tokens: int, model: str = "chatgpt-4o-latest"
+    prompt_tokens: int, completion_tokens: int, model: str = "chatgpt-4o-latest"
 ) -> float:
     """Calculate the cost of API usage based on token counts.
 
@@ -30,17 +30,17 @@ def calculate_cost(
     pricing = {"chatgpt-4o-latest": {"prompt": 5.0, "completion": 15.0}}
     rates = pricing.get(model, {"prompt": 5.0, "completion": 15.0})
     return (
-            prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]
+        prompt_tokens * rates["prompt"] + completion_tokens * rates["completion"]
     ) / 1000000
 
 
 @retry(wait=wait_exponential(multiplier=1, min=4, max=10), stop=stop_after_attempt(3))
 def create_multimodal_request(
-        question_data: dict,
-        case_details: dict,
-        case_id: str,
-        question_id: str,
-        client: openai.OpenAI,
+    question_data: dict,
+    case_details: dict,
+    case_id: str,
+    question_id: str,
+    client: openai.OpenAI,
 ) -> openai.types.chat.ChatCompletion:
     """Create and send a multimodal request to the OpenAI API.
 
@@ -56,7 +56,7 @@ def create_multimodal_request(
     """
     prompt = f"""Given the following medical case:
 Please answer this multiple choice question:
-{question_data['question']}
+{question_data["question"]}
 Base your answer only on the provided images and case information."""
 
     content = [{"type": "text", "text": prompt}]
@@ -107,7 +107,7 @@ Base your answer only on the provided images and case information."""
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                       or subfig.get("label", "").lower() == figure_letter.lower()
+                    or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
                 subfigures.extend(matching_subfigures)
             else:
@@ -260,7 +260,7 @@ Base your answer only on the provided images and case information."""
             },
         }
         logging.info(json.dumps(log_entry))
-        print(f"Error processing case {case_id}, question {question_id}: {str(e)}")
+        print(f"Error processing case {case_id}, question {question_id}: {e!s}")
         raise
 
 
@@ -293,7 +293,7 @@ def count_total_questions() -> tuple[int, int]:
 
 def main() -> None:
     """Main function to run the benchmark evaluation."""
-    with open("../data/eurorad_metadata.json", "r") as file:
+    with open("../data/eurorad_metadata.json") as file:
         data = json.load(file)
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -318,7 +318,7 @@ def main() -> None:
 
         cases_processed += 1
         for question_file in question_files:
-            with open(question_file, "r") as file:
+            with open(question_file) as file:
                 question_data = json.load(file)
                 question_id = os.path.basename(question_file).split(".")[0]
 
@@ -341,7 +341,7 @@ def main() -> None:
             print(f"Model Answer: {response.choices[0].message.content}")
             print(f"Correct Answer: {question_data['answer']}\n")
 
-    print(f"\nBenchmark Summary:")
+    print("\nBenchmark Summary:")
     print(f"Total Cases Processed: {cases_processed}")
     print(f"Total Questions Processed: {questions_processed}")
     print(f"Total Questions Skipped: {skipped_questions}")

@@ -1,13 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from config import Config
 from models.api_models import *
 from models.api_models import ErrorResponse, MessageResponse, RadiologyRequestModel
 from routes.doctor_routes import (
-    get_doctor_from_auth_service,
     get_current_user,
     get_doctor_by_id,
 )
@@ -16,8 +16,6 @@ from services.logger_service import logger_service
 from services.prescription_service import PrescriptionService
 from services.rabbitmq_client import RabbitMQClient
 from services.radiology_service import RadiologyService
-
-from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
 security = HTTPBearer()
@@ -31,17 +29,13 @@ rabbitmq_client = RabbitMQClient(Config)
     response_model=MessageResponse,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def request_radiology_examination(
-        request: RadiologyRequestModel, user_info: Dict = Depends(get_current_user)
-):
+async def request_radiology_examination(request: RadiologyRequestModel, user_info: dict = Depends(get_current_user)):
     """Request a radiology examination for a patient"""
     try:
         doctor_id = user_info.get("user_id")
 
         # Use auth service to get doctor information
-        credentials = HTTPAuthorizationCredentials(
-            credentials=user_info.get("token", "")
-        )
+        credentials = HTTPAuthorizationCredentials(credentials=user_info.get("token", ""))
         doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
 
         if not doctor_info:
@@ -62,45 +56,35 @@ async def request_radiology_examination(
         )
 
         if result:
-            return MessageResponse(
-                message=f"Radiology examination requested successfully. Request ID: {request_id}"
-            )
+            return MessageResponse(message=f"Radiology examination requested successfully. Request ID: {request_id}")
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to send request to radiology service"
-            )
+            raise HTTPException(status_code=500, detail="Failed to send request to radiology service")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error requesting radiology examination: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
     "/patient-history/{patient_id}",
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def get_patient_history(
-        patient_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def get_patient_history(patient_id: str, user_info: dict = Depends(get_current_user)):
     """Get a patient's medical history (prescriptions, radiology reports, etc.)"""
     try:
         doctor_id = user_info.get("user_id")
 
         # Verify doctor exists in auth service
-        credentials = HTTPAuthorizationCredentials(
-            credentials=user_info.get("token", "")
-        )
+        credentials = HTTPAuthorizationCredentials(credentials=user_info.get("token", ""))
         doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
         if not doctor_info:
             raise HTTPException(status_code=404, detail="Doctor not found")
 
         # Get prescriptions from prescription service
         prescription_service = PrescriptionService()
-        prescriptions = await prescription_service.get_prescriptions_for_patient(
-            patient_id=patient_id, doctor_id=doctor_id
-        )
+        prescriptions = await prescription_service.get_prescriptions_for_patient(patient_id=patient_id, doctor_id=doctor_id)
 
         # Format the prescriptions
         formatted_prescriptions = []
@@ -116,9 +100,7 @@ async def get_patient_history(
 
         # Get radiology reports from radiology service
         radiology_service = RadiologyService()
-        radiology_reports = await radiology_service.get_doctor_radiology_reports(
-            doctor_id=doctor_id, patient_id=patient_id
-        )
+        radiology_reports = await radiology_service.get_doctor_radiology_reports(doctor_id=doctor_id, patient_id=patient_id)
 
         # Format the radiology reports
         formatted_reports = []
@@ -144,7 +126,7 @@ async def get_patient_history(
         raise
     except Exception as e:
         logger_service.error(f"Error retrieving patient history: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
     finally:
         if prescription_service:
             prescription_service.close()
@@ -158,19 +140,17 @@ async def get_patient_history(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def notify_patient(
-        patient_id: str,
-        message: str,
-        update_type: str = "general_update",
-        user_info: Dict = Depends(get_current_user),
+    patient_id: str,
+    message: str,
+    update_type: str = "general_update",
+    user_info: dict = Depends(get_current_user),
 ):
     """Send a notification to a patient"""
     try:
         doctor_id = user_info.get("user_id")
 
         # Verify doctor exists in auth service
-        credentials = HTTPAuthorizationCredentials(
-            credentials=user_info.get("token", "")
-        )
+        credentials = HTTPAuthorizationCredentials(credentials=user_info.get("token", ""))
         doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
         if not doctor_info:
             raise HTTPException(status_code=404, detail="Doctor not found")
@@ -192,9 +172,7 @@ async def notify_patient(
             "timestamp": timestamp,
         }
 
-        result = rabbitmq_client.notify_patient_medical_update(
-            patient_id=patient_id, update_type=update_type, data=data
-        )
+        result = rabbitmq_client.notify_patient_medical_update(patient_id=patient_id, update_type=update_type, data=data)
 
         if result:
             return MessageResponse(message="Patient notification sent successfully")
@@ -205,7 +183,7 @@ async def notify_patient(
         raise
     except Exception as e:
         logger_service.error(f"Error sending patient notification: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
@@ -214,10 +192,10 @@ async def notify_patient(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_prescriptions(
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_current_user),
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get prescriptions for the current doctor
@@ -229,16 +207,14 @@ async def get_doctor_prescriptions(
         prescription_service = PrescriptionService()
 
         # Get prescriptions from the prescriptions service
-        prescriptions = await prescription_service.get_doctor_prescriptions(
-            doctor_id=doctor_id, status=status, page=page, limit=limit
-        )
+        prescriptions = await prescription_service.get_doctor_prescriptions(doctor_id=doctor_id, status=status, page=page, limit=limit)
 
         return prescriptions
     except Exception as e:
-        logger_service.error(f"Error retrieving doctor prescriptions: {str(e)}")
+        logger_service.error(f"Error retrieving doctor prescriptions: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving prescriptions: {str(e)}",
+            detail=f"Error retrieving prescriptions: {e!s}",
         )
 
 
@@ -247,9 +223,7 @@ async def get_doctor_prescriptions(
     response_model=PrescriptionResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def get_prescription_details(
-        prescription_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def get_prescription_details(prescription_id: str, user_info: dict = Depends(get_current_user)):
     """
     Get details for a specific prescription
     """
@@ -260,23 +234,19 @@ async def get_prescription_details(
         prescription_service = PrescriptionService()
 
         # Get prescription details
-        prescription = await prescription_service.get_prescription_details(
-            prescription_id=prescription_id, doctor_id=doctor_id
-        )
+        prescription = await prescription_service.get_prescription_details(prescription_id=prescription_id, doctor_id=doctor_id)
 
         if not prescription:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Prescription not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prescription not found")
 
         return prescription
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving prescription details: {str(e)}")
+        logger_service.error(f"Error retrieving prescription details: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving prescription details: {str(e)}",
+            detail=f"Error retrieving prescription details: {e!s}",
         )
 
 
@@ -285,9 +255,7 @@ async def get_prescription_details(
     response_model=PrescriptionResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def renew_prescription(
-        prescription_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def renew_prescription(prescription_id: str, user_info: dict = Depends(get_current_user)):
     """
     Renew an existing prescription
     """
@@ -298,9 +266,7 @@ async def renew_prescription(
         prescription_service = PrescriptionService()
 
         # Renew the prescription
-        new_prescription = await prescription_service.renew_prescription(
-            prescription_id=prescription_id, doctor_id=doctor_id
-        )
+        new_prescription = await prescription_service.renew_prescription(prescription_id=prescription_id, doctor_id=doctor_id)
 
         if not new_prescription:
             raise HTTPException(
@@ -312,10 +278,10 @@ async def renew_prescription(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error renewing prescription: {str(e)}")
+        logger_service.error(f"Error renewing prescription: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error renewing prescription: {str(e)}",
+            detail=f"Error renewing prescription: {e!s}",
         )
 
 
@@ -325,9 +291,9 @@ async def renew_prescription(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def cancel_prescription(
-        prescription_id: str,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    prescription_id: str,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Cancel an existing prescription
@@ -339,9 +305,7 @@ async def cancel_prescription(
         prescription_service = PrescriptionService()
 
         # Cancel the prescription
-        success = await prescription_service.cancel_prescription(
-            prescription_id=prescription_id, doctor_id=doctor_id, reason=reason
-        )
+        success = await prescription_service.cancel_prescription(prescription_id=prescription_id, doctor_id=doctor_id, reason=reason)
 
         if not success:
             raise HTTPException(
@@ -353,10 +317,10 @@ async def cancel_prescription(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error cancelling prescription: {str(e)}")
+        logger_service.error(f"Error cancelling prescription: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error cancelling prescription: {str(e)}",
+            detail=f"Error cancelling prescription: {e!s}",
         )
 
 
@@ -366,11 +330,11 @@ async def cancel_prescription(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_appointments(
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        doctor_id: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    doctor_id: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get appointments for the current doctor
@@ -380,16 +344,14 @@ async def get_doctor_appointments(
         appointment_service = AppointmentService()
 
         # Get appointments
-        appointments = await appointment_service.get_doctor_appointments(
-            doctor_id=doctor_id, status=status, page=page, limit=limit
-        )
+        appointments = await appointment_service.get_doctor_appointments(doctor_id=doctor_id, status=status, page=page, limit=limit)
 
         return appointments
     except Exception as e:
-        logger_service.error(f"Error retrieving doctor appointments: {str(e)}")
+        logger_service.error(f"Error retrieving doctor appointments: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving appointments: {str(e)}",
+            detail=f"Error retrieving appointments: {e!s}",
         )
     finally:
         if appointment_service:
@@ -401,9 +363,7 @@ async def get_doctor_appointments(
     response_model=AppointmentResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def get_appointment_details(
-        appointment_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def get_appointment_details(appointment_id: str, user_info: dict = Depends(get_current_user)):
     """
     Get details for a specific appointment
     """
@@ -414,23 +374,19 @@ async def get_appointment_details(
         appointment_service = AppointmentService()
 
         # Get appointment details
-        appointment = await appointment_service.get_appointment_details(
-            appointment_id=appointment_id, doctor_id=doctor_id
-        )
+        appointment = await appointment_service.get_appointment_details(appointment_id=appointment_id, doctor_id=doctor_id)
 
         if not appointment:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
 
         return appointment
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving appointment details: {str(e)}")
+        logger_service.error(f"Error retrieving appointment details: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving appointment details: {str(e)}",
+            detail=f"Error retrieving appointment details: {e!s}",
         )
 
 
@@ -439,9 +395,7 @@ async def get_appointment_details(
     response_model=AppointmentResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def accept_appointment(
-        appointment_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def accept_appointment(appointment_id: str, user_info: dict = Depends(get_current_user)):
     """
     Accept an appointment request
     """
@@ -452,9 +406,7 @@ async def accept_appointment(
         appointment_service = AppointmentService()
 
         # Accept the appointment
-        updated_appointment = await appointment_service.update_appointment_status(
-            appointment_id=appointment_id, doctor_id=doctor_id, new_status="accepted"
-        )
+        updated_appointment = await appointment_service.update_appointment_status(appointment_id=appointment_id, doctor_id=doctor_id, new_status="accepted")
 
         if not updated_appointment:
             raise HTTPException(
@@ -466,10 +418,10 @@ async def accept_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error accepting appointment: {str(e)}")
+        logger_service.error(f"Error accepting appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error accepting appointment: {str(e)}",
+            detail=f"Error accepting appointment: {e!s}",
         )
 
 
@@ -479,9 +431,9 @@ async def accept_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def reject_appointment(
-        appointment_id: str,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    appointment_id: str,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Reject an appointment request
@@ -510,10 +462,10 @@ async def reject_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error rejecting appointment: {str(e)}")
+        logger_service.error(f"Error rejecting appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error rejecting appointment: {str(e)}",
+            detail=f"Error rejecting appointment: {e!s}",
         )
 
 
@@ -523,11 +475,11 @@ async def reject_appointment(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_radiology_reports(
-        patient_id: Optional[str] = None,
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_current_user),
+    patient_id: str | None = None,
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get radiology reports related to the current doctor
@@ -549,10 +501,10 @@ async def get_doctor_radiology_reports(
 
         return reports
     except Exception as e:
-        logger_service.error(f"Error retrieving radiology reports: {str(e)}")
+        logger_service.error(f"Error retrieving radiology reports: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving radiology reports: {str(e)}",
+            detail=f"Error retrieving radiology reports: {e!s}",
         )
 
 
@@ -561,9 +513,7 @@ async def get_doctor_radiology_reports(
     response_model=RadiologyReportResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def get_radiology_report_details(
-        report_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def get_radiology_report_details(report_id: str, user_info: dict = Depends(get_current_user)):
     """
     Get details for a specific radiology report
     """
@@ -574,9 +524,7 @@ async def get_radiology_report_details(
         radiology_service = RadiologyService()
 
         # Get report details
-        report = await radiology_service.get_radiology_report_details(
-            report_id=report_id, doctor_id=doctor_id
-        )
+        report = await radiology_service.get_radiology_report_details(report_id=report_id, doctor_id=doctor_id)
 
         if not report:
             raise HTTPException(
@@ -588,10 +536,10 @@ async def get_radiology_report_details(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving radiology report details: {str(e)}")
+        logger_service.error(f"Error retrieving radiology report details: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving radiology report details: {str(e)}",
+            detail=f"Error retrieving radiology report details: {e!s}",
         )
 
 
@@ -601,11 +549,11 @@ async def get_radiology_report_details(
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def request_radiology_examination(
-        patient_id: str,
-        exam_type: str,
-        reason: Optional[str] = None,
-        urgency: str = "normal",
-        user_info: Dict = Depends(get_current_user),
+    patient_id: str,
+    exam_type: str,
+    reason: str | None = None,
+    urgency: str = "normal",
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Request a radiology examination for a patient
@@ -631,16 +579,14 @@ async def request_radiology_examination(
                 detail="Failed to create radiology examination request",
             )
 
-        return {
-            "message": f"Radiology examination request created with ID: {request_id}"
-        }
+        return {"message": f"Radiology examination request created with ID: {request_id}"}
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error creating radiology examination request: {str(e)}")
+        logger_service.error(f"Error creating radiology examination request: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating radiology examination request: {str(e)}",
+            detail=f"Error creating radiology examination request: {e!s}",
         )
 
 
@@ -653,10 +599,10 @@ async def request_radiology_examination(
     responses={500: {"model": MessageResponse}},
 )
 async def get_doctor_radiology_reports(
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_current_user),
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get radiology reports for the current doctor
@@ -668,16 +614,14 @@ async def get_doctor_radiology_reports(
         radiology_service = RadiologyService()
 
         # Get radiology reports from the radiology service
-        reports = await radiology_service.get_doctor_radiology_reports(
-            doctor_id=doctor_id, status=status, page=page, limit=limit
-        )
+        reports = await radiology_service.get_doctor_radiology_reports(doctor_id=doctor_id, status=status, page=page, limit=limit)
 
         return reports
     except Exception as e:
-        logger_service.error(f"Error retrieving doctor radiology reports: {str(e)}")
+        logger_service.error(f"Error retrieving doctor radiology reports: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving radiology reports: {str(e)}",
+            detail=f"Error retrieving radiology reports: {e!s}",
         )
     finally:
         if radiology_service:
@@ -689,9 +633,7 @@ async def get_doctor_radiology_reports(
     response_model=RadiologyReportResponse,
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def get_radiology_report_details(
-        report_id: str, user_info: Dict = Depends(get_current_user)
-):
+async def get_radiology_report_details(report_id: str, user_info: dict = Depends(get_current_user)):
     """
     Get details for a specific radiology report
     """
@@ -702,9 +644,7 @@ async def get_radiology_report_details(
         radiology_service = RadiologyService()
 
         # Get report details
-        report = await radiology_service.get_radiology_report_details(
-            report_id=report_id
-        )
+        report = await radiology_service.get_radiology_report_details(report_id=report_id)
 
         if not report:
             raise HTTPException(
@@ -713,11 +653,7 @@ async def get_radiology_report_details(
             )
 
         # Check if this report belongs to the current doctor
-        if (
-                "doctor_id" in report
-                and report["doctor_id"]
-                and report["doctor_id"] != doctor_id
-        ):
+        if "doctor_id" in report and report["doctor_id"] and report["doctor_id"] != doctor_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to view this report",
@@ -727,10 +663,10 @@ async def get_radiology_report_details(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving radiology report details: {str(e)}")
+        logger_service.error(f"Error retrieving radiology report details: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving radiology report details: {str(e)}",
+            detail=f"Error retrieving radiology report details: {e!s}",
         )
     finally:
         if radiology_service:
@@ -742,9 +678,7 @@ async def get_radiology_report_details(
     response_model=RadiologyExaminationResponse,
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
-async def request_radiology_examination(
-        request: RadiologyExaminationRequest, user_info: Dict = Depends(get_current_user)
-):
+async def request_radiology_examination(request: RadiologyExaminationRequest, user_info: dict = Depends(get_current_user)):
     """
     Request a radiology examination for a patient
     """
@@ -774,10 +708,10 @@ async def request_radiology_examination(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error requesting radiology examination: {str(e)}")
+        logger_service.error(f"Error requesting radiology examination: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error requesting radiology examination: {str(e)}",
+            detail=f"Error requesting radiology examination: {e!s}",
         )
     finally:
         if radiology_service:
@@ -790,9 +724,9 @@ async def request_radiology_examination(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def cancel_appointment(
-        appointment_id: str,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    appointment_id: str,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Cancel an existing appointment
@@ -804,9 +738,7 @@ async def cancel_appointment(
         appointment_service = AppointmentService()
 
         # Cancel the appointment
-        updated_appointment = await appointment_service.cancel_appointment(
-            appointment_id=appointment_id, doctor_id=doctor_id, reason=reason
-        )
+        updated_appointment = await appointment_service.cancel_appointment(appointment_id=appointment_id, doctor_id=doctor_id, reason=reason)
 
         if not updated_appointment:
             raise HTTPException(
@@ -818,10 +750,10 @@ async def cancel_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error cancelling appointment: {str(e)}")
+        logger_service.error(f"Error cancelling appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error cancelling appointment: {str(e)}",
+            detail=f"Error cancelling appointment: {e!s}",
         )
     finally:
         if appointment_service:
@@ -834,10 +766,10 @@ async def cancel_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def reschedule_appointment(
-        appointment_id: str,
-        new_time: str,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    appointment_id: str,
+    new_time: str,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Reschedule an appointment to a new time
@@ -866,10 +798,10 @@ async def reschedule_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error rescheduling appointment: {str(e)}")
+        logger_service.error(f"Error rescheduling appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error rescheduling appointment: {str(e)}",
+            detail=f"Error rescheduling appointment: {e!s}",
         )
     finally:
         if appointment_service:
@@ -882,9 +814,9 @@ async def reschedule_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def add_appointment_notes(
-        appointment_id: str,
-        notes: str,
-        user_info: Dict = Depends(get_current_user),
+    appointment_id: str,
+    notes: str,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Add notes to an existing appointment
@@ -896,9 +828,7 @@ async def add_appointment_notes(
         appointment_service = AppointmentService()
 
         # Add notes to the appointment
-        updated_appointment = await appointment_service.add_appointment_notes(
-            appointment_id=appointment_id, doctor_id=doctor_id, notes=notes
-        )
+        updated_appointment = await appointment_service.add_appointment_notes(appointment_id=appointment_id, doctor_id=doctor_id, notes=notes)
 
         if not updated_appointment:
             raise HTTPException(
@@ -910,10 +840,10 @@ async def add_appointment_notes(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error adding appointment notes: {str(e)}")
+        logger_service.error(f"Error adding appointment notes: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error adding appointment notes: {str(e)}",
+            detail=f"Error adding appointment notes: {e!s}",
         )
     finally:
         if appointment_service:
@@ -926,9 +856,9 @@ async def add_appointment_notes(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def complete_appointment(
-        appointment_id: str,
-        notes: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    appointment_id: str,
+    notes: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Mark an appointment as completed
@@ -940,9 +870,7 @@ async def complete_appointment(
         appointment_service = AppointmentService()
 
         # Complete the appointment
-        updated_appointment = await appointment_service.complete_appointment(
-            appointment_id=appointment_id, doctor_id=doctor_id, notes=notes
-        )
+        updated_appointment = await appointment_service.complete_appointment(appointment_id=appointment_id, doctor_id=doctor_id, notes=notes)
 
         if not updated_appointment:
             raise HTTPException(
@@ -954,10 +882,10 @@ async def complete_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error completing appointment: {str(e)}")
+        logger_service.error(f"Error completing appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error completing appointment: {str(e)}",
+            detail=f"Error completing appointment: {e!s}",
         )
     finally:
         if appointment_service:
@@ -970,11 +898,11 @@ async def complete_appointment(
     responses={500: {"model": MessageResponse}},
 )
 async def get_patient_appointments(
-        patient_id: str,
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_current_user),
+    patient_id: str,
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get appointments between the current doctor and a specific patient
@@ -996,10 +924,10 @@ async def get_patient_appointments(
 
         return appointments
     except Exception as e:
-        logger_service.error(f"Error retrieving patient appointments: {str(e)}")
+        logger_service.error(f"Error retrieving patient appointments: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving patient appointments: {str(e)}",
+            detail=f"Error retrieving patient appointments: {e!s}",
         )
     finally:
         if appointment_service:
@@ -1012,11 +940,11 @@ async def get_patient_appointments(
     responses={400: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def create_appointment(
-        patient_id: str,
-        patient_name: str,
-        requested_time: str,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_user),
+    patient_id: str,
+    patient_name: str,
+    requested_time: str,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Create a new appointment for a patient with this doctor
@@ -1046,10 +974,10 @@ async def create_appointment(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error creating appointment: {str(e)}")
+        logger_service.error(f"Error creating appointment: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error creating appointment: {str(e)}",
+            detail=f"Error creating appointment: {e!s}",
         )
     finally:
         if appointment_service:
@@ -1063,51 +991,43 @@ async def create_appointment(
     responses={404: {"model": MessageResponse}, 500: {"model": MessageResponse}},
 )
 async def get_doctor_appointments_direct(
-        doctor_id: str,
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_current_user),
+    doctor_id: str,
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get appointments for a specific doctor (direct API endpoint for service-to-service calls)
     """
     try:
         # Verify the requesting user is authorized (either the doctor themselves or an admin)
-        if user_info.get("user_id") != doctor_id and "admin" not in user_info.get(
-                "roles", []
-        ):
+        if user_info.get("user_id") != doctor_id and "admin" not in user_info.get("roles", []):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to view these appointments",
             )
 
         # Verify doctor exists in auth service
-        credentials = HTTPAuthorizationCredentials(
-            credentials=user_info.get("token", "")
-        )
+        credentials = HTTPAuthorizationCredentials(credentials=user_info.get("token", ""))
         doctor_info = await get_doctor_by_id(doctor_id, credentials.credentials)
         if not doctor_info:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Doctor not found")
 
         # Create appointment service
         appointment_service = AppointmentService()
 
         # Get appointments from the appointment service
-        appointments = await appointment_service.get_doctor_appointments(
-            doctor_id=doctor_id, status=status, page=page, limit=limit
-        )
+        appointments = await appointment_service.get_doctor_appointments(doctor_id=doctor_id, status=status, page=page, limit=limit)
 
         return appointments
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving doctor appointments: {str(e)}")
+        logger_service.error(f"Error retrieving doctor appointments: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving appointments: {str(e)}",
+            detail=f"Error retrieving appointments: {e!s}",
         )
     finally:
         if appointment_service:

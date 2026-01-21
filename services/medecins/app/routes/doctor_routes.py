@@ -1,39 +1,37 @@
 import base64
 import io
 import re
-from typing import Dict, Optional
 
 import httpx
 import pytesseract
-from PIL import Image
 from fastapi import (
     APIRouter,
-    HTTPException,
     Depends,
-    status,
-    Query,
     File,
-    UploadFile,
+    HTTPException,
+    Query,
     Response,
+    UploadFile,
+    status,
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from PIL import Image
+
+from config import Config
 from models.api_models import (
+    DoctorListItem,
+    DoctorListResponse,
+    DoctorVerificationInfoResponse,
     ErrorResponse,
-    ScanVisitCardRequest,
+    MessageResponse,
     ScanVisitCardResponse,
+    UpdateProfileResponse,
+    UpdateSignatureRequest,
     VerifyDoctorRequest,
     VerifyDoctorResponse,
-    UpdateSignatureRequest,
-    DoctorVerificationInfoResponse,
-    MessageResponse,
-    UpdateProfileResponse,
-    DoctorListResponse,
-    DoctorListItem,
 )
 from models.doctor import Doctor, DoctorUpdate
 from services.logger_service import logger_service
-
-from config import Config
 
 config = Config()
 router = APIRouter(prefix="/api/doctors", tags=["Doctors"])
@@ -43,7 +41,7 @@ security = HTTPBearer()
 # Don't create a global HTTP client - create a new one when needed
 
 
-async def get_authenticated_user_from_auth_service(token: str) -> Dict:
+async def get_authenticated_user_from_auth_service(token: str) -> dict:
     """
     Get current user information directly from auth service without role requirement
 
@@ -68,9 +66,7 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
             response = await client.post(auth_url, headers=headers, json=body)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to verify token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to verify token: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token",
@@ -82,7 +78,7 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
             return user_info
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -90,14 +86,14 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        logger_service.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
         )
 
 
-async def get_doctor_from_auth_service(token: str) -> Dict:
+async def get_doctor_from_auth_service(token: str) -> dict:
     """
     Get current doctor information directly from auth service
 
@@ -125,8 +121,8 @@ async def get_doctor_from_auth_service(token: str) -> Dict:
 
 
 async def get_authenticated_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current user information from auth service without role requirement
 
@@ -141,8 +137,8 @@ async def get_authenticated_user(
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current user information from auth service with doctor role requirement
 
@@ -160,7 +156,7 @@ def is_healthcare_provider(roles):
     return any(role in roles for role in ["doctor", "radiologist", "admin"])
 
 
-async def get_doctor_by_id(doctor_id: str, token: str, user_info: Dict = None) -> Dict:
+async def get_doctor_by_id(doctor_id: str, token: str, user_info: dict = None) -> dict:
     """
     Get doctor information by ID from auth service
     Allow any authenticated user to access doctor information
@@ -183,9 +179,7 @@ async def get_doctor_by_id(doctor_id: str, token: str, user_info: Dict = None) -
                 )
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get user info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to retrieve user information",
@@ -195,7 +189,7 @@ async def get_doctor_by_id(doctor_id: str, token: str, user_info: Dict = None) -
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -203,7 +197,7 @@ async def get_doctor_by_id(doctor_id: str, token: str, user_info: Dict = None) -
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error retrieving user info: {str(e)}")
+        logger_service.error(f"Unexpected error retrieving user info: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving user information",
@@ -216,8 +210,8 @@ async def get_doctor_by_id(doctor_id: str, token: str, user_info: Dict = None) -
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def scan_visit_card(
-        file: UploadFile = File(...),
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Scan a business card to extract doctor information"""
     try:
@@ -237,9 +231,7 @@ async def scan_visit_card(
         # Read file content
         contents = await file.read()
         if len(contents) > 5 * 1024 * 1024:  # 5MB limit
-            raise HTTPException(
-                status_code=400, detail="File size too large. Maximum size is 5MB."
-            )
+            raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB.")
 
         # Use PyTesseract to extract text from image
         image = Image.open(io.BytesIO(contents))
@@ -299,9 +291,7 @@ async def scan_visit_card(
         raise
     except Exception as e:
         logger_service.error(f"Error scanning business card: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error scanning business card: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error scanning business card: {e!s}")
 
 
 @router.post(
@@ -310,8 +300,8 @@ async def scan_visit_card(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def verify_doctor(
-        request: VerifyDoctorRequest,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: VerifyDoctorRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Submit verification documentation for a doctor"""
     try:
@@ -339,14 +329,10 @@ async def verify_doctor(
         headers = {"Authorization": f"Bearer {token}"}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.patch(
-                auth_url, json=verification_attributes, headers=headers
-            )
+            response = await client.patch(auth_url, json=verification_attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update user attributes: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update user attributes: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Verification submission failed",
@@ -358,9 +344,7 @@ async def verify_doctor(
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get updated user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get updated user info: {response.status_code} - {response.text}")
 
             # Even if we fail to get the updated info, we can still return success
             # We'll just use the basic info from earlier
@@ -380,9 +364,7 @@ async def verify_doctor(
         raise
     except Exception as e:
         logger_service.error(f"Error submitting doctor verification: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error submitting verification: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error submitting verification: {e!s}")
 
 
 @router.get(
@@ -391,7 +373,7 @@ async def verify_doctor(
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def get_verification_status(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Get the current verification status for a doctor"""
     try:
@@ -410,9 +392,7 @@ async def get_verification_status(
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get doctor info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get doctor info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Doctor profile not found",
@@ -422,11 +402,7 @@ async def get_verification_status(
 
         # Extract verification information from attributes
         attributes = doctor_info.get("attributes", {})
-        is_verified = (
-            attributes.get("is_verified", ["false"])[0]
-            if isinstance(attributes.get("is_verified", []), list)
-            else attributes.get("is_verified", "false")
-        )
+        is_verified = attributes.get("is_verified", ["false"])[0] if isinstance(attributes.get("is_verified", []), list) else attributes.get("is_verified", "false")
         verification_details = attributes.get("verification_details", {})
 
         if isinstance(verification_details, list) and verification_details:
@@ -435,50 +411,24 @@ async def get_verification_status(
         # Convert to expected response format
         return {
             "status": is_verified,
-            "submitted_at": (
-                verification_details.get("submitted_at")
-                if verification_details
-                else None
-            ),
-            "verified_at": (
-                verification_details.get("verified_at")
-                if verification_details
-                else None
-            ),
-            "license_number": (
-                verification_details.get("license_number")
-                if verification_details
-                else None
-            ),
-            "license_authority": (
-                verification_details.get("license_authority")
-                if verification_details
-                else None
-            ),
-            "license_expiry": (
-                verification_details.get("license_expiry")
-                if verification_details
-                else None
-            ),
-            "rejected_reason": (
-                verification_details.get("rejected_reason")
-                if verification_details
-                else None
-            ),
+            "submitted_at": (verification_details.get("submitted_at") if verification_details else None),
+            "verified_at": (verification_details.get("verified_at") if verification_details else None),
+            "license_number": (verification_details.get("license_number") if verification_details else None),
+            "license_authority": (verification_details.get("license_authority") if verification_details else None),
+            "license_expiry": (verification_details.get("license_expiry") if verification_details else None),
+            "rejected_reason": (verification_details.get("rejected_reason") if verification_details else None),
         }
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error getting verification status: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error retrieving verification status: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error retrieving verification status: {e!s}")
 
 
 @router.get("/signature")
 async def get_doctor_signature(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Get the doctor's digital signature"""
     try:
@@ -497,9 +447,7 @@ async def get_doctor_signature(
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get doctor info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get doctor info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Doctor profile not found",
@@ -509,28 +457,20 @@ async def get_doctor_signature(
 
         # Get signature from attributes
         attributes = doctor_info.get("attributes", {})
-        signature = (
-            attributes.get("signature", [""])[0]
-            if isinstance(attributes.get("signature", []), list)
-            else attributes.get("signature", "")
-        )
+        signature = attributes.get("signature", [""])[0] if isinstance(attributes.get("signature", []), list) else attributes.get("signature", "")
 
         if not signature:
             return Response(content="No signature found", status_code=404)
 
         # Return the signature as an image
-        signature_data = base64.b64decode(
-            signature.split(",")[1] if "," in signature else signature
-        )
+        signature_data = base64.b64decode(signature.split(",")[1] if "," in signature else signature)
         return Response(content=signature_data, media_type="image/png")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error retrieving doctor signature: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error retrieving signature: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error retrieving signature: {e!s}")
 
 
 @router.post(
@@ -539,8 +479,8 @@ async def get_doctor_signature(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def update_doctor_signature(
-        request: UpdateSignatureRequest,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    request: UpdateSignatureRequest,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Update the doctor's digital signature"""
     try:
@@ -559,14 +499,10 @@ async def update_doctor_signature(
         signature_attributes = {"signature": request.signature_data}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.patch(
-                auth_url, json=signature_attributes, headers=headers
-            )
+            response = await client.patch(auth_url, json=signature_attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update signature: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update signature: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update signature",
@@ -578,9 +514,7 @@ async def update_doctor_signature(
         raise
     except Exception as e:
         logger_service.error(f"Error updating doctor signature: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error updating signature: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error updating signature: {e!s}")
 
 
 @router.post(
@@ -589,8 +523,8 @@ async def update_doctor_signature(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def upload_profile_picture(
-        file: UploadFile = File(...),
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    file: UploadFile = File(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Upload a profile picture for the doctor"""
     try:
@@ -611,9 +545,7 @@ async def upload_profile_picture(
         # Read file content
         contents = await file.read()
         if len(contents) > 5 * 1024 * 1024:  # 5MB limit
-            raise HTTPException(
-                status_code=400, detail="File size too large. Maximum size is 5MB."
-            )
+            raise HTTPException(status_code=400, detail="File size too large. Maximum size is 5MB.")
 
         # Convert to base64 for storage in Keycloak
         base64_image = f"data:{file.content_type};base64,{base64.b64encode(contents).decode('utf-8')}"
@@ -626,14 +558,10 @@ async def upload_profile_picture(
         profile_attributes = {"profile_picture": base64_image}
 
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.patch(
-                auth_url, json=profile_attributes, headers=headers
-            )
+            response = await client.patch(auth_url, json=profile_attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update profile picture: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update profile picture: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to upload profile picture",
@@ -645,9 +573,7 @@ async def upload_profile_picture(
         raise
     except Exception as e:
         logger_service.error(f"Error uploading profile picture: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error uploading profile picture: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error uploading profile picture: {e!s}")
 
 
 @router.get(
@@ -655,7 +581,7 @@ async def upload_profile_picture(
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def get_doctor_profile(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Retrieve doctor's profile information from Keycloak"""
     try:
@@ -674,9 +600,7 @@ async def get_doctor_profile(
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get doctor info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get doctor info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="Doctor profile not found",
@@ -692,13 +616,13 @@ async def get_doctor_profile(
         raise
     except Exception as e:
         logger_service.error(f"Error retrieving doctor profile: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.put("/profile", response_model=UpdateProfileResponse)
 async def update_doctor_profile(
-        update_data: DoctorUpdate,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    update_data: DoctorUpdate,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Update doctor's profile information"""
     try:
@@ -759,9 +683,7 @@ async def update_doctor_profile(
             response = await client.patch(auth_url, json=attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update profile: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update profile: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update profile",
@@ -773,9 +695,7 @@ async def update_doctor_profile(
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get updated doctor info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get updated doctor info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to retrieve updated profile",
@@ -790,7 +710,7 @@ async def update_doctor_profile(
         raise
     except Exception as e:
         logger_service.error(f"Error updating doctor profile: {e}")
-        raise HTTPException(status_code=500, detail=f"Error updating profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating profile: {e!s}")
 
 
 @router.get(
@@ -799,13 +719,13 @@ async def update_doctor_profile(
     responses={500: {"model": ErrorResponse}},
 )
 async def get_all_doctors(
-        specialty: Optional[str] = None,
-        name: Optional[str] = None,
-        verified_only: bool = False,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        user_info: Dict = Depends(get_authenticated_user),
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    specialty: str | None = None,
+    name: str | None = None,
+    verified_only: bool = False,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    user_info: dict = Depends(get_authenticated_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """
     Get all doctors with optional filtering by specialty or name.
@@ -835,9 +755,7 @@ async def get_all_doctors(
             response = await client.get(auth_url, headers=headers, params=query_params)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get doctors list: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get doctors list: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to retrieve doctors list",
@@ -854,11 +772,7 @@ async def get_all_doctors(
 
             # Check if we need to filter by verification status
             attributes = user_data.get("attributes", {})
-            is_verified = (
-                attributes.get("is_verified", ["false"])[0] == "true"
-                if isinstance(attributes.get("is_verified", []), list)
-                else attributes.get("is_verified", "false") == "true"
-            )
+            is_verified = attributes.get("is_verified", ["false"])[0] == "true" if isinstance(attributes.get("is_verified", []), list) else attributes.get("is_verified", "false") == "true"
 
             # Skip if we only want verified doctors and this one isn't
             if verified_only and not is_verified:
@@ -888,7 +802,7 @@ async def get_all_doctors(
         total_pages = (total_doctors + limit - 1) // limit
 
         return {
-            "items": doctors_list[skip: skip + limit],  # Apply pagination
+            "items": doctors_list[skip : skip + limit],  # Apply pagination
             "total": total_doctors,
             "page": page,
             "pages": total_pages,
@@ -896,18 +810,14 @@ async def get_all_doctors(
 
     except Exception as e:
         logger_service.error(f"Error retrieving doctors list: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error retrieving doctors list: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Error retrieving doctors list: {e!s}")
 
 
 @router.get(
     "/{doctor_id}",
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def get_doctor(
-        doctor_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)
-):
+async def get_doctor(doctor_id: str, credentials: HTTPAuthorizationCredentials = Depends(security)):
     """Get doctor information by ID"""
     try:
         # Get token from request
@@ -921,9 +831,7 @@ async def get_doctor(
         # Check if the viewed profile belongs to a doctor (but don't restrict access)
         roles = doctor_info.get("roles", [])
         if not roles or ("doctor" not in roles and "admin" not in roles):
-            logger_service.warning(
-                f"Profile {doctor_id} viewed, but doesn't have doctor role"
-            )
+            logger_service.warning(f"Profile {doctor_id} viewed, but doesn't have doctor role")
             # Still return the info as long as it's a valid user profile
 
         return doctor_info
@@ -931,8 +839,8 @@ async def get_doctor(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving doctor: {str(e)}")
+        logger_service.error(f"Error retrieving doctor: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
+            detail=f"Internal server error: {e!s}",
         )

@@ -2,7 +2,6 @@ import json
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 
 def get_latest_log() -> str:
@@ -23,8 +22,8 @@ def get_latest_log() -> str:
 
 
 def analyze_log_file(
-        filename: str,
-) -> Tuple[List[Dict], List[Dict], Dict[str, List[str]]]:
+    filename: str,
+) -> tuple[list[dict], list[dict], dict[str, list[str]]]:
     """Analyze a log file for entries missing images and errors.
 
     Args:
@@ -44,7 +43,7 @@ def analyze_log_file(
     skipped = []
 
     try:
-        with open(filename, "r") as f:
+        with open(filename) as f:
             for line_num, line in enumerate(f, 1):
                 # Skip HTTP request logs
                 if line.startswith("HTTP Request:") or line.strip() == "":
@@ -81,8 +80,8 @@ def analyze_log_file(
                         if isinstance(content, list):
                             for item in content:
                                 if (
-                                        isinstance(item, dict)
-                                        and item.get("type") == "image_url"
+                                    isinstance(item, dict)
+                                    and item.get("type") == "image_url"
                                 ):
                                     has_image = True
                                     break
@@ -92,9 +91,9 @@ def analyze_log_file(
                                 "case_id": case_id,
                                 "question_id": question_id,
                                 "question": entry.get("input", {})
-                                            .get("question_data", {})
-                                            .get("question", "")[:100]
-                                            + "...",  # First 100 chars of question
+                                .get("question_data", {})
+                                .get("question", "")[:100]
+                                + "...",  # First 100 chars of question
                             }
                         )
                 except json.JSONDecodeError:
@@ -102,23 +101,23 @@ def analyze_log_file(
                     continue
                 except Exception as e:
                     errors["other"].append(
-                        f"Line {line_num}: Error processing entry: {str(e)}"
+                        f"Line {line_num}: Error processing entry: {e!s}"
                     )
     except FileNotFoundError:
         print(f"Error: Could not find log file: {filename}")
         sys.exit(1)
     except Exception as e:
-        print(f"Error reading file {filename}: {str(e)}")
+        print(f"Error reading file {filename}: {e!s}")
         sys.exit(1)
 
     return no_images, skipped, errors
 
 
 def print_results(
-        filename: str,
-        no_images: List[Dict],
-        skipped: List[Dict],
-        errors: Dict[str, List[str]],
+    filename: str,
+    no_images: list[dict],
+    skipped: list[dict],
+    errors: dict[str, list[str]],
 ) -> None:
     """Print analysis results.
 

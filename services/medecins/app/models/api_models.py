@@ -1,5 +1,3 @@
-from typing import Dict, List, Optional
-
 from pydantic import BaseModel, EmailStr
 
 
@@ -7,9 +5,9 @@ class SignupRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    specialty: Optional[str] = ""
-    phone: Optional[str] = ""
-    address: Optional[str] = ""
+    specialty: str | None = ""
+    phone: str | None = ""
+    address: str | None = ""
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -40,17 +38,17 @@ class UpdateSignatureRequest(BaseModel):
 
 class DoctorVerificationInfoResponse(BaseModel):
     status: str
-    submitted_at: Optional[str] = None
-    verified_at: Optional[str] = None
-    license_number: Optional[str] = None
-    license_authority: Optional[str] = None
-    license_expiry: Optional[str] = None
-    rejected_reason: Optional[str] = None
+    submitted_at: str | None = None
+    verified_at: str | None = None
+    license_number: str | None = None
+    license_authority: str | None = None
+    license_expiry: str | None = None
+    rejected_reason: str | None = None
 
 
 class UpdateProfileResponse(BaseModel):
     message: str
-    profile: Dict
+    profile: dict
 
 
 class VerifyDoctorRequest(BaseModel):
@@ -58,7 +56,7 @@ class VerifyDoctorRequest(BaseModel):
     license_authority: str
     license_expiry: str
     submitted_at: str
-    documents: List[str] = []
+    documents: list[str] = []
 
 
 class VerifyDoctorResponse(BaseModel):
@@ -72,7 +70,7 @@ class ScanVisitCardRequest(BaseModel):
 
 
 class ScanVisitCardResponse(BaseModel):
-    extracted_info: Dict
+    extracted_info: dict
     raw_text: str
 
 
@@ -82,19 +80,19 @@ class DoctorListItem(BaseModel):
     name: str
     email: str
     specialty: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    profile_picture: Optional[str] = None
-    is_verified: Optional[bool] = False
-    bio: Optional[str] = None
-    license_number: Optional[str] = None
-    hospital: Optional[str] = None
-    education: Optional[str] = None
-    experience: Optional[str] = None
+    phone: str | None = None
+    address: str | None = None
+    profile_picture: str | None = None
+    is_verified: bool | None = False
+    bio: str | None = None
+    license_number: str | None = None
+    hospital: str | None = None
+    education: str | None = None
+    experience: str | None = None
 
 
 class DoctorListResponse(BaseModel):
-    items: List[DoctorListItem]
+    items: list[DoctorListItem]
     total: int
     page: int
     pages: int
@@ -106,14 +104,14 @@ class MedicationItem(BaseModel):
     dosage: str
     frequency: str
     duration: str
-    instructions: Optional[str] = None
+    instructions: str | None = None
 
 
 class PrescriptionCreate(BaseModel):
     patient_id: str
     patient_name: str
-    medications: List[MedicationItem]
-    notes: Optional[str] = None
+    medications: list[MedicationItem]
+    notes: str | None = None
 
 
 class PrescriptionResponse(BaseModel):
@@ -122,18 +120,18 @@ class PrescriptionResponse(BaseModel):
     doctor_name: str
     patient_id: str
     patient_name: str
-    medications: List[MedicationItem]
-    notes: Optional[str] = None
+    medications: list[MedicationItem]
+    notes: str | None = None
     status: str
     created_at: str
-    expires_at: Optional[str] = None
-    dispensed_at: Optional[str] = None
-    cancelled_at: Optional[str] = None
-    renewal_of: Optional[str] = None
+    expires_at: str | None = None
+    dispensed_at: str | None = None
+    cancelled_at: str | None = None
+    renewal_of: str | None = None
 
 
 class PrescriptionListResponse(BaseModel):
-    items: List[PrescriptionResponse]
+    items: list[PrescriptionResponse]
     total: int
     page: int
     pages: int
@@ -143,19 +141,19 @@ class PrescriptionListResponse(BaseModel):
 class AppointmentResponse(BaseModel):
     id: str
     doctor_id: str
-    doctor_name: Optional[str] = None
+    doctor_name: str | None = None
     patient_id: str
-    patient_name: Optional[str] = None
+    patient_name: str | None = None
     requested_time: str
     status: str
-    reason: Optional[str] = None
-    notes: Optional[str] = None
+    reason: str | None = None
+    notes: str | None = None
     created_at: str
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class AppointmentListResponse(BaseModel):
-    items: List[AppointmentResponse]
+    items: list[AppointmentResponse]
     total: int
     page: int
     pages: int
@@ -163,33 +161,33 @@ class AppointmentListResponse(BaseModel):
 
 # New models for radiology functionality
 class RadiologyImage(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     url: str
     type: str
-    uploaded_at: Optional[str] = None
+    uploaded_at: str | None = None
 
 
 class RadiologyReportResponse(BaseModel):
     id: str
     patient_id: str
     patient_name: str
-    doctor_id: Optional[str] = None
-    doctor_name: Optional[str] = None
-    radiologist_id: Optional[str] = None
-    radiologist_name: Optional[str] = None
+    doctor_id: str | None = None
+    doctor_name: str | None = None
+    radiologist_id: str | None = None
+    radiologist_name: str | None = None
     exam_type: str
     report_type: str
     content: str
-    findings: Optional[str] = None
-    conclusion: Optional[str] = None
-    images: Optional[List[RadiologyImage]] = None
+    findings: str | None = None
+    conclusion: str | None = None
+    images: list[RadiologyImage] | None = None
     status: str
     created_at: str
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class RadiologyReportsListResponse(BaseModel):
-    items: List[RadiologyReportResponse]
+    items: list[RadiologyReportResponse]
     total: int
     page: int
     pages: int
@@ -199,7 +197,7 @@ class RadiologyExaminationRequest(BaseModel):
     patient_id: str
     patient_name: str
     exam_type: str
-    reason: Optional[str] = None
+    reason: str | None = None
     urgency: str = "normal"  # normal, urgent, emergency
 
 
@@ -209,7 +207,7 @@ class RadiologyExaminationResponse(BaseModel):
     patient_id: str
     patient_name: str
     exam_type: str
-    reason: Optional[str] = None
+    reason: str | None = None
     urgency: str
     status: str
     created_at: str
@@ -219,5 +217,5 @@ class RadiologyRequestModel(BaseModel):
     patient_id: str
     patient_name: str
     exam_type: str
-    reason: Optional[str] = None
+    reason: str | None = None
     urgency: str = "normal"

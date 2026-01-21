@@ -4,10 +4,9 @@ import os
 from copy import deepcopy
 from pathlib import Path
 
-from tqdm import tqdm
-
 import llm
 import util
+from tqdm import tqdm
 
 INSTRUCT_PROMPT = """We would like to request your feedback on the performance of two AI assistants in response to the user question displayed above. The user asks the question on observing an image. For your reference, the visual content in the image is represented with caption describing the same image.
   Please rate the helpfulness, relevance, accuracy, level of details of their responses. Each assistant receives an overall score on a scale of 1 to 10, where a higher score indicates better overall performance.

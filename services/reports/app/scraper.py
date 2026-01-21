@@ -1,13 +1,11 @@
 import os
 from pathlib import Path
-from typing import List
 
 from dotenv import load_dotenv
 from firecrawl import FirecrawlApp
 from pydantic import BaseModel, Field
 
 from services.logger_service import logger_service
-
 
 # Get logger for the scraper module
 
@@ -41,14 +39,12 @@ class DocumentationScraper:
         for item in initial_crawl["data"]:
             all_links.extend(item["links"])
 
-        filtered_links = set(
-            [link.split("#")[0] for link in all_links if link.startswith(base_url)]
-        )
+        filtered_links = set([link.split("#")[0] for link in all_links if link.startswith(base_url)])
 
         logger_service.info(f"Found {len(filtered_links)} unique documentation links")
         return list(filtered_links)
 
-    def scrape_documentation(self, base_url: str, limit: int = None) -> List[DocPage]:
+    def scrape_documentation(self, base_url: str, limit: int = None) -> list[DocPage]:
         """
         Scrape documentation pages from a given base URL.
         """
@@ -64,7 +60,7 @@ class DocumentationScraper:
             logger_service.info(f"Scraping {len(filtered_links)} documentation pages")
             crawl_results = self.app.batch_scrape_urls(filtered_links)
         except Exception as e:
-            logger_service.error(f"Error scraping documentation pages: {str(e)}")
+            logger_service.error(f"Error scraping documentation pages: {e!s}")
             return []
 
         # Process results into DocPage objects
@@ -79,17 +75,13 @@ class DocumentationScraper:
                     )
                 )
             else:
-                logger_service.warning(
-                    f"Failed to scrape {result.get('metadata', {}).get('url', 'unknown URL')}"
-                )
+                logger_service.warning(f"Failed to scrape {result.get('metadata', {}).get('url', 'unknown URL')}")
 
-        logger_service.info(
-            f"Successfully scraped {len(doc_pages)} pages out of {len(filtered_links)} URLs"
-        )
+        logger_service.info(f"Successfully scraped {len(doc_pages)} pages out of {len(filtered_links)} URLs")
 
         return doc_pages
 
-    def save_documentation_pages(self, doc_pages: List[DocPage], docs_dir: str):
+    def save_documentation_pages(self, doc_pages: list[DocPage], docs_dir: str):
         """Save scraped documentation pages to markdown files."""
         # Create output directory if it doesn't exist
         Path(docs_dir).mkdir(parents=True, exist_ok=True)

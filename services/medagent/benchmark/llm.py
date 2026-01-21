@@ -2,13 +2,13 @@ import openai
 
 
 def get_llm_response(
-        client: openai.OpenAI,
-        prompt: str,
-        system_prompt: str = "You are a helpful assistant.",
-        model: str = "gpt-4o-mini",
-        temperature: float = 0.7,
-        top_p: float = 0.95,
-        max_tokens: int = 500,
+    client: openai.OpenAI,
+    prompt: str,
+    system_prompt: str = "You are a helpful assistant.",
+    model: str = "gpt-4o-mini",
+    temperature: float = 0.7,
+    top_p: float = 0.95,
+    max_tokens: int = 500,
 ) -> str:
     """
     Get response from OpenAI language model.

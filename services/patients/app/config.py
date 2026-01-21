@@ -69,12 +69,8 @@ class Config:
     OTEL_SERVICE_NAME = SERVICE_NAME
 
     # Circuit Breaker settings
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(
-        os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD")
-    )
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(
-        os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
-    )
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD"))
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT"))
 
     # Health Check settings
     HEALTH_CHECK_INTERVAL = os.getenv("HEALTH_CHECK_INTERVAL")
@@ -120,9 +116,7 @@ class Config:
             "RABBITMQ_HOST",
         ]
 
-        missing = [
-            setting for setting in required_settings if not getattr(cls, setting, None)
-        ]
+        missing = [setting for setting in required_settings if not getattr(cls, setting, None)]
 
         if missing:
             raise ValueError(f"Missing required configuration: {', '.join(missing)}")

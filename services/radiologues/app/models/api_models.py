@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import BaseModel, EmailStr
 
@@ -14,12 +14,12 @@ class LoginResponse(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    profile_picture: Optional[str] = None
-    is_verified: Optional[bool] = False
-    verification_details: Optional[Dict[str, Any]] = None
-    signature: Optional[str] = None
+    phone: str | None = None
+    address: str | None = None
+    profile_picture: str | None = None
+    is_verified: bool | None = False
+    verification_details: dict[str, Any] | None = None
+    signature: str | None = None
 
 
 class SignupRequest(BaseModel):
@@ -27,7 +27,7 @@ class SignupRequest(BaseModel):
     email: EmailStr
     specialty: str
     phone: str
-    address: Optional[str] = None
+    address: str | None = None
     password: str
 
 
@@ -70,9 +70,9 @@ class VerifyRadiologueRequest(BaseModel):
 
 class VerifyRadiologueResponse(BaseModel):
     verified: bool
-    message: Optional[str] = None
-    error: Optional[str] = None
-    debug_info: Optional[Dict[str, Any]] = None
+    message: str | None = None
+    error: str | None = None
+    debug_info: dict[str, Any] | None = None
 
 
 class ScanVisitCardRequest(BaseModel):
@@ -97,46 +97,46 @@ class ReportRequest(BaseModel):
 
 
 class RadiologyImage(BaseModel):
-    id: Optional[str] = None
+    id: str | None = None
     url: str
     type: str
-    uploaded_at: Optional[str] = None
+    uploaded_at: str | None = None
 
 
 class RadiologyReportRequest(BaseModel):
     patient_id: str
     patient_name: str
-    doctor_id: Optional[str] = None
-    doctor_name: Optional[str] = None
+    doctor_id: str | None = None
+    doctor_name: str | None = None
     exam_type: str
     report_type: str
     content: str
-    findings: Optional[str] = None
-    conclusion: Optional[str] = None
-    images: Optional[List[RadiologyImage]] = None
+    findings: str | None = None
+    conclusion: str | None = None
+    images: list[RadiologyImage] | None = None
 
 
 class RadiologyReportResponse(BaseModel):
     id: str
     patient_id: str
     patient_name: str
-    doctor_id: Optional[str] = None
-    doctor_name: Optional[str] = None
-    radiologist_id: Optional[str] = None
-    radiologist_name: Optional[str] = None
+    doctor_id: str | None = None
+    doctor_name: str | None = None
+    radiologist_id: str | None = None
+    radiologist_name: str | None = None
     exam_type: str
     report_type: str
     content: str
-    findings: Optional[str] = None
-    conclusion: Optional[str] = None
-    images: Optional[List[RadiologyImage]] = None
+    findings: str | None = None
+    conclusion: str | None = None
+    images: list[RadiologyImage] | None = None
     status: str
     created_at: str
-    updated_at: Optional[str] = None
+    updated_at: str | None = None
 
 
 class RadiologyReportsListResponse(BaseModel):
-    items: List[RadiologyReportResponse]
+    items: list[RadiologyReportResponse]
     total: int
     page: int
     pages: int
@@ -147,5 +147,5 @@ class RadiologyExaminationRequest(BaseModel):
     patient_id: str
     patient_name: str
     exam_type: str
-    reason: Optional[str] = None
+    reason: str | None = None
     urgency: str = "normal"  # normal, urgent, emergency

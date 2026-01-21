@@ -21,12 +21,12 @@ class LLM(abc.ABC):
 
     @abstractmethod
     def split_input(
-            self,
-            fixed_instruction,
-            few_shot_examples,
-            splittable_input,
-            input_header,
-            output_header,
+        self,
+        fixed_instruction,
+        few_shot_examples,
+        splittable_input,
+        input_header,
+        output_header,
     ):
         raise NotImplementedError("Subclasses should implement this!")
 
@@ -65,7 +65,7 @@ class GPT(LLM):
         )
 
     def gen_messages(
-            self, fixed_instruction, few_shot_examples, input, input_header, output_header
+        self, fixed_instruction, few_shot_examples, input, input_header, output_header
     ):
         messages = [
             {
@@ -79,10 +79,10 @@ class GPT(LLM):
                     {
                         "role": "user",
                         "content": input_header
-                                   + "\n"
-                                   + example["user"]
-                                   + "\n\n"
-                                   + output_header,
+                        + "\n"
+                        + example["user"]
+                        + "\n\n"
+                        + output_header,
                     },
                     {
                         "role": "assistant",
@@ -111,8 +111,8 @@ class GPT(LLM):
         return response.choices[0].message.content
 
     async def dispatch_openai_requests(
-            self,
-            messages_list,
+        self,
+        messages_list,
     ):
         # Asynchronously call the function for each prompt
         tasks = [self.make_api_call_to_gpt(messages) for messages in messages_list]
@@ -122,18 +122,18 @@ class GPT(LLM):
         return results
 
     def infer(
-            self,
-            messages_list,
+        self,
+        messages_list,
     ):
         return asyncio.run(self.dispatch_openai_requests(messages_list))
 
     def split_input(
-            self,
-            fixed_instruction,
-            few_shot_examples,
-            splittable_input,
-            input_header,
-            output_header,
+        self,
+        fixed_instruction,
+        few_shot_examples,
+        splittable_input,
+        input_header,
+        output_header,
     ):
         # Tokenize fixed_prompt
         fixed_token_ids = self.encoding.encode(
@@ -150,7 +150,7 @@ class GPT(LLM):
 
         # Split tokenized split_prompt into list of individual inputs strings. Uses tokens to calculate length
         split_token_ids_list = [
-            split_token_ids[i: i + remaining_token_len + 10]
+            split_token_ids[i : i + remaining_token_len + 10]
             for i in range(0, len(split_token_ids), remaining_token_len)
         ]
         split_input_list = [

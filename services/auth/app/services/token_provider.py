@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Dict, Any
+from typing import Any
 
 import jwt
 
@@ -17,10 +17,10 @@ class TokenProvider:
         print("TokenProvider initialized for test mode")
 
     def create_token(
-            self,
-            user_data: Dict[str, Any],
-            expires_in: int = 3600,
-            token_type: str = "access",
+        self,
+        user_data: dict[str, Any],
+        expires_in: int = 3600,
+        token_type: str = "access",
     ) -> str:
         """
         Create a test JWT token.
@@ -52,7 +52,7 @@ class TokenProvider:
 
         return jwt.encode(payload, self.secret_key, algorithm="HS256")
 
-    def verify_token(self, token: str) -> Dict[str, Any]:
+    def verify_token(self, token: str) -> dict[str, Any]:
         """
         Verify a test token.
 
@@ -75,10 +75,10 @@ class TokenProvider:
 
             return payload
         except Exception as e:
-            print(f"Test token verification error: {str(e)}")
+            print(f"Test token verification error: {e!s}")
             raise
 
-    def create_test_tokens(self, user_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_test_tokens(self, user_data: dict[str, Any]) -> dict[str, Any]:
         """
         Create a set of test tokens for a user.
 
@@ -88,12 +88,8 @@ class TokenProvider:
         Returns:
             dict: Access and refresh tokens
         """
-        access_token = self.create_token(
-            user_data, expires_in=3600, token_type="access"
-        )
-        refresh_token = self.create_token(
-            user_data, expires_in=86400, token_type="refresh"
-        )
+        access_token = self.create_token(user_data, expires_in=3600, token_type="access")
+        refresh_token = self.create_token(user_data, expires_in=86400, token_type="refresh")
 
         return {
             "access_token": access_token,

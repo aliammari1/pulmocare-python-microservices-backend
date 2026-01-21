@@ -2,14 +2,13 @@
 import asyncio
 import base64
 import os
-from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, Depends, Form, HTTPException, UploadFile, File, Query
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, StreamingResponse
 
-from models.file_models import FileResponse, FileListResponse, FileMetadata
+from models.file_models import FileListResponse, FileMetadata, FileResponse
 from services.auth_service import get_current_user
 from services.logger_service import LoggerService
 from services.minio_service import MinioService
@@ -51,11 +50,11 @@ async def health_check():
 
 @app.post("/api/files/upload", response_model=FileResponse)
 async def upload_file(
-        file: UploadFile = File(...),
-        bucket: str = Form(...),
-        folder: Optional[str] = Form(None),
-        metadata: Optional[str] = Form(None),
-        user_info: dict = Depends(get_current_user),
+    file: UploadFile = File(...),
+    bucket: str = Form(...),
+    folder: str | None = Form(None),
+    metadata: str | None = Form(None),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Upload a medical file to the specified bucket
@@ -80,15 +79,15 @@ async def upload_file(
         logger.info(f"Successfully uploaded file {file.filename}")
         return result
     except Exception as e:
-        logger.error(f"Error uploading file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error uploading file: {str(e)}")
+        logger.error(f"Error uploading file: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error uploading file: {e!s}")
 
 
 @app.get("/api/files/{bucket}/{object_path:path}", response_model=FileResponse)
 async def get_file_info(
-        bucket: str,
-        object_path: str,
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    object_path: str,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Get information about a specific file including a download URL
@@ -103,35 +102,29 @@ async def get_file_info(
 
         return file_info
     except Exception as e:
-        logger.error(f"Error getting file info: {str(e)}")
-        raise HTTPException(status_code=404, detail=f"File not found: {str(e)}")
+        logger.error(f"Error getting file info: {e!s}")
+        raise HTTPException(status_code=404, detail=f"File not found: {e!s}")
 
 
 @app.get("/api/files/{bucket}", response_model=FileListResponse)
 async def list_files(
-        bucket: str,
-        prefix: Optional[str] = Query(None, description="Filter by prefix/folder"),
-        recursive: bool = Query(
-            False, description="List files recursively including all subfolders"
-        ),
-        limit: int = Query(100, description="Maximum number of files to return"),
-        marker: Optional[str] = Query(None, description="Marker for pagination"),
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    prefix: str | None = Query(None, description="Filter by prefix/folder"),
+    recursive: bool = Query(False, description="List files recursively including all subfolders"),
+    limit: int = Query(100, description="Maximum number of files to return"),
+    marker: str | None = Query(None, description="Marker for pagination"),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     List files and folders in a bucket with optional prefix filtering, including download URLs
     """
     try:
         logger.info(f"Listing files in bucket {bucket} with prefix {prefix}")
-        result = await minio_service.list_files(
-            bucket, prefix, limit, recursive=recursive, marker=marker
-        )
+        result = await minio_service.list_files(bucket, prefix, limit, recursive=recursive, marker=marker)
 
         # Generate streaming URLs for each file
         for file in result["files"]:
-            file.download_url = await minio_service.generate_streaming_url(
-                bucket, file.object_name
-            )
+            file.download_url = await minio_service.generate_streaming_url(bucket, file.object_name)
 
         response = FileListResponse(
             files=result["files"],
@@ -144,15 +137,15 @@ async def list_files(
         )
         return response
     except Exception as e:
-        logger.error(f"Error listing files: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error listing files: {str(e)}")
+        logger.error(f"Error listing files: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error listing files: {e!s}")
 
 
 @app.delete("/api/files/{bucket}/{object_path:path}")
 async def delete_file(
-        bucket: str,
-        object_path: str,
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    object_path: str,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Delete a file from storage
@@ -165,9 +158,7 @@ async def delete_file(
             # Check if user is the owner of the file
             file_info = await minio_service.get_file_info(bucket, object_path)
             if file_info.metadata.get("uploaded_by") != user_info.get("user_id"):
-                raise HTTPException(
-                    status_code=403, detail="Not authorized to delete this file"
-                )
+                raise HTTPException(status_code=403, detail="Not authorized to delete this file")
 
         await minio_service.delete_file(bucket, object_path)
         logger.info(f"Successfully deleted file {object_path}")
@@ -175,16 +166,16 @@ async def delete_file(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error deleting file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
+        logger.error(f"Error deleting file: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error deleting file: {e!s}")
 
 
 @app.put("/api/files/{bucket}/{object_path:path}/metadata")
 async def update_file_metadata(
-        bucket: str,
-        object_path: str,
-        metadata: FileMetadata,
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    object_path: str,
+    metadata: FileMetadata,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Update metadata for a specific file
@@ -194,10 +185,8 @@ async def update_file_metadata(
         await minio_service.update_metadata(bucket, object_path, metadata.dict())
         return {"message": "Metadata updated successfully"}
     except Exception as e:
-        logger.error(f"Error updating metadata: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error updating metadata: {str(e)}"
-        )
+        logger.error(f"Error updating metadata: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error updating metadata: {e!s}")
 
 
 @app.get("/api/v1/download-shared-object/{encoded_url}")
@@ -216,16 +205,16 @@ async def download_shared_object(encoded_url: str):
         # Redirect to the actual presigned URL
         return RedirectResponse(url=original_url)
     except Exception as e:
-        logger.error(f"Error processing shared download: {str(e)}")
-        raise HTTPException(status_code=400, detail=f"Invalid or expired download link")
+        logger.error(f"Error processing shared download: {e!s}")
+        raise HTTPException(status_code=400, detail="Invalid or expired download link")
 
 
 @app.post("/api/files/{bucket}/share/{object_path:path}", response_model=dict)
 async def create_share_link(
-        bucket: str,
-        object_path: str,
-        expiry_hours: int = Query(24, description="Link expiry in hours"),
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    object_path: str,
+    expiry_hours: int = Query(24, description="Link expiry in hours"),
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Create a shareable link for a file
@@ -245,20 +234,18 @@ async def create_share_link(
         return {
             "share_url": share_url,
             "type": "streaming",
-            "note": "This link provides direct streaming access to the file"
+            "note": "This link provides direct streaming access to the file",
         }
     except Exception as e:
-        logger.error(f"Error creating share link: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Error creating share link: {str(e)}"
-        )
+        logger.error(f"Error creating share link: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error creating share link: {e!s}")
 
 
 @app.get("/api/files/{bucket}/stream/{object_path:path}")
 async def stream_file(
-        bucket: str,
-        object_path: str,
-        user_info: dict = Depends(get_current_user),
+    bucket: str,
+    object_path: str,
+    user_info: dict = Depends(get_current_user),
 ):
     """
     Stream a file directly from storage
@@ -277,18 +264,18 @@ async def stream_file(
             file_stream,
             media_type=stat.content_type,
             headers={
-                "Content-Disposition": f"inline; filename=\"{stat.filename}\"",
-            }
+                "Content-Disposition": f'inline; filename="{stat.filename}"',
+            },
         )
     except Exception as e:
-        logger.error(f"Error streaming file: {str(e)}")
-        raise HTTPException(status_code=404, detail=f"File not found: {str(e)}")
+        logger.error(f"Error streaming file: {e!s}")
+        raise HTTPException(status_code=404, detail=f"File not found: {e!s}")
 
 
 @app.get("/api/v1/stream-shared-object/{bucket}/{object_id:path}")
 async def stream_shared_object(
-        bucket: str,
-        object_id: str,
+    bucket: str,
+    object_id: str,
 ):
     """
     Stream a file without authentication for sharing purposes
@@ -308,7 +295,7 @@ async def stream_shared_object(
         try:
             stat = await asyncio.get_event_loop().run_in_executor(
                 minio_service.executor,
-                lambda: minio_service.client.stat_object(bucket, object_path)
+                lambda: minio_service.client.stat_object(bucket, object_path),
             )
         except:
             raise HTTPException(status_code=404, detail="File not found")
@@ -322,14 +309,14 @@ async def stream_shared_object(
             file_stream,
             media_type=stat.content_type,
             headers={
-                "Content-Disposition": f"inline; filename=\"{filename}\"",
-            }
+                "Content-Disposition": f'inline; filename="{filename}"',
+            },
         )
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error streaming shared file: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing shared stream: {str(e)}")
+        logger.error(f"Error streaming shared file: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Error processing shared stream: {e!s}")
 
 
 if __name__ == "__main__":

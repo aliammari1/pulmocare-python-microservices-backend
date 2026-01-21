@@ -1,6 +1,5 @@
-from typing import Dict, Optional
-
 import httpx
+
 from services.logger_service import logger_service
 
 
@@ -14,12 +13,12 @@ class AppointmentService:
         self.client = httpx.AsyncClient(timeout=self.timeout)
 
     async def get_doctor_appointments(
-            self,
-            doctor_id: str,
-            status: Optional[str] = None,
-            page: int = 1,
-            limit: int = 10,
-    ) -> Dict:
+        self,
+        doctor_id: str,
+        status: str | None = None,
+        page: int = 1,
+        limit: int = 10,
+    ) -> dict:
         """
         Get appointments for a specific doctor
         """
@@ -35,9 +34,7 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error getting doctor appointments: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error getting doctor appointments: {response.status_code} - {response.text}")
                 return {
                     "items": [],
                     "total": 0,
@@ -47,12 +44,10 @@ class AppointmentService:
                 }
 
         except Exception as e:
-            logger_service.error(f"Error in get_doctor_appointments: {str(e)}")
+            logger_service.error(f"Error in get_doctor_appointments: {e!s}")
             return {"items": [], "total": 0, "page": page, "limit": limit, "pages": 0}
 
-    async def get_appointment_details(
-            self, appointment_id: str, doctor_id: str
-    ) -> Optional[Dict]:
+    async def get_appointment_details(self, appointment_id: str, doctor_id: str) -> dict | None:
         """
         Get details for a specific appointment
         """
@@ -66,32 +61,27 @@ class AppointmentService:
 
                 # Verify that this appointment belongs to the specified doctor
                 if appointment.get("doctor_id") != doctor_id:
-                    logger_service.warning(
-                        f"Doctor {doctor_id} attempted to access appointment {appointment_id} "
-                        f"belonging to another doctor"
-                    )
+                    logger_service.warning(f"Doctor {doctor_id} attempted to access appointment {appointment_id} belonging to another doctor")
                     return None
 
                 return appointment
             elif response.status_code == 404:
                 return None
             else:
-                logger_service.error(
-                    f"Error getting appointment details: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error getting appointment details: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in get_appointment_details: {str(e)}")
+            logger_service.error(f"Error in get_appointment_details: {e!s}")
             return None
 
     async def update_appointment_status(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            new_status: str,
-            reason: Optional[str] = None,
-    ) -> Optional[Dict]:
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        new_status: str,
+        reason: str | None = None,
+    ) -> dict | None:
         """
         Update the status of an appointment (accept/reject)
         """
@@ -116,28 +106,20 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error updating appointment status: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error updating appointment status: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in update_appointment_status: {str(e)}")
+            logger_service.error(f"Error in update_appointment_status: {e!s}")
             return None
 
-    async def accept_appointment(
-            self, appointment_id: str, doctor_id: str
-    ) -> Optional[Dict]:
+    async def accept_appointment(self, appointment_id: str, doctor_id: str) -> dict | None:
         """
         Accept an appointment
         """
-        return await self.update_appointment_status(
-            appointment_id=appointment_id, doctor_id=doctor_id, new_status="accepted"
-        )
+        return await self.update_appointment_status(appointment_id=appointment_id, doctor_id=doctor_id, new_status="accepted")
 
-    async def reject_appointment(
-            self, appointment_id: str, doctor_id: str, reason: Optional[str] = None
-    ) -> Optional[Dict]:
+    async def reject_appointment(self, appointment_id: str, doctor_id: str, reason: str | None = None) -> dict | None:
         """
         Reject an appointment
         """
@@ -149,12 +131,12 @@ class AppointmentService:
         )
 
     async def reschedule_appointment(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            new_time: str,
-            reason: Optional[str] = None,
-    ) -> Optional[Dict]:
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        new_time: str,
+        reason: str | None = None,
+    ) -> dict | None:
         """
         Reschedule an appointment to a new time
         """
@@ -179,21 +161,19 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error rescheduling appointment: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error rescheduling appointment: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in reschedule_appointment: {str(e)}")
+            logger_service.error(f"Error in reschedule_appointment: {e!s}")
             return None
 
     async def add_appointment_notes(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            notes: str,
-    ) -> Optional[Dict]:
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        notes: str,
+    ) -> dict | None:
         """
         Add notes to an existing appointment
         """
@@ -215,23 +195,21 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error adding appointment notes: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error adding appointment notes: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in add_appointment_notes: {str(e)}")
+            logger_service.error(f"Error in add_appointment_notes: {e!s}")
             return None
 
     async def get_patient_appointments(
-            self,
-            doctor_id: str,
-            patient_id: str,
-            status: Optional[str] = None,
-            page: int = 1,
-            limit: int = 10,
-    ) -> Dict:
+        self,
+        doctor_id: str,
+        patient_id: str,
+        status: str | None = None,
+        page: int = 1,
+        limit: int = 10,
+    ) -> dict:
         """
         Get appointments between a specific doctor and patient
         """
@@ -247,9 +225,7 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error getting patient appointments: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error getting patient appointments: {response.status_code} - {response.text}")
                 return {
                     "items": [],
                     "total": 0,
@@ -259,17 +235,17 @@ class AppointmentService:
                 }
 
         except Exception as e:
-            logger_service.error(f"Error in get_patient_appointments: {str(e)}")
+            logger_service.error(f"Error in get_patient_appointments: {e!s}")
             return {"items": [], "total": 0, "page": page, "limit": limit, "pages": 0}
 
     async def create_appointment(
-            self,
-            doctor_id: str,
-            patient_id: str,
-            patient_name: str,
-            requested_time: str,
-            reason: Optional[str] = None,
-    ) -> Optional[Dict]:
+        self,
+        doctor_id: str,
+        patient_id: str,
+        patient_name: str,
+        requested_time: str,
+        reason: str | None = None,
+    ) -> dict | None:
         """
         Create a new appointment for a patient with this doctor
         """
@@ -291,21 +267,19 @@ class AppointmentService:
             if response.status_code == 201:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error creating appointment: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error creating appointment: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in create_appointment: {str(e)}")
+            logger_service.error(f"Error in create_appointment: {e!s}")
             return None
 
     async def cancel_appointment(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            reason: Optional[str] = None,
-    ) -> Optional[Dict]:
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        reason: str | None = None,
+    ) -> dict | None:
         """
         Cancel an existing appointment
         """
@@ -317,11 +291,11 @@ class AppointmentService:
         )
 
     async def complete_appointment(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            notes: Optional[str] = None,
-    ) -> Optional[Dict]:
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        notes: str | None = None,
+    ) -> dict | None:
         """
         Mark an appointment as completed
         """
@@ -343,13 +317,11 @@ class AppointmentService:
             if response.status_code == 200:
                 return response.json()
             else:
-                logger_service.error(
-                    f"Error completing appointment: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Error completing appointment: {response.status_code} - {response.text}")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error in complete_appointment: {str(e)}")
+            logger_service.error(f"Error in complete_appointment: {e!s}")
             return None
 
     def close(self):
@@ -361,4 +333,4 @@ class AppointmentService:
         try:
             asyncio.create_task(self.client.aclose())
         except Exception as e:
-            logger_service.error(f"Error closing HTTP client: {str(e)}")
+            logger_service.error(f"Error closing HTTP client: {e!s}")

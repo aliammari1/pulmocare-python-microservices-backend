@@ -1,14 +1,13 @@
 from datetime import datetime
-from typing import Dict, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from models.patient_model import ErrorResponse, MessageResponse, PatientUpdate, Patient
-from services.logger_service import logger_service
-from services.rabbitmq_client import RabbitMQClient
 
 from config import Config
+from models.patient_model import ErrorResponse, MessageResponse, Patient, PatientUpdate
+from services.logger_service import logger_service
+from services.rabbitmq_client import RabbitMQClient
 
 router = APIRouter(prefix="/api/patients", tags=["Patients"])
 
@@ -19,7 +18,7 @@ rabbitmq_client = RabbitMQClient(Config)
 security = HTTPBearer()
 
 
-async def get_patient_by_id(patient_id: str, token: str) -> Dict:
+async def get_patient_by_id(patient_id: str, token: str) -> dict:
     """
     Get patient information by ID from auth service
 
@@ -48,9 +47,7 @@ async def get_patient_by_id(patient_id: str, token: str) -> Dict:
                 )
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get user info: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to retrieve user information",
@@ -60,7 +57,7 @@ async def get_patient_by_id(patient_id: str, token: str) -> Dict:
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -68,7 +65,7 @@ async def get_patient_by_id(patient_id: str, token: str) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error retrieving user info: {str(e)}")
+        logger_service.error(f"Unexpected error retrieving user info: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving user information",
@@ -93,21 +90,19 @@ async def get_service_token():
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get service token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get service token: {response.status_code} - {response.text}")
                 return None
 
             token_data = response.json()
             return token_data.get("access_token")
     except Exception as e:
-        logger_service.error(f"Failed to get service token: {str(e)}")
+        logger_service.error(f"Failed to get service token: {e!s}")
         return None
 
 
 async def get_current_patient(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current user information from auth service.
 
@@ -129,9 +124,7 @@ async def get_current_patient(
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to verify token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to verify token: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token",
@@ -149,9 +142,7 @@ async def get_current_patient(
             logger_service.info(f"User roles: {roles}")
 
             if not any(role in roles for role in valid_roles):
-                logger_service.error(
-                    f"User does not have valid healthcare role. Roles: {roles}"
-                )
+                logger_service.error(f"User does not have valid healthcare role. Roles: {roles}")
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Healthcare role required (patient, doctor, radiologist or admin)",
@@ -163,7 +154,7 @@ async def get_current_patient(
             return user_info
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -171,14 +162,14 @@ async def get_current_patient(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        logger_service.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
         )
 
 
-async def get_user_info(patient_id: str, token: str) -> Optional[Dict]:
+async def get_user_info(patient_id: str, token: str) -> dict | None:
     """Get user info from auth service"""
     try:
         # Create a new client for each request
@@ -197,9 +188,7 @@ async def get_user_info(patient_id: str, token: str) -> Optional[Dict]:
         return None
 
 
-async def update_user_attributes(
-        patient_id: str, attributes: Dict, token: str
-) -> Optional[Dict]:
+async def update_user_attributes(patient_id: str, attributes: dict, token: str) -> dict | None:
     """Update user attributes in auth service"""
     try:
         # Create a new client for each request
@@ -228,22 +217,18 @@ def is_healthcare_provider(roles):
     "/{patient_id}",
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def get_patient(patient_id: str, user_info: Dict = Depends(get_current_patient)):
+async def get_patient(patient_id: str, user_info: dict = Depends(get_current_patient)):
     """Get patient information by ID"""
     try:
         current_user_id = user_info.get("user_id")
         roles = user_info.get("roles", [])
         token = user_info.get("token")
 
-        logger_service.info(
-            f"Accessing patient {patient_id} by user {current_user_id} with roles {roles}"
-        )
+        logger_service.info(f"Accessing patient {patient_id} by user {current_user_id} with roles {roles}")
 
         # Only allow if the user is the patient themselves or a healthcare provider
         if patient_id != current_user_id and not is_healthcare_provider(roles):
-            logger_service.error(
-                f"Access denied: user {current_user_id} with roles {roles} attempted to access patient {patient_id}"
-            )
+            logger_service.error(f"Access denied: user {current_user_id} with roles {roles} attempted to access patient {patient_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You don't have permission to access this patient information",
@@ -253,19 +238,17 @@ async def get_patient(patient_id: str, user_info: Dict = Depends(get_current_pat
         patient_data = await get_patient_by_id(patient_id, token)
 
         if not patient_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
 
         return patient_data
 
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving patient: {str(e)}")
+        logger_service.error(f"Error retrieving patient: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Internal server error: {str(e)}",
+            detail=f"Internal server error: {e!s}",
         )
 
 
@@ -275,11 +258,11 @@ async def get_patient(patient_id: str, user_info: Dict = Depends(get_current_pat
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def request_appointment(
-        doctor_id: str,
-        requested_time: str,
-        patient_id: Optional[str] = None,
-        reason: Optional[str] = None,
-        user_info: Dict = Depends(get_current_patient),
+    doctor_id: str,
+    requested_time: str,
+    patient_id: str | None = None,
+    reason: str | None = None,
+    user_info: dict = Depends(get_current_patient),
 ):
     """Request an appointment with a doctor
 
@@ -301,21 +284,13 @@ async def request_appointment(
         # If the current user is not an admin or healthcare provider, they can only
         # create appointments for themselves
         healthcare_provider_roles = ["doctor", "radiologist", "admin"]
-        is_healthcare_provider = any(
-            role in roles for role in healthcare_provider_roles
-        )
+        is_healthcare_provider = any(role in roles for role in healthcare_provider_roles)
 
         # Log the appointment creation attempt for debugging
-        logger_service.info(
-            f"Appointment request - User {user_info.get('user_id')} with roles {roles} "
-            f"creating appointment for patient {patient_id} with doctor {doctor_id}"
-        )
+        logger_service.info(f"Appointment request - User {user_info.get('user_id')} with roles {roles} creating appointment for patient {patient_id} with doctor {doctor_id}")
 
         if not is_healthcare_provider and patient_id != user_info.get("user_id"):
-            logger_service.error(
-                f"Unauthorized appointment creation: User {user_info.get('user_id')} "
-                f"with roles {roles} tried to create appointment for patient {patient_id}"
-            )
+            logger_service.error(f"Unauthorized appointment creation: User {user_info.get('user_id')} with roles {roles} tried to create appointment for patient {patient_id}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="You can only request appointments for yourself",
@@ -342,10 +317,7 @@ async def request_appointment(
                 requester_role = role
                 break
 
-        logger_service.info(
-            f"Appointment request initiated by {requester_role} (user ID: {user_info.get('user_id')}) "
-            f"for patient {patient_id} with doctor {doctor_id}"
-        )
+        logger_service.info(f"Appointment request initiated by {requester_role} (user ID: {user_info.get('user_id')}) for patient {patient_id} with doctor {doctor_id}")
 
         # Send appointment request via RabbitMQ
         message_published = rabbitmq_client.publish_appointment_request(
@@ -356,9 +328,7 @@ async def request_appointment(
 
         if message_published:
             # Generate a unique ID for the request confirmation
-            appointment_request_id = (
-                f"req_{patient_id}_{doctor_id}_{int(datetime.utcnow().timestamp())}"
-            )
+            appointment_request_id = f"req_{patient_id}_{doctor_id}_{int(datetime.utcnow().timestamp())}"
 
             # Store the appointment request ID in user attributes for reference
             # Get current appointment_requests or initialize empty list
@@ -369,9 +339,7 @@ async def request_appointment(
 
             appointment_requests = attributes.get("appointment_requests", [])
             if not isinstance(appointment_requests, list):
-                appointment_requests = (
-                    [appointment_requests] if appointment_requests else []
-                )
+                appointment_requests = [appointment_requests] if appointment_requests else []
 
             # Add the new request
             new_request = {
@@ -390,26 +358,22 @@ async def request_appointment(
             # Update user attributes in auth service
             await update_user_attributes(patient_id, attributes, token)
 
-            return MessageResponse(
-                message=f"Appointment request sent successfully. Request ID: {appointment_request_id}"
-            )
+            return MessageResponse(message=f"Appointment request sent successfully. Request ID: {appointment_request_id}")
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to send appointment request"
-            )
+            raise HTTPException(status_code=500, detail="Failed to send appointment request")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error requesting appointment: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
     "/medical-history",
     responses={500: {"model": ErrorResponse}},
 )
-async def get_medical_history(user_info: Dict = Depends(get_current_patient)):
+async def get_medical_history(user_info: dict = Depends(get_current_patient)):
     """Get patient's medical history"""
     try:
         patient_id = user_info.get("user_id")
@@ -426,9 +390,7 @@ async def get_medical_history(user_info: Dict = Depends(get_current_patient)):
         logger_service.info(f"Received {len(medical_records)} medical records")
 
         # Get radiology reports from radiologues service
-        radiology_reports = rabbitmq_client.request_patient_radiology_reports(
-            patient_id
-        )
+        radiology_reports = rabbitmq_client.request_patient_radiology_reports(patient_id)
         logger_service.info(f"Received {len(radiology_reports)} radiology reports")
 
         # Get patient demographics from auth service
@@ -445,9 +407,7 @@ async def get_medical_history(user_info: Dict = Depends(get_current_patient)):
 
         medical_history_items = attributes.get("medical_history", [])
         if not isinstance(medical_history_items, list):
-            medical_history_items = (
-                [medical_history_items] if medical_history_items else []
-            )
+            medical_history_items = [medical_history_items] if medical_history_items else []
 
         # Combine all data
         return {
@@ -460,14 +420,14 @@ async def get_medical_history(user_info: Dict = Depends(get_current_patient)):
 
     except Exception as e:
         logger_service.error(f"Error retrieving medical history: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
     "/prescriptions",
     responses={500: {"model": ErrorResponse}},
 )
-async def get_prescriptions(user_info: Dict = Depends(get_current_patient)):
+async def get_prescriptions(user_info: dict = Depends(get_current_patient)):
     """Get patient's prescriptions"""
     try:
         patient_id = user_info.get("user_id")
@@ -481,16 +441,14 @@ async def get_prescriptions(user_info: Dict = Depends(get_current_patient)):
 
     except Exception as e:
         logger_service.error(f"Error retrieving prescriptions: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.put(
     "/profile",
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def update_profile(
-        update_data: PatientUpdate, user_info: Dict = Depends(get_current_patient)
-):
+async def update_profile(update_data: PatientUpdate, user_info: dict = Depends(get_current_patient)):
     """
     Update the current patient's profile information.
 
@@ -558,9 +516,7 @@ async def update_profile(
             response = await client.patch(auth_url, json=attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update profile: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update profile: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                     detail="Failed to update profile",
@@ -576,4 +532,4 @@ async def update_profile(
         raise
     except Exception as e:
         logger_service.error(f"Error updating patient profile: {e}")
-        raise HTTPException(status_code=500, detail=f"Error updating profile: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error updating profile: {e!s}")

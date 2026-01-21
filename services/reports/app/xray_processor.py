@@ -24,7 +24,7 @@ class ChestImageProcessor:
             else:
                 return self._load_standard_image(image_bytes)
         except Exception as e:
-            logger_service.error(f"Error loading image: {str(e)}")
+            logger_service.error(f"Error loading image: {e!s}")
             raise
 
     def _load_dicom(self, image_bytes):
@@ -34,12 +34,10 @@ class ChestImageProcessor:
             image = dataset.pixel_array.astype(float)
 
             # Normalize to 8-bit range
-            image = ((image - image.min()) / (image.max() - image.min()) * 255).astype(
-                np.uint8
-            )
+            image = ((image - image.min()) / (image.max() - image.min()) * 255).astype(np.uint8)
             return cv2.resize(image, self.target_size)
         except Exception as e:
-            logger_service.error(f"Error loading DICOM image: {str(e)}")
+            logger_service.error(f"Error loading DICOM image: {e!s}")
             raise
 
     def _load_standard_image(self, image_bytes):
@@ -49,7 +47,7 @@ class ChestImageProcessor:
             image = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
             return cv2.resize(image, self.target_size)
         except Exception as e:
-            logger_service.error(f"Error loading standard image: {str(e)}")
+            logger_service.error(f"Error loading standard image: {e!s}")
             raise
 
     def extract_image_stats(self, image):
@@ -97,7 +95,7 @@ class ChestImageProcessor:
                 "foreground_ratio": float(foreground_ratio),
             }
         except Exception as e:
-            logger_service.error(f"Error extracting image statistics: {str(e)}")
+            logger_service.error(f"Error extracting image statistics: {e!s}")
             raise
 
     def enhance_image(self, image):
@@ -112,21 +110,17 @@ class ChestImageProcessor:
 
             return enhanced
         except Exception as e:
-            logger_service.error(f"Error enhancing image: {str(e)}")
+            logger_service.error(f"Error enhancing image: {e!s}")
             raise
 
     def extract_roi(self, image):
         """Extract region of interest using thresholding and contours."""
         try:
             # Apply Otsu's thresholding
-            _, thresh = cv2.threshold(
-                image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU
-            )
+            _, thresh = cv2.threshold(image, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
             # Find contours
-            contours, _ = cv2.findContours(
-                thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
-            )
+            contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
             if contours:
                 # Find largest contour (assumed to be the lung area)
@@ -143,7 +137,7 @@ class ChestImageProcessor:
                 logger_service.warning("No contours found in image")
                 return image
         except Exception as e:
-            logger_service.error(f"Error extracting ROI: {str(e)}")
+            logger_service.error(f"Error extracting ROI: {e!s}")
             raise
 
 
@@ -188,7 +182,7 @@ class ChestXRayModel:
             return analysis_results
 
         except Exception as e:
-            logger_service.error(f"Error analyzing image: {str(e)}")
+            logger_service.error(f"Error analyzing image: {e!s}")
             raise
 
     def _generate_simulated_findings(self, image_stats):
@@ -248,21 +242,9 @@ class ChestXRayModel:
         ]
 
         # Determine quality metrics based on image stats
-        contrast_quality = (
-            "poor"
-            if image_stats["contrast"] < 50
-            else "good" if image_stats["contrast"] > 100 else "average"
-        )
-        sharpness_quality = (
-            "poor"
-            if image_stats["sharpness"] < 100
-            else "good" if image_stats["sharpness"] > 500 else "average"
-        )
-        exposure_quality = (
-            "underexposed"
-            if image_stats["mean"] < 80
-            else "overexposed" if image_stats["mean"] > 180 else "good"
-        )
+        contrast_quality = "poor" if image_stats["contrast"] < 50 else "good" if image_stats["contrast"] > 100 else "average"
+        sharpness_quality = "poor" if image_stats["sharpness"] < 100 else "good" if image_stats["sharpness"] > 500 else "average"
+        exposure_quality = "underexposed" if image_stats["mean"] < 80 else "overexposed" if image_stats["mean"] > 180 else "good"
 
         # Determine overall quality
         quality_scores = {
@@ -273,17 +255,11 @@ class ChestXRayModel:
             "overexposed": 0,
         }
 
-        quality_score = (
-                quality_scores[contrast_quality] + quality_scores[sharpness_quality]
-        )
+        quality_score = quality_scores[contrast_quality] + quality_scores[sharpness_quality]
         if exposure_quality == "good":
             quality_score += 2
 
-        overall_quality = (
-            "poor"
-            if quality_score <= 2
-            else "good" if quality_score >= 5 else "average"
-        )
+        overall_quality = "poor" if quality_score <= 2 else "good" if quality_score >= 5 else "average"
 
         # Select random findings (1-3)
         num_findings = random.randint(1, 3)
@@ -303,9 +279,7 @@ class ChestXRayModel:
         if risk_level == "high":
             follow_up = "Immediate clinical evaluation and treatment recommended."
         elif risk_level == "moderate":
-            follow_up = (
-                "Follow-up imaging in 1-2 weeks and clinical correlation advised."
-            )
+            follow_up = "Follow-up imaging in 1-2 weeks and clinical correlation advised."
         else:
             follow_up = "Routine follow-up recommended if symptoms persist."
 

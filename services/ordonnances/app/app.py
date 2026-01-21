@@ -1,7 +1,6 @@
 import base64
 import os
 from datetime import datetime
-from typing import Dict, Optional
 
 import uvicorn
 from bson import ObjectId
@@ -21,7 +20,8 @@ from models.ordonnance import (
     OrdonnanceList,
     OrdonnanceUpdate,
 )
-from routes.integration_routes import get_current_doctor, router as integration_router
+from routes.integration_routes import get_current_doctor
+from routes.integration_routes import router as integration_router
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.rabbitmq_client import RabbitMQClient
@@ -70,9 +70,7 @@ ordonnances_collection = mongodb_client.db.ordonnances
     status_code=status.HTTP_201_CREATED,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def create_ordonnance(
-        ordonnance_data: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
-):
+async def create_ordonnance(ordonnance_data: OrdonnanceCreate, user_info: dict = Depends(get_current_doctor)):
     try:
         doctor_id = user_info.get("user_id")
 
@@ -93,18 +91,14 @@ async def create_ordonnance(
         result = ordonnances_collection.insert_one(ordonnance.to_dict())
 
         # Get the created ordonnance
-        created_ordonnance = ordonnances_collection.find_one(
-            {"_id": result.inserted_id}
-        )
+        created_ordonnance = ordonnances_collection.find_one({"_id": result.inserted_id})
 
         # Convert to Pydantic model
         return Ordonnance.from_dict(created_ordonnance).to_pydantic()
 
     except Exception as e:
-        logger_service.error(f"Error creating prescription: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create prescription: {str(e)}"
-        )
+        logger_service.error(f"Error creating prescription: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to create prescription: {e!s}")
 
 
 @app.get(
@@ -113,10 +107,10 @@ async def create_ordonnance(
     responses={500: {"model": ErrorResponse}},
 )
 async def get_ordonnances(
-        patient_id: Optional[str] = None,
-        doctor_id: Optional[str] = None,
-        limit: int = 100,
-        skip: int = 0,
+    patient_id: str | None = None,
+    doctor_id: str | None = None,
+    limit: int = 100,
+    skip: int = 0,
 ):
     try:
         # Build query based on parameters
@@ -130,12 +124,7 @@ async def get_ordonnances(
         total = ordonnances_collection.count_documents(query)
 
         # Get ordonnances with pagination
-        cursor = (
-            ordonnances_collection.find(query)
-            .sort("date", DESCENDING)
-            .skip(skip)
-            .limit(limit)
-        )
+        cursor = ordonnances_collection.find(query).sort("date", DESCENDING).skip(skip).limit(limit)
 
         # Convert to list of OrdonnanceInDB models
         ordonnances = [Ordonnance.from_dict(ord).to_pydantic() for ord in cursor]
@@ -148,10 +137,8 @@ async def get_ordonnances(
         )
 
     except Exception as e:
-        logger_service.error(f"Error retrieving prescriptions: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve prescriptions: {str(e)}"
-        )
+        logger_service.error(f"Error retrieving prescriptions: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve prescriptions: {e!s}")
 
 
 @app.get(
@@ -163,14 +150,10 @@ async def get_ordonnance(ordonnance_id: str):
     try:
         # Validate ID format
         if not ObjectId.is_valid(ordonnance_id):
-            raise HTTPException(
-                status_code=400, detail="Invalid prescription ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid prescription ID format")
 
         # Find ordonnance by ID
-        ordonnance_data = ordonnances_collection.find_one(
-            {"_id": ObjectId(ordonnance_id)}
-        )
+        ordonnance_data = ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
 
         if not ordonnance_data:
             raise HTTPException(status_code=404, detail="Prescription not found")
@@ -181,10 +164,8 @@ async def get_ordonnance(ordonnance_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving prescription: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve prescription: {str(e)}"
-        )
+        logger_service.error(f"Error retrieving prescription: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve prescription: {e!s}")
 
 
 @app.put(
@@ -193,30 +174,24 @@ async def get_ordonnance(ordonnance_id: str):
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def update_ordonnance(
-        ordonnance_id: str,
-        update_data: OrdonnanceUpdate,
-        user_info: Dict = Depends(get_current_doctor),
+    ordonnance_id: str,
+    update_data: OrdonnanceUpdate,
+    user_info: dict = Depends(get_current_doctor),
 ):
     try:
         # Validate ID format
         if not ObjectId.is_valid(ordonnance_id):
-            raise HTTPException(
-                status_code=400, detail="Invalid prescription ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid prescription ID format")
 
         # Find ordonnance by ID
-        ordonnance_data = ordonnances_collection.find_one(
-            {"_id": ObjectId(ordonnance_id)}
-        )
+        ordonnance_data = ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
 
         if not ordonnance_data:
             raise HTTPException(status_code=404, detail="Prescription not found")
 
         # Check if the doctor is the owner
         if ordonnance_data.get("doctor_id") != user_info.get("user_id"):
-            raise HTTPException(
-                status_code=403, detail="You can only update your own prescriptions"
-            )
+            raise HTTPException(status_code=403, detail="You can only update your own prescriptions")
 
         # Prepare update data
         update_fields = {}
@@ -225,14 +200,10 @@ async def update_ordonnance(
                 update_fields[field] = value
 
         # Update the document
-        ordonnances_collection.update_one(
-            {"_id": ObjectId(ordonnance_id)}, {"$set": update_fields}
-        )
+        ordonnances_collection.update_one({"_id": ObjectId(ordonnance_id)}, {"$set": update_fields})
 
         # Get updated ordonnance
-        updated_ordonnance = ordonnances_collection.find_one(
-            {"_id": ObjectId(ordonnance_id)}
-        )
+        updated_ordonnance = ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
 
         # Convert to Pydantic model
         return Ordonnance.from_dict(updated_ordonnance).to_pydantic()
@@ -240,10 +211,8 @@ async def update_ordonnance(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error updating prescription: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to update prescription: {str(e)}"
-        )
+        logger_service.error(f"Error updating prescription: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to update prescription: {e!s}")
 
 
 @app.delete(
@@ -251,29 +220,21 @@ async def update_ordonnance(
     response_model=MessageResponse,
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def delete_ordonnance(
-        ordonnance_id: str, user_info: Dict = Depends(get_current_doctor)
-):
+async def delete_ordonnance(ordonnance_id: str, user_info: dict = Depends(get_current_doctor)):
     try:
         # Validate ID format
         if not ObjectId.is_valid(ordonnance_id):
-            raise HTTPException(
-                status_code=400, detail="Invalid prescription ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid prescription ID format")
 
         # Find ordonnance by ID
-        ordonnance_data = ordonnances_collection.find_one(
-            {"_id": ObjectId(ordonnance_id)}
-        )
+        ordonnance_data = ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
 
         if not ordonnance_data:
             raise HTTPException(status_code=404, detail="Prescription not found")
 
         # Check if the doctor is the owner
         if ordonnance_data.get("doctor_id") != user_info.get("user_id"):
-            raise HTTPException(
-                status_code=403, detail="You can only delete your own prescriptions"
-            )
+            raise HTTPException(status_code=403, detail="You can only delete your own prescriptions")
 
         # Delete the document
         result = ordonnances_collection.delete_one({"_id": ObjectId(ordonnance_id)})
@@ -286,10 +247,8 @@ async def delete_ordonnance(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error deleting prescription: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to delete prescription: {str(e)}"
-        )
+        logger_service.error(f"Error deleting prescription: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete prescription: {e!s}")
 
 
 @app.get(
@@ -303,14 +262,10 @@ async def generate_pdf(ordonnance_id: str):
 
         # Validate ID format
         if not ObjectId.is_valid(ordonnance_id):
-            raise HTTPException(
-                status_code=400, detail="Invalid prescription ID format"
-            )
+            raise HTTPException(status_code=400, detail="Invalid prescription ID format")
 
         # Find ordonnance by ID
-        ordonnance_data = ordonnances_collection.find_one(
-            {"_id": ObjectId(ordonnance_id)}
-        )
+        ordonnance_data = ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
 
         if not ordonnance_data:
             raise HTTPException(status_code=404, detail="Prescription not found")
@@ -379,15 +334,13 @@ async def generate_pdf(ordonnance_id: str):
         pdf.multi_cell(190, 10, txt=ordonnance_data.get("instructions", "N/A"))
 
         # Add signature if available
-        if "signature" in ordonnance_data and ordonnance_data["signature"]:
+        if ordonnance_data.get("signature"):
             pdf.ln(10)
             pdf.cell(200, 10, txt="Doctor's Signature:", ln=True, align="L")
 
             # Convert base64 signature to image and add to PDF
             try:
-                signature_data = base64.b64decode(
-                    ordonnance_data["signature"].split(",")[1]
-                )
+                signature_data = base64.b64decode(ordonnance_data["signature"].split(",")[1])
                 temp_sig_file = f"temp_signature_{ordonnance_id}.png"
 
                 with open(temp_sig_file, "wb") as f:
@@ -399,7 +352,7 @@ async def generate_pdf(ordonnance_id: str):
                 if os.path.exists(temp_sig_file):
                     os.remove(temp_sig_file)
             except Exception as sig_error:
-                logger_service.error(f"Error adding signature to PDF: {str(sig_error)}")
+                logger_service.error(f"Error adding signature to PDF: {sig_error!s}")
 
         # Save PDF
         pdf.output(pdf_path)
@@ -414,8 +367,8 @@ async def generate_pdf(ordonnance_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error generating PDF: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {str(e)}")
+        logger_service.error(f"Error generating PDF: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate PDF: {e!s}")
 
 
 # Include the integration router
@@ -423,6 +376,7 @@ app.include_router(integration_router)
 
 # Import the consumer module and threading
 import threading
+
 from consumer import main as consumer_main
 
 if __name__ == "__main__":
@@ -431,6 +385,4 @@ if __name__ == "__main__":
     consumer_thread.start()
 
     # Run the FastAPI app with uvicorn in the main thread
-    uvicorn.run(
-        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
-    )
+    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug")

@@ -48,18 +48,12 @@ class MetricsService:
             self.meter = metrics.get_meter(Config.SERVICE_NAME)
 
             # Create some basic counters and gauges
-            self.request_counter = self.meter.create_counter(
-                name="request_counter", description="Counts the number of requests"
-            )
-            self.error_counter = self.meter.create_counter(
-                name="error_counter", description="Counts the number of errors"
-            )
-            self.response_time = self.meter.create_histogram(
-                name="response_time", description="Tracks response time distribution"
-            )
+            self.request_counter = self.meter.create_counter(name="request_counter", description="Counts the number of requests")
+            self.error_counter = self.meter.create_counter(name="error_counter", description="Counts the number of errors")
+            self.response_time = self.meter.create_histogram(name="response_time", description="Tracks response time distribution")
 
         except Exception as e:
-            print(f"Failed to initialize OpenTelemetry metrics: {str(e)}")
+            print(f"Failed to initialize OpenTelemetry metrics: {e!s}")
 
     @classmethod
     def get_instance(cls):

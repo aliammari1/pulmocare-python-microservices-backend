@@ -18,9 +18,7 @@ def handle_examination_request(ch, method, properties, body):
         patient_id = message.get("patient_id")
 
         # Log the request details
-        logger_service.info(
-            f"Processing examination request {request_id} for patient {patient_id} from doctor {doctor_id}"
-        )
+        logger_service.info(f"Processing examination request {request_id} for patient {patient_id} from doctor {doctor_id}")
 
         # Process the examination request
         # In a real scenario, you might need to handle this data differently
@@ -59,9 +57,7 @@ def handle_report_analysis_request(ch, method, properties, body):
         report_data = message.get("report_data")
 
         # Log the analysis request
-        logger_service.info(
-            f"Processing report analysis request for report {report_id}"
-        )
+        logger_service.info(f"Processing report analysis request for report {report_id}")
 
         # In a real scenario, you would process the report data here
         # For now, we'll simulate receiving and processing
@@ -117,19 +113,13 @@ def main():
         # Set up consumers for different queues
 
         # Examination requests
-        rabbitmq_client.consume_messages(
-            "radiologues.examinations", handle_examination_request
-        )
+        rabbitmq_client.consume_messages("radiologues.examinations", handle_examination_request)
 
         # Report analysis requests
-        rabbitmq_client.consume_messages(
-            "radiologues.analysis", handle_report_analysis_request
-        )
+        rabbitmq_client.consume_messages("radiologues.analysis", handle_report_analysis_request)
 
         # General notifications
-        rabbitmq_client.consume_messages(
-            "radiologues.notifications", handle_notification
-        )
+        rabbitmq_client.consume_messages("radiologues.notifications", handle_notification)
 
         # Start consuming (this is a blocking call)
         logger_service.info("Starting to consume messages. Press CTRL+C to exit.")

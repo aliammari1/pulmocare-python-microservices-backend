@@ -4,7 +4,6 @@ import warnings
 from dotenv import load_dotenv
 from langchain_openai import AzureChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
-from openai import azure_endpoint
 from transformers import logging
 
 from interface import create_demo
@@ -18,15 +17,15 @@ _ = load_dotenv()
 
 
 def initialize_agent(
-        prompt_file,
-        tools_to_use=None,
-        model_dir="./model-weights",
-        temp_dir="temp",
-        device="cuda",
-        model="chatgpt-4o-latest",
-        temperature=0.7,
-        top_p=0.95,
-        openai_kwargs={},
+    prompt_file,
+    tools_to_use=None,
+    model_dir="./model-weights",
+    temp_dir="temp",
+    device="cuda",
+    model="chatgpt-4o-latest",
+    temperature=0.7,
+    top_p=0.95,
+    openai_kwargs={},
 ):
     """Initialize the MedRAX agent with specified tools and configuration.
 

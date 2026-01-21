@@ -1,22 +1,20 @@
 import json
 import threading
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
-from services.logger_service import logger_service
 from services.message_broker import MessageBroker
-from services.mongodb_client import MongoDBClient
-from services.redis_client import RedisClient
 
 from config import Config
+from services.logger_service import logger_service
+from services.mongodb_client import MongoDBClient
+from services.redis_client import RedisClient
 
 
 class MessageConsumer:
     """Consumer for processing messages from RabbitMQ queues"""
 
-    def __init__(
-            self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient
-    ):
+    def __init__(self, config: Config, mongodb_client: MongoDBClient, redis_client: RedisClient):
         """Initialize the message consumer with dependencies"""
         self.config = config
         self.mongodb_client = mongodb_client
@@ -32,9 +30,7 @@ class MessageConsumer:
 
     def _start_consumer(self, queue_name: str, callback):
         """Start a consumer for a specific queue in a separate thread"""
-        consumer_thread = threading.Thread(
-            target=self._consume, args=(queue_name, callback), daemon=True
-        )
+        consumer_thread = threading.Thread(target=self._consume, args=(queue_name, callback), daemon=True)
         self.consumers.append(consumer_thread)
         consumer_thread.start()
         logger_service.info(f"Started consumer for {queue_name}")
@@ -46,7 +42,7 @@ class MessageConsumer:
             broker = MessageBroker(self.config)
             broker.consume_messages(queue_name, callback)
         except Exception as e:
-            logger_service.error(f"Error in consumer for {queue_name}: {str(e)}")
+            logger_service.error(f"Error in consumer for {queue_name}: {e!s}")
 
     def _handle_report_processing(self, channel, method, properties, body):
         """Handle report processing messages"""
@@ -62,7 +58,7 @@ class MessageConsumer:
             # Perform report processing tasks
             self._process_report(report_id, message)
         except Exception as e:
-            logger_service.error(f"Error processing report: {str(e)}")
+            logger_service.error(f"Error processing report: {e!s}")
             # Acknowledge the message even on error to prevent redelivery loops
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -80,7 +76,7 @@ class MessageConsumer:
             # Perform report analysis tasks
             self._analyze_report(report_id, message)
         except Exception as e:
-            logger_service.error(f"Error analyzing report: {str(e)}")
+            logger_service.error(f"Error analyzing report: {e!s}")
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
     def _handle_report_notification(self, channel, method, properties, body):
@@ -90,9 +86,7 @@ class MessageConsumer:
             report_id = message.get("report_id")
             event = message.get("event")
 
-            logger_service.info(
-                f"Received notification for report {report_id}: {event}"
-            )
+            logger_service.info(f"Received notification for report {report_id}: {event}")
 
             # Acknowledge message immediately
             channel.basic_ack(delivery_tag=method.delivery_tag)
@@ -100,10 +94,10 @@ class MessageConsumer:
             # Process the notification
             self._process_notification(report_id, event, message)
         except Exception as e:
-            logger_service.error(f"Error processing notification: {str(e)}")
+            logger_service.error(f"Error processing notification: {e!s}")
             channel.basic_ack(delivery_tag=method.delivery_tag)
 
-    def _process_report(self, report_id: str, message: Dict[str, Any]):
+    def _process_report(self, report_id: str, message: dict[str, Any]):
         """Process a report based on the message"""
         try:
             # Get the report from MongoDB
@@ -163,7 +157,7 @@ class MessageConsumer:
             logger_service.info(f"Successfully processed report {report_id}")
 
         except Exception as e:
-            logger_service.error(f"Error in _process_report: {str(e)}")
+            logger_service.error(f"Error in _process_report: {e!s}")
 
             # Update report with error status
             self.mongodb_client.db.reports.update_one(
@@ -189,7 +183,7 @@ class MessageConsumer:
                 },
             )
 
-    def _analyze_report(self, report_id: str, message: Dict[str, Any]):
+    def _analyze_report(self, report_id: str, message: dict[str, Any]):
         """Analyze a report"""
         try:
             # Get the report from MongoDB
@@ -225,9 +219,7 @@ class MessageConsumer:
             # E.g., call to an AI service, image analysis, etc.
             analysis_results = {
                 "findings": [],
-                "technical_details": {
-                    "quality_metrics": {"image_quality": 0.92, "confidence": 0.89}
-                },
+                "technical_details": {"quality_metrics": {"image_quality": 0.92, "confidence": 0.89}},
                 "analyzed_at": datetime.utcnow().isoformat(),
             }
 
@@ -258,7 +250,7 @@ class MessageConsumer:
             logger_service.info(f"Successfully analyzed report {report_id}")
 
         except Exception as e:
-            logger_service.error(f"Error in _analyze_report: {str(e)}")
+            logger_service.error(f"Error in _analyze_report: {e!s}")
 
             # Update report with error status
             self.mongodb_client.db.reports.update_one(
@@ -284,9 +276,7 @@ class MessageConsumer:
                 },
             )
 
-    def _process_notification(
-            self, report_id: str, event: str, message: Dict[str, Any]
-    ):
+    def _process_notification(self, report_id: str, event: str, message: dict[str, Any]):
         """Process a report notification"""
         try:
             # Handle different notification types
@@ -333,12 +323,10 @@ class MessageConsumer:
                 }
             )
 
-            logger_service.info(
-                f"Processed notification for report {report_id}: {event}"
-            )
+            logger_service.info(f"Processed notification for report {report_id}: {event}")
 
         except Exception as e:
-            logger_service.error(f"Error processing notification: {str(e)}")
+            logger_service.error(f"Error processing notification: {e!s}")
 
     def stop(self):
         """Stop all consumers"""

@@ -45,9 +45,7 @@ class LoggerService:
                 file_handler.setLevel(Config.LOG_LEVEL)
                 cls._instance.logger.addHandler(file_handler)
             except Exception as e:
-                print(
-                    f"Failed to create file handler: {str(e)}. Using console logging only."
-                )
+                print(f"Failed to create file handler: {e!s}. Using console logging only.")
 
             # Console Handler
             console_handler = logging.StreamHandler()
@@ -90,17 +88,13 @@ class LoggerService:
             logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
 
             # Create and add the OpenTelemetry handler
-            otel_handler = LoggingHandler(
-                level=logging.NOTSET, logger_provider=logger_provider
-            )
+            otel_handler = LoggingHandler(level=logging.NOTSET, logger_provider=logger_provider)
             self.logger.addHandler(otel_handler)
 
-            self.logger.info(
-                f"OpenTelemetry logging initialized for {Config.SERVICE_NAME}"
-            )
+            self.logger.info(f"OpenTelemetry logging initialized for {Config.SERVICE_NAME}")
         except Exception as e:
             # Log to standard handlers if OTEL setup fails
-            self.logger.error(f"Failed to initialize OpenTelemetry logging: {str(e)}")
+            self.logger.error(f"Failed to initialize OpenTelemetry logging: {e!s}")
 
     def _setup_fastapi_logging(self):
         """Configure FastAPI/uvicorn logging to use our handlers"""
@@ -109,12 +103,7 @@ class LoggerService:
             handlers = self.logger.handlers
 
             # Configure uvicorn loggers
-            uvicorn_loggers = [
-                'uvicorn',
-                'uvicorn.error',
-                'uvicorn.access',
-                'fastapi'
-            ]
+            uvicorn_loggers = ["uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"]
 
             for logger_name in uvicorn_loggers:
                 logger = logging.getLogger(logger_name)
@@ -138,7 +127,7 @@ class LoggerService:
             self.logger.info("FastAPI/uvicorn logging capture configured")
 
         except Exception as e:
-            self.logger.error(f"Failed to setup FastAPI logging capture: {str(e)}")
+            self.logger.error(f"Failed to setup FastAPI logging capture: {e!s}")
 
     @classmethod
     def get_instance(cls):

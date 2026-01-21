@@ -1,13 +1,14 @@
 import json
 import socket
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 import pika
-from services.logger_service import logger_service
-from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
 
 from config import Config
+from services.logger_service import logger_service
+from services.metrics import RABBITMQ_MESSAGES_PUBLISHED, RABBITMQ_PUBLISH_LATENCY
 
 
 class RabbitMQClient:
@@ -24,9 +25,7 @@ class RabbitMQClient:
         """Set up connection to RabbitMQ"""
         try:
             # Create credentials and connection parameters
-            credentials = pika.PlainCredentials(
-                self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS
-            )
+            credentials = pika.PlainCredentials(self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS)
             parameters = pika.ConnectionParameters(
                 host=self.config.RABBITMQ_HOST,
                 port=self.config.RABBITMQ_PORT,
@@ -41,15 +40,9 @@ class RabbitMQClient:
             self.channel = self.connection.channel()
 
             # Declare exchanges for different message types
-            self.channel.exchange_declare(
-                exchange="medical.events", exchange_type="topic", durable=True
-            )
-            self.channel.exchange_declare(
-                exchange="medical.commands", exchange_type="direct", durable=True
-            )
-            self.channel.exchange_declare(
-                exchange="medical.prescriptions", exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.events", exchange_type="topic", durable=True)
+            self.channel.exchange_declare(exchange="medical.commands", exchange_type="direct", durable=True)
+            self.channel.exchange_declare(exchange="medical.prescriptions", exchange_type="topic", durable=True)
 
             # Declare queues for ordonnances service
             self.channel.queue_declare(queue="ordonnances.created", durable=True)
@@ -85,9 +78,9 @@ class RabbitMQClient:
             logger_service.info("Successfully connected to RabbitMQ")
 
         except Exception as e:
-            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            logger_service.error(f"Failed to connect to RabbitMQ: {e!s}")
 
-    def publish_message(self, exchange: str, routing_key: str, message: Dict[str, Any]):
+    def publish_message(self, exchange: str, routing_key: str, message: dict[str, Any]):
         """Publish a message to RabbitMQ"""
         try:
             if not self.connection or self.connection.is_closed:
@@ -109,19 +102,15 @@ class RabbitMQClient:
             )
 
             # Record metrics
-            RABBITMQ_MESSAGES_PUBLISHED.labels(
-                exchange=exchange, routing_key=routing_key
-            ).inc()
+            RABBITMQ_MESSAGES_PUBLISHED.labels(exchange=exchange, routing_key=routing_key).inc()
 
-            RABBITMQ_PUBLISH_LATENCY.labels(
-                exchange=exchange, routing_key=routing_key
-            ).observe(time.time() - start_time)
+            RABBITMQ_PUBLISH_LATENCY.labels(exchange=exchange, routing_key=routing_key).observe(time.time() - start_time)
 
             logger_service.info(f"Published message to {exchange}:{routing_key}")
             return True
 
         except Exception as e:
-            logger_service.error(f"Failed to publish message: {str(e)}")
+            logger_service.error(f"Failed to publish message: {e!s}")
             return False
 
     def consume_messages(self, queue_name: str, callback: Callable):
@@ -137,12 +126,10 @@ class RabbitMQClient:
             self.channel.start_consuming()
 
         except Exception as e:
-            logger_service.error(f"Error setting up consumer: {str(e)}")
+            logger_service.error(f"Error setting up consumer: {e!s}")
             raise
 
-    def notify_prescription_created(
-            self, prescription_id: str, doctor_id: str, patient_id: str
-    ):
+    def notify_prescription_created(self, prescription_id: str, doctor_id: str, patient_id: str):
         """Notify when a new prescription has been created"""
         payload = {
             "prescription_id": prescription_id,
@@ -166,9 +153,7 @@ class RabbitMQClient:
             message=payload,
         )
 
-    def notify_prescription_dispensed(
-            self, prescription_id: str, pharmacy_id: Optional[str] = None
-    ):
+    def notify_prescription_dispensed(self, prescription_id: str, pharmacy_id: str | None = None):
         """Notify when a prescription has been dispensed"""
         payload = {
             "prescription_id": prescription_id,
@@ -183,9 +168,7 @@ class RabbitMQClient:
             message=payload,
         )
 
-    def notify_patient_prescription(
-            self, prescription_id: str, patient_id: str, action: str
-    ):
+    def notify_patient_prescription(self, prescription_id: str, patient_id: str, action: str):
         """Send prescription notification to patient"""
         payload = {
             "prescription_id": prescription_id,
@@ -200,9 +183,7 @@ class RabbitMQClient:
             message=payload,
         )
 
-    def notify_doctor_prescription(
-            self, prescription_id: str, doctor_id: str, action: str
-    ):
+    def notify_doctor_prescription(self, prescription_id: str, doctor_id: str, action: str):
         """Send prescription notification to doctor"""
         payload = {
             "prescription_id": prescription_id,

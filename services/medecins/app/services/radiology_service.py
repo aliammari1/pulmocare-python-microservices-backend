@@ -1,15 +1,15 @@
 import json
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any
 
 import aiohttp
+
+from config import Config
 from services.cache_service import CacheService
 from services.circuit_breaker import CircuitBreaker
 from services.logger_service import logger_service
 from services.rabbitmq_client import RabbitMQClient
-
-from config import Config
 
 
 class RadiologyService:
@@ -39,12 +39,12 @@ class RadiologyService:
         return "http://radiologues-service:8084"
 
     async def get_doctor_radiology_reports(
-            self,
-            doctor_id: str,
-            status: Optional[str] = None,
-            page: int = 1,
-            limit: int = 10,
-    ) -> Dict[str, Any]:
+        self,
+        doctor_id: str,
+        status: str | None = None,
+        page: int = 1,
+        limit: int = 10,
+    ) -> dict[str, Any]:
         """
         Get radiology reports for a specific doctor
         """
@@ -75,17 +75,13 @@ class RadiologyService:
                         return reports
                     else:
                         error_body = await response.text()
-                        logger_service.error(
-                            f"Error retrieving radiology reports: {response.status} - {error_body}"
-                        )
+                        logger_service.error(f"Error retrieving radiology reports: {response.status} - {error_body}")
                         return {"items": [], "total": 0, "page": page, "pages": 0}
         except Exception as e:
-            logger_service.error(f"Error retrieving radiology reports: {str(e)}")
+            logger_service.error(f"Error retrieving radiology reports: {e!s}")
             return {"items": [], "total": 0, "page": page, "pages": 0}
 
-    async def get_radiology_report_details(
-            self, report_id: str
-    ) -> Optional[Dict[str, Any]]:
+    async def get_radiology_report_details(self, report_id: str) -> dict[str, Any] | None:
         """
         Get details for a specific radiology report
         """
@@ -111,23 +107,21 @@ class RadiologyService:
                         return report
                     else:
                         error_body = await response.text()
-                        logger_service.error(
-                            f"Error retrieving radiology report: {response.status} - {error_body}"
-                        )
+                        logger_service.error(f"Error retrieving radiology report: {response.status} - {error_body}")
                         return None
         except Exception as e:
-            logger_service.error(f"Error retrieving radiology report: {str(e)}")
+            logger_service.error(f"Error retrieving radiology report: {e!s}")
             return None
 
     async def request_radiology_examination(
-            self,
-            doctor_id: str,
-            patient_id: str,
-            patient_name: str,
-            exam_type: str,
-            reason: Optional[str] = None,
-            urgency: str = "normal",
-    ) -> Optional[Dict[str, Any]]:
+        self,
+        doctor_id: str,
+        patient_id: str,
+        patient_name: str,
+        exam_type: str,
+        reason: str | None = None,
+        urgency: str = "normal",
+    ) -> dict[str, Any] | None:
         """
         Request a radiology examination for a patient
         """
@@ -160,13 +154,11 @@ class RadiologyService:
                     "created_at": datetime.utcnow().isoformat(),
                 }
             else:
-                logger_service.error(
-                    "Failed to request radiology examination via RabbitMQ"
-                )
+                logger_service.error("Failed to request radiology examination via RabbitMQ")
                 return None
 
         except Exception as e:
-            logger_service.error(f"Error requesting radiology examination: {str(e)}")
+            logger_service.error(f"Error requesting radiology examination: {e!s}")
             return None
 
     def close(self):

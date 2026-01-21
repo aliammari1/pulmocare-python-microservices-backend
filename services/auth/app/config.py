@@ -36,9 +36,7 @@ class Config:
     MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE", 10))
     MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS", 60000))
     MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS", 5000))
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
-        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", 5000)
-    )
+    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS", 5000))
 
     # Redis settings
     REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
@@ -64,9 +62,7 @@ class Config:
     ENABLE_METRICS = os.getenv("ENABLE_METRICS", "True").lower() == "true"
 
     # Tracing settings
-    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
-    )
+    OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
     OTEL_DISABLE_ON_ERROR = os.getenv("OTEL_DISABLE_ON_ERROR", "True").lower() == "true"
 
     # Keycloak settings
@@ -78,15 +74,9 @@ class Config:
     KEYCLOAK_ADMIN_PASSWORD = os.getenv("KEYCLOAK_ADMIN_PASSWORD", "admin")
 
     # JWT settings
-    JWT_SECRET_KEY = os.getenv(
-        "JWT_SECRET_KEY", "dev-jwt-secret-key-change-in-production"
-    )
-    JWT_ACCESS_TOKEN_EXPIRES = int(
-        os.getenv("JWT_ACCESS_TOKEN_EXPIRES", 3600)
-    )  # 1 hour
-    JWT_REFRESH_TOKEN_EXPIRES = int(
-        os.getenv("JWT_REFRESH_TOKEN_EXPIRES", 2592000)
-    )  # 30 days
+    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-jwt-secret-key-change-in-production")
+    JWT_ACCESS_TOKEN_EXPIRES = int(os.getenv("JWT_ACCESS_TOKEN_EXPIRES", 3600))  # 1 hour
+    JWT_REFRESH_TOKEN_EXPIRES = int(os.getenv("JWT_REFRESH_TOKEN_EXPIRES", 2592000))  # 30 days
 
     # Default redirect URL after login (if applicable)
     DEFAULT_REDIRECT_URL = os.getenv("DEFAULT_REDIRECT_URL", "http://localhost:3000")

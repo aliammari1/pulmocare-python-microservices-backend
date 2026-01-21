@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict, Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -19,11 +18,11 @@ class PydanticObjectId(str):
 class RadiologueBase(BaseModel):
     name: str
     email: EmailStr
-    specialty: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    license_number: Optional[str] = None
-    hospital: Optional[str] = None
+    specialty: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    license_number: str | None = None
+    hospital: str | None = None
 
 
 class RadiologueCreate(RadiologueBase):
@@ -31,22 +30,22 @@ class RadiologueCreate(RadiologueBase):
 
 
 class RadiologueUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    specialty: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    license_number: Optional[str] = None
-    hospital: Optional[str] = None
-    is_verified: Optional[bool] = None
-    verification_details: Optional[Dict] = None
+    name: str | None = None
+    email: EmailStr | None = None
+    specialty: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    license_number: str | None = None
+    hospital: str | None = None
+    is_verified: bool | None = None
+    verification_details: dict | None = None
 
 
 class RadiologueInDB(RadiologueBase):
     id: PydanticObjectId
-    is_verified: Optional[bool] = False
-    verification_details: Optional[Dict] = None
-    created_at: Optional[datetime] = None
+    is_verified: bool | None = False
+    verification_details: dict | None = None
+    created_at: datetime | None = None
 
 
 class PasswordChange(BaseModel):
@@ -56,15 +55,15 @@ class PasswordChange(BaseModel):
 
 class Radiologue:
     def __init__(
-            self,
-            name,
-            email,
-            specialty=None,
-            phone=None,
-            address=None,
-            license_number=None,
-            hospital=None,
-            _id=None,
+        self,
+        name,
+        email,
+        specialty=None,
+        phone=None,
+        address=None,
+        license_number=None,
+        hospital=None,
+        _id=None,
     ):
         self._id = _id
         self.name = name
@@ -95,46 +94,19 @@ class Radiologue:
             _id=user_data.get("id"),
             name=name,
             email=user_data.get("email", ""),
-            specialty=(
-                attributes.get("specialty", [""])[0]
-                if isinstance(attributes.get("specialty", []), list)
-                   and attributes.get("specialty", [])
-                else attributes.get("specialty", "")
-            ),
-            phone=(
-                attributes.get("phone", [""])[0]
-                if isinstance(attributes.get("phone", []), list)
-                   and attributes.get("phone", [])
-                else attributes.get("phone", "")
-            ),
-            address=(
-                attributes.get("address", [""])[0]
-                if isinstance(attributes.get("address", []), list)
-                   and attributes.get("address", [])
-                else attributes.get("address", "")
-            ),
+            specialty=(attributes.get("specialty", [""])[0] if isinstance(attributes.get("specialty", []), list) and attributes.get("specialty", []) else attributes.get("specialty", "")),
+            phone=(attributes.get("phone", [""])[0] if isinstance(attributes.get("phone", []), list) and attributes.get("phone", []) else attributes.get("phone", "")),
+            address=(attributes.get("address", [""])[0] if isinstance(attributes.get("address", []), list) and attributes.get("address", []) else attributes.get("address", "")),
             license_number=(
-                attributes.get("license_number", [""])[0]
-                if isinstance(attributes.get("license_number", []), list)
-                   and attributes.get("license_number", [])
-                else attributes.get("license_number", "")
+                attributes.get("license_number", [""])[0] if isinstance(attributes.get("license_number", []), list) and attributes.get("license_number", []) else attributes.get("license_number", "")
             ),
-            hospital=(
-                attributes.get("hospital", [""])[0]
-                if isinstance(attributes.get("hospital", []), list)
-                   and attributes.get("hospital", [])
-                else attributes.get("hospital", "")
-            ),
+            hospital=(attributes.get("hospital", [""])[0] if isinstance(attributes.get("hospital", []), list) and attributes.get("hospital", []) else attributes.get("hospital", "")),
         )
 
         # Add is_verified if available
         is_verified = attributes.get("is_verified")
         if is_verified:
-            radiologue.is_verified = (
-                str(is_verified[0]).lower() == "true"
-                if isinstance(is_verified, list) and is_verified
-                else str(is_verified).lower() == "true"
-            )
+            radiologue.is_verified = str(is_verified[0]).lower() == "true" if isinstance(is_verified, list) and is_verified else str(is_verified).lower() == "true"
 
         # Add verification_details if available
         verification_details = attributes.get("verification_details")
@@ -151,11 +123,7 @@ class Radiologue:
         created_at = attributes.get("created_at")
         if created_at:
             try:
-                created_at_value = (
-                    created_at[0]
-                    if isinstance(created_at, list) and created_at
-                    else created_at
-                )
+                created_at_value = created_at[0] if isinstance(created_at, list) and created_at else created_at
                 radiologue.created_at = datetime.fromisoformat(created_at_value)
             except (ValueError, TypeError):
                 radiologue.created_at = datetime.utcnow()
@@ -181,7 +149,5 @@ class Radiologue:
     def to_pydantic(self):
         """Convert to Pydantic model"""
         radiologue_dict = self.to_dict()
-        radiologue_dict["id"] = radiologue_dict.pop("_id", None) or radiologue_dict.get(
-            "id"
-        )
+        radiologue_dict["id"] = radiologue_dict.pop("_id", None) or radiologue_dict.get("id")
         return RadiologueInDB(**radiologue_dict)

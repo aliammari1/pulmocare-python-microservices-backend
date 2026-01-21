@@ -1,7 +1,7 @@
 from datetime import date, datetime
-from typing import List, Optional, Annotated
+from typing import Annotated
 
-from pydantic import BaseModel, EmailStr, BeforeValidator, PlainSerializer
+from pydantic import BaseModel, BeforeValidator, EmailStr, PlainSerializer
 
 
 # Update PydanticObjectId to be compatible with Pydantic v2
@@ -22,7 +22,7 @@ class PydanticObjectId(str):
         Return a schema that will validate strings as object IDs
         and convert non-strings to strings
         """
-        from pydantic_core import PydanticCustomError, core_schema
+        from pydantic_core import core_schema
 
         def validate_object_id(value):
             if not isinstance(value, str):
@@ -49,16 +49,16 @@ ObjectIdAnnotated = Annotated[
 class PatientBase(BaseModel):
     name: str
     email: EmailStr
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    blood_type: Optional[str] = None
-    social_security_number: Optional[str] = None
-    medical_history: Optional[List[str]] = []
-    allergies: Optional[List[str]] = []
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    medical_files: Optional[List[str]] = []
+    phone: str | None = None
+    address: str | None = None
+    date_of_birth: date | None = None
+    blood_type: str | None = None
+    social_security_number: str | None = None
+    medical_history: list[str] | None = []
+    allergies: list[str] | None = []
+    height: float | None = None
+    weight: float | None = None
+    medical_files: list[str] | None = []
 
 
 class PatientCreate(PatientBase):
@@ -66,23 +66,23 @@ class PatientCreate(PatientBase):
 
 
 class PatientUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[EmailStr] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    date_of_birth: Optional[date] = None
-    blood_type: Optional[str] = None
-    social_security_number: Optional[str] = None
-    medical_history: Optional[List[str]] = None
-    allergies: Optional[List[str]] = None
-    height: Optional[float] = None
-    weight: Optional[float] = None
-    medical_files: Optional[List[str]] = None
+    name: str | None = None
+    email: EmailStr | None = None
+    phone: str | None = None
+    address: str | None = None
+    date_of_birth: date | None = None
+    blood_type: str | None = None
+    social_security_number: str | None = None
+    medical_history: list[str] | None = None
+    allergies: list[str] | None = None
+    height: float | None = None
+    weight: float | None = None
+    medical_files: list[str] | None = None
 
 
 class PatientInDB(PatientBase):
     id: ObjectIdAnnotated
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class PasswordChange(BaseModel):
@@ -99,7 +99,7 @@ class LoginResponse(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str
-    user_id: Optional[str] = None
+    user_id: str | None = None
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -126,13 +126,13 @@ class ErrorResponse(BaseModel):
 
 class Patient:
     def __init__(
-            self,
-            name,
-            email,
-            phone=None,
-            address=None,
-            date_of_birth=None,
-            _id=None,
+        self,
+        name,
+        email,
+        phone=None,
+        address=None,
+        date_of_birth=None,
+        _id=None,
     ):
         self._id = _id
         self.name = name
@@ -166,65 +166,38 @@ class Patient:
             _id=user_data.get("id"),
             name=name,
             email=user_data.get("email", ""),
-            phone=(
-                attributes.get("phone", [""])[0]
-                if isinstance(attributes.get("phone", []), list)
-                   and attributes.get("phone", [])
-                else attributes.get("phone", "")
-            ),
-            address=(
-                attributes.get("address", [""])[0]
-                if isinstance(attributes.get("address", []), list)
-                   and attributes.get("address", [])
-                else attributes.get("address", "")
-            ),
+            phone=(attributes.get("phone", [""])[0] if isinstance(attributes.get("phone", []), list) and attributes.get("phone", []) else attributes.get("phone", "")),
+            address=(attributes.get("address", [""])[0] if isinstance(attributes.get("address", []), list) and attributes.get("address", []) else attributes.get("address", "")),
             date_of_birth=(
-                attributes.get("date_of_birth", [""])[0]
-                if isinstance(attributes.get("date_of_birth", []), list)
-                   and attributes.get("date_of_birth", [])
-                else attributes.get("date_of_birth", "")
+                attributes.get("date_of_birth", [""])[0] if isinstance(attributes.get("date_of_birth", []), list) and attributes.get("date_of_birth", []) else attributes.get("date_of_birth", "")
             ),
         )
 
         # Add blood_type if available
         blood_type = attributes.get("blood_type")
         if blood_type:
-            patient.blood_type = (
-                blood_type[0]
-                if isinstance(blood_type, list) and blood_type
-                else blood_type
-            )
+            patient.blood_type = blood_type[0] if isinstance(blood_type, list) and blood_type else blood_type
 
         # Add social_security_number if available
         ssn = attributes.get("social_security_number")
         if ssn:
-            patient.social_security_number = (
-                ssn[0] if isinstance(ssn, list) and ssn else ssn
-            )
+            patient.social_security_number = ssn[0] if isinstance(ssn, list) and ssn else ssn
 
         # Add medical_history if available
         medical_history = attributes.get("medical_history")
         if medical_history:
-            patient.medical_history = (
-                medical_history
-                if isinstance(medical_history, list)
-                else [medical_history]
-            )
+            patient.medical_history = medical_history if isinstance(medical_history, list) else [medical_history]
 
         # Add allergies if available
         allergies = attributes.get("allergies")
         if allergies:
-            patient.allergies = (
-                allergies if isinstance(allergies, list) else [allergies]
-            )
+            patient.allergies = allergies if isinstance(allergies, list) else [allergies]
 
         # Add height if available
         height = attributes.get("height")
         if height:
             try:
-                height_value = (
-                    height[0] if isinstance(height, list) and height else height
-                )
+                height_value = height[0] if isinstance(height, list) and height else height
                 patient.height = float(height_value)
             except (ValueError, TypeError):
                 pass
@@ -233,9 +206,7 @@ class Patient:
         weight = attributes.get("weight")
         if weight:
             try:
-                weight_value = (
-                    weight[0] if isinstance(weight, list) and weight else weight
-                )
+                weight_value = weight[0] if isinstance(weight, list) and weight else weight
                 patient.weight = float(weight_value)
             except (ValueError, TypeError):
                 pass
@@ -243,19 +214,13 @@ class Patient:
         # Add medical_files if available
         medical_files = attributes.get("medical_files")
         if medical_files:
-            patient.medical_files = (
-                medical_files if isinstance(medical_files, list) else [medical_files]
-            )
+            patient.medical_files = medical_files if isinstance(medical_files, list) else [medical_files]
 
         # Convert created_at from string if available
         created_at = attributes.get("created_at")
         if created_at:
             try:
-                created_at_value = (
-                    created_at[0]
-                    if isinstance(created_at, list) and created_at
-                    else created_at
-                )
+                created_at_value = created_at[0] if isinstance(created_at, list) and created_at else created_at
                 patient.created_at = datetime.fromisoformat(created_at_value)
             except (ValueError, TypeError):
                 patient.created_at = datetime.utcnow()

@@ -7,17 +7,18 @@ import time
 
 import gradio as gr
 import requests
+
 from medrax.llava.constants import LOGDIR
 from medrax.llava.conversation import (
-    default_conversation,
-    conv_templates,
     SeparatorStyle,
+    conv_templates,
+    default_conversation,
 )
 from medrax.llava.utils import (
     build_logger,
+    moderation_msg,
     server_error_msg,
     violates_moderation,
-    moderation_msg,
 )
 
 logger = build_logger("gradio_web_server", "gradio_web_server.log")
@@ -158,7 +159,7 @@ def add_text(state, text, image, image_process_mode, request: gr.Request):
 
 
 def http_bot(
-        state, model_selector, temperature, top_p, max_new_tokens, request: gr.Request
+    state, model_selector, temperature, top_p, max_new_tokens, request: gr.Request
 ):
     logger.info(f"http_bot. ip: {request.client.host}")
     start_tstamp = time.time()
@@ -178,24 +179,20 @@ def http_bot(
                 if "mmtag" in model_name.lower():
                     template_name = "v1_mmtag"
                 elif (
-                        "plain" in model_name.lower()
-                        and "finetune" not in model_name.lower()
+                    "plain" in model_name.lower()
+                    and "finetune" not in model_name.lower()
                 ):
                     template_name = "v1_mmtag"
                 else:
                     template_name = "llava_v1"
             elif "mpt" in model_name.lower():
                 template_name = "mpt"
+            elif "mmtag" in model_name.lower():
+                template_name = "v0_mmtag"
+            elif "plain" in model_name.lower() and "finetune" not in model_name.lower():
+                template_name = "v0_mmtag"
             else:
-                if "mmtag" in model_name.lower():
-                    template_name = "v0_mmtag"
-                elif (
-                        "plain" in model_name.lower()
-                        and "finetune" not in model_name.lower()
-                ):
-                    template_name = "v0_mmtag"
-                else:
-                    template_name = "llava_v0"
+                template_name = "llava_v0"
         elif "mpt" in model_name:
             template_name = "mpt_text"
         elif "llama-2" in model_name:
@@ -278,7 +275,7 @@ def http_bot(
             if chunk:
                 data = json.loads(chunk.decode())
                 if data["error_code"] == 0:
-                    output = data["text"][len(prompt):].strip()
+                    output = data["text"][len(prompt) :].strip()
                     state.messages[-1][-1] = output + "▌"
                     yield (state, state.to_gradio_chatbot()) + (disable_btn,) * 5
                 else:

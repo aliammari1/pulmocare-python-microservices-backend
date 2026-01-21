@@ -1,7 +1,7 @@
 import argparse
 import json
 from collections import defaultdict
-from typing import Dict, List, Optional, Tuple, Union, Any
+from typing import Any
 
 from tqdm import tqdm
 
@@ -14,7 +14,7 @@ QUESTION_TYPES = {
 }
 
 
-def extract_answer_letter(answer: Optional[Union[str, Any]]) -> Optional[str]:
+def extract_answer_letter(answer: str | Any | None) -> str | None:
     """
     Extract just the letter from various answer formats.
 
@@ -46,8 +46,8 @@ def extract_answer_letter(answer: Optional[Union[str, Any]]) -> Optional[str]:
 
 
 def analyze_gpt4_results(
-        results_file: str, max_questions: Optional[int] = None
-) -> Tuple[float, Dict, Dict, List[str], List[str]]:
+    results_file: str, max_questions: int | None = None
+) -> tuple[float, dict, dict, list[str], list[str]]:
     """
     Analyze results in GPT-4 format.
 
@@ -69,7 +69,7 @@ def analyze_gpt4_results(
     correct_ids = []
     incorrect_ids = []
 
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         lines = f.readlines()
 
     processed_questions = 0
@@ -116,8 +116,8 @@ def analyze_gpt4_results(
 
 
 def analyze_llama_results(
-        results_file: str, max_questions: Optional[int] = None
-) -> Tuple[float, Dict, Dict, List[str], List[str]]:
+    results_file: str, max_questions: int | None = None
+) -> tuple[float, dict, dict, list[str], list[str]]:
     """
     Analyze results in Llama format.
 
@@ -139,7 +139,7 @@ def analyze_llama_results(
     correct_ids = []
     incorrect_ids = []
 
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         lines = f.readlines()
 
     # If max_questions is set, limit the number of lines processed
@@ -184,8 +184,8 @@ def analyze_llama_results(
 
 
 def analyze_chexagent_results(
-        results_file: str, max_questions: Optional[int] = None
-) -> Tuple[float, Dict, Dict, List[str], List[str]]:
+    results_file: str, max_questions: int | None = None
+) -> tuple[float, dict, dict, list[str], list[str]]:
     """
     Analyze results in CheXagent format.
 
@@ -207,7 +207,7 @@ def analyze_chexagent_results(
     correct_ids = []
     incorrect_ids = []
 
-    with open(results_file, "r") as f:
+    with open(results_file) as f:
         lines = f.readlines()
 
     # If max_questions is set, limit the number of lines processed
@@ -249,12 +249,12 @@ def analyze_chexagent_results(
 
 
 def process_results(
-        category_performance: Dict,
-        all_questions: int,
-        all_correct: int,
-        correct_ids: Optional[List[str]] = None,
-        incorrect_ids: Optional[List[str]] = None,
-) -> Tuple[float, Dict, Dict, List[str], List[str]]:
+    category_performance: dict,
+    all_questions: int,
+    all_correct: int,
+    correct_ids: list[str] | None = None,
+    incorrect_ids: list[str] | None = None,
+) -> tuple[float, dict, dict, list[str], list[str]]:
     """
     Process raw results into final statistics.
 
@@ -315,12 +315,12 @@ def process_results(
 
 
 def print_analysis(
-        overall_accuracy: float,
-        category_accuracies: Dict,
-        question_type_stats: Dict,
-        correct_ids: List[str],
-        incorrect_ids: List[str],
-        model_name: str,
+    overall_accuracy: float,
+    category_accuracies: dict,
+    question_type_stats: dict,
+    correct_ids: list[str],
+    incorrect_ids: list[str],
+    model_name: str,
 ) -> None:
     """
     Print analysis results.

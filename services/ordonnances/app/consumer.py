@@ -16,9 +16,7 @@ def handle_validation_request(ch, method, properties, body):
         prescription_id = data.get("prescription_id")
         doctor_id = data.get("doctor_id")
 
-        logger_service.info(
-            f"Received validation request for prescription {prescription_id}"
-        )
+        logger_service.info(f"Received validation request for prescription {prescription_id}")
 
         # Get MongoDB connection
         mongodb_client_service = MongoDBClient(Config)
@@ -39,9 +37,7 @@ def handle_validation_request(ch, method, properties, body):
 
             # Check doctor authorization
             if prescription.get("doctor_id") != doctor_id:
-                logger_service.error(
-                    f"Doctor {doctor_id} not authorized to validate prescription {prescription_id}"
-                )
+                logger_service.error(f"Doctor {doctor_id} not authorized to validate prescription {prescription_id}")
                 ch.basic_ack(delivery_tag=method.delivery_tag)
                 return
 
@@ -70,13 +66,11 @@ def handle_validation_request(ch, method, properties, body):
                 },
             )
 
-            logger_service.info(
-                f"Successfully validated prescription {prescription_id}"
-            )
+            logger_service.info(f"Successfully validated prescription {prescription_id}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
-            logger_service.error(f"Error processing validation request: {str(e)}")
+            logger_service.error(f"Error processing validation request: {e!s}")
             ch.basic_nack(delivery_tag=method.delivery_tag)
 
         finally:
@@ -86,7 +80,7 @@ def handle_validation_request(ch, method, properties, body):
                 rabbitmq_client.close()
 
     except Exception as e:
-        logger_service.error(f"Error processing message: {str(e)}")
+        logger_service.error(f"Error processing message: {e!s}")
         ch.basic_nack(delivery_tag=method.delivery_tag)
 
 
@@ -97,9 +91,7 @@ def handle_notification(ch, method, properties, body):
         prescription_id = data.get("prescription_id")
         event = data.get("event")
 
-        logger_service.info(
-            f"Received prescription notification: {event} for prescription {prescription_id}"
-        )
+        logger_service.info(f"Received prescription notification: {event} for prescription {prescription_id}")
 
         # Get MongoDB connection
         mongodb_client_service = MongoDBClient(Config)
@@ -122,13 +114,11 @@ def handle_notification(ch, method, properties, body):
             }
 
             db.prescription_notifications.insert_one(notification)
-            logger_service.info(
-                f"Stored notification for prescription {prescription_id}"
-            )
+            logger_service.info(f"Stored notification for prescription {prescription_id}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
-            logger_service.error(f"Error processing notification: {str(e)}")
+            logger_service.error(f"Error processing notification: {e!s}")
             ch.basic_nack(delivery_tag=method.delivery_tag)
 
         finally:
@@ -136,7 +126,7 @@ def handle_notification(ch, method, properties, body):
                 mongodb_client.close()
 
     except Exception as e:
-        logger_service.error(f"Error processing message: {str(e)}")
+        logger_service.error(f"Error processing message: {e!s}")
         ch.basic_nack(delivery_tag=method.delivery_tag)
 
 
@@ -149,9 +139,7 @@ def handle_patient_data_request(ch, method, properties, body):
         reply_to = properties.reply_to
         correlation_id = properties.correlation_id
 
-        logger_service.info(
-            f"Received prescription data request for patient {patient_id}"
-        )
+        logger_service.info(f"Received prescription data request for patient {patient_id}")
 
         if not patient_id or not reply_to or not correlation_id:
             logger_service.error("Invalid request format: missing required fields")
@@ -165,9 +153,7 @@ def handle_patient_data_request(ch, method, properties, body):
 
         try:
             # Get prescriptions for this patient
-            prescriptions = list(
-                db.ordonnances.find({"patient_id": patient_id}).sort("created_at", -1)
-            )
+            prescriptions = list(db.ordonnances.find({"patient_id": patient_id}).sort("created_at", -1))
 
             # Format prescriptions for response
             formatted_prescriptions = []
@@ -176,22 +162,12 @@ def handle_patient_data_request(ch, method, properties, body):
                     {
                         "id": str(prescription.get("_id")),
                         "doctor_id": prescription.get("doctor_id"),
-                        "doctor_name": prescription.get(
-                            "doctor_name", "Unknown Doctor"
-                        ),
-                        "created_at": (
-                            prescription.get("created_at").isoformat()
-                            if isinstance(prescription.get("created_at"), datetime)
-                            else prescription.get("created_at")
-                        ),
+                        "doctor_name": prescription.get("doctor_name", "Unknown Doctor"),
+                        "created_at": (prescription.get("created_at").isoformat() if isinstance(prescription.get("created_at"), datetime) else prescription.get("created_at")),
                         "status": prescription.get("status"),
                         "medications": prescription.get("medications", []),
                         "instructions": prescription.get("instructions", ""),
-                        "last_updated": (
-                            prescription.get("updated_at").isoformat()
-                            if isinstance(prescription.get("updated_at"), datetime)
-                            else prescription.get("updated_at", "")
-                        ),
+                        "last_updated": (prescription.get("updated_at").isoformat() if isinstance(prescription.get("updated_at"), datetime) else prescription.get("updated_at", "")),
                     }
                 )
 
@@ -208,14 +184,10 @@ def handle_patient_data_request(ch, method, properties, body):
                 exchange="",  # Use default exchange for direct replies
                 routing_key=reply_to,
                 body=json.dumps(response),
-                properties=pika.BasicProperties(
-                    correlation_id=correlation_id, content_type="application/json"
-                ),
+                properties=pika.BasicProperties(correlation_id=correlation_id, content_type="application/json"),
             )
 
-            logger_service.info(
-                f"Sent {len(formatted_prescriptions)} prescriptions for patient {patient_id}"
-            )
+            logger_service.info(f"Sent {len(formatted_prescriptions)} prescriptions for patient {patient_id}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         except Exception as e:
@@ -223,7 +195,7 @@ def handle_patient_data_request(ch, method, properties, body):
             # Send error response
             rabbitmq_client = RabbitMQClient(Config)
             error_response = {
-                "error": f"Failed to retrieve prescriptions: {str(e)}",
+                "error": f"Failed to retrieve prescriptions: {e!s}",
                 "data": [],
                 "patient_id": patient_id,
                 "timestamp": datetime.utcnow().isoformat(),
@@ -233,9 +205,7 @@ def handle_patient_data_request(ch, method, properties, body):
                 exchange="",
                 routing_key=reply_to,
                 body=json.dumps(error_response),
-                properties=pika.BasicProperties(
-                    correlation_id=correlation_id, content_type="application/json"
-                ),
+                properties=pika.BasicProperties(correlation_id=correlation_id, content_type="application/json"),
             )
 
             ch.basic_ack(delivery_tag=method.delivery_tag)
@@ -247,10 +217,8 @@ def handle_patient_data_request(ch, method, properties, body):
                 rabbitmq_client.close()
 
     except Exception as e:
-        logger_service.error(f"Error processing prescription data request: {str(e)}")
-        ch.basic_ack(
-            delivery_tag=method.delivery_tag
-        )  # Acknowledge anyway to avoid requeuing
+        logger_service.error(f"Error processing prescription data request: {e!s}")
+        ch.basic_ack(delivery_tag=method.delivery_tag)  # Acknowledge anyway to avoid requeuing
 
 
 def main():
@@ -265,14 +233,10 @@ def main():
             on_message_callback=handle_validation_request,
         )
 
-        rabbitmq_client.channel.basic_consume(
-            queue="prescription.notifications", on_message_callback=handle_notification
-        )
+        rabbitmq_client.channel.basic_consume(queue="prescription.notifications", on_message_callback=handle_notification)
 
         # New consumer for patient data requests
-        rabbitmq_client.channel.queue_declare(
-            queue="patient.data.prescriptions", durable=True
-        )
+        rabbitmq_client.channel.queue_declare(queue="patient.data.prescriptions", durable=True)
 
         rabbitmq_client.channel.queue_bind(
             exchange="medical.exchange",
@@ -289,7 +253,7 @@ def main():
         rabbitmq_client.channel.start_consuming()
 
     except Exception as e:
-        logger_service.error(f"Consumer error: {str(e)}")
+        logger_service.error(f"Consumer error: {e!s}")
         if rabbitmq_client:
             rabbitmq_client.close()
 

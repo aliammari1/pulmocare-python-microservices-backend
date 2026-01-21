@@ -3,6 +3,7 @@ from datetime import datetime
 
 from bson import ObjectId
 from pymongo import MongoClient
+
 from services.logger_service import logger_service
 
 
@@ -24,9 +25,7 @@ class MongoDBClient:
 
         for attempt in range(max_retries):
             try:
-                self.client = MongoClient(
-                    f"mongodb://admin:admin@{self.config.MONGODB_HOST}:27017/"
-                )
+                self.client = MongoClient(f"mongodb://admin:admin@{self.config.MONGODB_HOST}:27017/")
                 self.db = self.client[self.config.MONGODB_DATABASE]
 
                 # Set up collection with schema validation
@@ -43,16 +42,12 @@ class MongoDBClient:
                 logger_service.info("Connected to MongoDB successfully")
                 break
             except Exception as e:
-                logger_service.error(
-                    f"MongoDB connection attempt {attempt + 1} failed: {str(e)}"
-                )
+                logger_service.error(f"MongoDB connection attempt {attempt + 1} failed: {e!s}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     retry_delay *= 2
                 else:
-                    logger_service.error(
-                        "Failed to connect to MongoDB after multiple attempts"
-                    )
+                    logger_service.error("Failed to connect to MongoDB after multiple attempts")
 
     def find_ordonnances(self, query=None):
         """Find ordonnances by query"""
@@ -64,20 +59,18 @@ class MongoDBClient:
                 ordonnance["_id"] = str(ordonnance["_id"])
             return ordonnances
         except Exception as e:
-            logger_service.error(f"MongoDB find_ordonnances error: {str(e)}")
+            logger_service.error(f"MongoDB find_ordonnances error: {e!s}")
             raise
 
     def find_ordonnance_by_id(self, ordonnance_id):
         """Find a ordonnance by ID"""
         try:
-            ordonnance = self.ordonnances_collection.find_one(
-                {"_id": ObjectId(ordonnance_id)}
-            )
+            ordonnance = self.ordonnances_collection.find_one({"_id": ObjectId(ordonnance_id)})
             if ordonnance:
                 ordonnance["_id"] = str(ordonnance["_id"])
             return ordonnance
         except Exception as e:
-            logger_service.error(f"MongoDB find_ordonnance_by_id error: {str(e)}")
+            logger_service.error(f"MongoDB find_ordonnance_by_id error: {e!s}")
             return None
 
     def insert_ordonnance(self, ordonnance_data):
@@ -90,7 +83,7 @@ class MongoDBClient:
             ordonnance_data["_id"] = str(result.inserted_id)
             return ordonnance_data
         except Exception as e:
-            logger_service.error(f"MongoDB insert_ordonnance error: {str(e)}")
+            logger_service.error(f"MongoDB insert_ordonnance error: {e!s}")
             raise
 
     def update_ordonnance(self, ordonnance_id, ordonnance_data):
@@ -98,9 +91,7 @@ class MongoDBClient:
         try:
             ordonnance_data["updated_at"] = datetime.utcnow()
 
-            result = self.ordonnances_collection.update_one(
-                {"_id": ObjectId(ordonnance_id)}, {"$set": ordonnance_data}
-            )
+            result = self.ordonnances_collection.update_one({"_id": ObjectId(ordonnance_id)}, {"$set": ordonnance_data})
 
             if result.matched_count == 0:
                 return None
@@ -108,18 +99,16 @@ class MongoDBClient:
             ordonnance_data["_id"] = ordonnance_id
             return ordonnance_data
         except Exception as e:
-            logger_service.error(f"MongoDB update_ordonnance error: {str(e)}")
+            logger_service.error(f"MongoDB update_ordonnance error: {e!s}")
             raise
 
     def delete_ordonnance(self, ordonnance_id):
         """Delete a ordonnance"""
         try:
-            result = self.ordonnances_collection.delete_one(
-                {"_id": ObjectId(ordonnance_id)}
-            )
+            result = self.ordonnances_collection.delete_one({"_id": ObjectId(ordonnance_id)})
             return result.deleted_count > 0
         except Exception as e:
-            logger_service.error(f"MongoDB delete_ordonnance error: {str(e)}")
+            logger_service.error(f"MongoDB delete_ordonnance error: {e!s}")
             raise
 
     def close(self):
@@ -129,7 +118,7 @@ class MongoDBClient:
                 self.client.close()
                 logger_service.info("Closed MongoDB connection")
         except Exception as e:
-            logger_service.error(f"Error closing MongoDB connection: {str(e)}")
+            logger_service.error(f"Error closing MongoDB connection: {e!s}")
 
     def check_health(self):
         """Check MongoDB health"""
@@ -137,4 +126,4 @@ class MongoDBClient:
             self.db.command("ping")
             return "UP"
         except Exception as e:
-            return f"DOWN: {str(e)}"
+            return f"DOWN: {e!s}"

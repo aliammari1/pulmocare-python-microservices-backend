@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Dict, List, Optional
 
 from bson import ObjectId
 from pydantic import BaseModel
@@ -11,7 +10,7 @@ class Medication(BaseModel):
     name: str
     dosage: str
     frequency: str
-    duration: Optional[str] = None
+    duration: str | None = None
 
 
 class OrdonnanceBase(BaseModel):
@@ -20,10 +19,10 @@ class OrdonnanceBase(BaseModel):
     patient_id: str
     patient_name: str
     doctor_name: str
-    medications: List[Medication]
+    medications: list[Medication]
     instructions: str
     diagnosis: str
-    signature: Optional[str] = None
+    signature: str | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -36,13 +35,13 @@ class OrdonnanceCreate(OrdonnanceBase):
 class OrdonnanceUpdate(BaseModel):
     """Data that can be updated in a prescription"""
 
-    patient_id: Optional[str] = None
-    patient_name: Optional[str] = None
-    doctor_name: Optional[str] = None
-    medications: Optional[List[Medication]] = None
-    instructions: Optional[str] = None
-    diagnosis: Optional[str] = None
-    signature: Optional[str] = None
+    patient_id: str | None = None
+    patient_name: str | None = None
+    doctor_name: str | None = None
+    medications: list[Medication] | None = None
+    instructions: str | None = None
+    diagnosis: str | None = None
+    signature: str | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -84,7 +83,7 @@ class OrdonnanceInDB(OrdonnanceBase):
 class OrdonnanceList(BaseModel):
     """List of prescriptions with pagination information"""
 
-    items: List[OrdonnanceInDB]
+    items: list[OrdonnanceInDB]
     total: int
     page: int
     pages: int
@@ -94,17 +93,17 @@ class Ordonnance:
     """Class for handling ordonnance (prescription) documents"""
 
     def __init__(
-            self,
-            doctor_id: str,
-            patient_id: str,
-            patient_name: str,
-            doctor_name: str,
-            medications: List[Dict],
-            instructions: str,
-            diagnosis: str,
-            date: datetime = None,
-            signature: str = None,
-            _id: ObjectId = None,
+        self,
+        doctor_id: str,
+        patient_id: str,
+        patient_name: str,
+        doctor_name: str,
+        medications: list[dict],
+        instructions: str,
+        diagnosis: str,
+        date: datetime = None,
+        signature: str = None,
+        _id: ObjectId = None,
     ):
         self._id = _id or ObjectId()
         self.doctor_id = doctor_id
@@ -118,7 +117,7 @@ class Ordonnance:
         self.signature = signature
 
     @classmethod
-    def from_dict(cls, data: Dict):
+    def from_dict(cls, data: dict):
         """Create an Ordonnance instance from a dictionary"""
         if not data:
             return None
@@ -136,7 +135,7 @@ class Ordonnance:
             signature=data.get("signature"),
         )
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """Convert Ordonnance to a dictionary for database storage"""
         return {
             "_id": self._id,

@@ -14,24 +14,25 @@ from threading import Thread
 import requests
 import torch
 import uvicorn
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, Request
 from fastapi.responses import StreamingResponse
+from transformers import TextIteratorStreamer
+
 from medrax.llava.constants import (
-    IMAGE_TOKEN_INDEX,
-    DEFAULT_IMAGE_TOKEN,
-    DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    IMAGE_TOKEN_INDEX,
+    WORKER_HEART_BEAT_INTERVAL,
 )
-from medrax.llava.constants import WORKER_HEART_BEAT_INTERVAL
 from medrax.llava.mm_utils import (
-    process_images,
-    load_image_from_base64,
-    tokenizer_image_token,
     KeywordsStoppingCriteria,
+    load_image_from_base64,
+    process_images,
+    tokenizer_image_token,
 )
 from medrax.llava.model.builder import load_pretrained_model
-from medrax.llava.utils import build_logger, server_error_msg, pretty_print_semaphore
-from transformers import TextIteratorStreamer
+from medrax.llava.utils import build_logger, pretty_print_semaphore, server_error_msg
 
 GB = 1 << 30
 
@@ -50,17 +51,17 @@ def heart_beat_worker(controller):
 
 class ModelWorker:
     def __init__(
-            self,
-            controller_addr,
-            worker_addr,
-            worker_id,
-            no_register,
-            model_path,
-            model_base,
-            model_name,
-            load_8bit,
-            load_4bit,
-            device,
+        self,
+        controller_addr,
+        worker_addr,
+        worker_id,
+        no_register,
+        model_path,
+        model_base,
+        model_name,
+        load_8bit,
+        load_4bit,
+        device,
     ):
         self.controller_addr = controller_addr
         self.worker_addr = worker_addr
@@ -142,13 +143,13 @@ class ModelWorker:
             return 0
         else:
             return (
-                    args.limit_model_concurrency
-                    - model_semaphore._value
-                    + (
-                        len(model_semaphore._waiters)
-                        if model_semaphore._waiters is not None
-                        else 0
-                    )
+                args.limit_model_concurrency
+                - model_semaphore._value
+                + (
+                    len(model_semaphore._waiters)
+                    if model_semaphore._waiters is not None
+                    else 0
+                )
             )
 
     def get_status(self):
@@ -191,12 +192,12 @@ class ModelWorker:
                 replace_token = DEFAULT_IMAGE_TOKEN
                 if getattr(self.model.config, "mm_use_im_start_end", False):
                     replace_token = (
-                            DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
+                        DEFAULT_IM_START_TOKEN + replace_token + DEFAULT_IM_END_TOKEN
                     )
                 prompt = prompt.replace(DEFAULT_IMAGE_TOKEN, replace_token)
 
                 num_image_tokens = (
-                        prompt.count(replace_token) * model.get_vision_tower().num_patches
+                    prompt.count(replace_token) * model.get_vision_tower().num_patches
                 )
             else:
                 images = None
@@ -230,13 +231,16 @@ class ModelWorker:
         )
 
         if max_new_tokens < 1:
-            yield json.dumps(
-                {
-                    "text": ori_prompt
-                            + "Exceeds max token length. Please start a new conversation, thanks.",
-                    "error_code": 0,
-                }
-            ).encode() + b"\0"
+            yield (
+                json.dumps(
+                    {
+                        "text": ori_prompt
+                        + "Exceeds max token length. Please start a new conversation, thanks.",
+                        "error_code": 0,
+                    }
+                ).encode()
+                + b"\0"
+            )
             return
 
         thread = Thread(

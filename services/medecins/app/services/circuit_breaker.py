@@ -1,6 +1,5 @@
 import time
 from enum import Enum
-from typing import Optional
 
 from services.logger_service import logger_service
 
@@ -22,11 +21,11 @@ class CircuitBreaker:
     """
 
     def __init__(
-            self,
-            name: str,
-            failure_threshold: int = 5,
-            recovery_timeout: int = 30,
-            half_open_max_calls: int = 1,
+        self,
+        name: str,
+        failure_threshold: int = 5,
+        recovery_timeout: int = 30,
+        half_open_max_calls: int = 1,
     ):
         """
         Initialize the circuit breaker.
@@ -44,13 +43,10 @@ class CircuitBreaker:
 
         self.failure_count = 0
         self.state = CircuitState.CLOSED
-        self.last_failure_time: Optional[float] = None
+        self.last_failure_time: float | None = None
         self.half_open_calls = 0
 
-        logger_service.info(
-            f"Circuit breaker '{name}' initialized with failure threshold: {failure_threshold}, "
-            f"recovery timeout: {recovery_timeout}s"
-        )
+        logger_service.info(f"Circuit breaker '{name}' initialized with failure threshold: {failure_threshold}, recovery timeout: {recovery_timeout}s")
 
     def is_closed(self) -> bool:
         """
@@ -97,10 +93,7 @@ class CircuitBreaker:
         self.failure_count += 1
 
         # Check if threshold is exceeded
-        if (
-                self.failure_count >= self.failure_threshold
-                and self.state == CircuitState.CLOSED
-        ):
+        if self.failure_count >= self.failure_threshold and self.state == CircuitState.CLOSED:
             self._open()
 
     def reset(self) -> None:
@@ -110,13 +103,9 @@ class CircuitBreaker:
     def _open(self) -> None:
         """Open the circuit."""
         if self.state != CircuitState.OPEN:
-            logger_service.warning(
-                f"Circuit breaker '{self.name}' opened after {self.failure_count} failures"
-            )
+            logger_service.warning(f"Circuit breaker '{self.name}' opened after {self.failure_count} failures")
             self.state = CircuitState.OPEN
-            self.failure_count = (
-                self.failure_threshold
-            )  # Set to threshold to prevent reset
+            self.failure_count = self.failure_threshold  # Set to threshold to prevent reset
 
     def _close(self) -> None:
         """Close the circuit."""
@@ -126,14 +115,10 @@ class CircuitBreaker:
         self.half_open_calls = 0
 
         if prev_state != CircuitState.CLOSED:
-            logger_service.info(
-                f"Circuit breaker '{self.name}' closed - service recovered"
-            )
+            logger_service.info(f"Circuit breaker '{self.name}' closed - service recovered")
 
     def _transition_to_half_open(self) -> None:
         """Transition from open to half-open state."""
         self.state = CircuitState.HALF_OPEN
         self.half_open_calls = 0
-        logger_service.info(
-            f"Circuit breaker '{self.name}' half-open - testing if service recovered"
-        )
+        logger_service.info(f"Circuit breaker '{self.name}' half-open - testing if service recovered")

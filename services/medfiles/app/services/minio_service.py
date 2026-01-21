@@ -4,17 +4,16 @@ import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
-from typing import Dict, Optional
 
 import aiofiles
 import magic
 from fastapi import UploadFile
 from minio import Minio
 from minio.error import S3Error
-from models.file_models import FileResponse, FileInfo
-from services.logger_service import LoggerService
 
 from config import Config
+from models.file_models import FileInfo, FileResponse
+from services.logger_service import LoggerService
 
 logger = LoggerService()
 
@@ -36,25 +35,21 @@ class MinioService:
     async def create_bucket(self, bucket_name: str) -> bool:
         """Create a bucket if it doesn't exist"""
         try:
-            exists = await asyncio.get_event_loop().run_in_executor(
-                self.executor, lambda: self.client.bucket_exists(bucket_name)
-            )
+            exists = await asyncio.get_event_loop().run_in_executor(self.executor, lambda: self.client.bucket_exists(bucket_name))
             if not exists:
-                await asyncio.get_event_loop().run_in_executor(
-                    self.executor, lambda: self.client.make_bucket(bucket_name)
-                )
+                await asyncio.get_event_loop().run_in_executor(self.executor, lambda: self.client.make_bucket(bucket_name))
                 logger.info(f"Created bucket: {bucket_name}")
             return True
         except S3Error as e:
-            logger.error(f"Error creating bucket {bucket_name}: {str(e)}")
+            logger.error(f"Error creating bucket {bucket_name}: {e!s}")
             return False
 
     async def upload_file(
-            self,
-            bucket_name: str,
-            file_object: UploadFile,
-            folder_path: Optional[str] = None,
-            metadata: Optional[Dict] = None,
+        self,
+        bucket_name: str,
+        file_object: UploadFile,
+        folder_path: str | None = None,
+        metadata: dict | None = None,
     ) -> FileResponse:
         """
         Upload a file to MinIO
@@ -123,9 +118,7 @@ class MinioService:
                 # Create presigned URL for temporary access
                 presigned_url = await asyncio.get_event_loop().run_in_executor(
                     self.executor,
-                    lambda: self.client.presigned_get_object(
-                        bucket_name, object_name, expires=timedelta(hours=1)
-                    ),
+                    lambda: self.client.presigned_get_object(bucket_name, object_name, expires=timedelta(hours=1)),
                 )
 
                 logger.info(f"File uploaded: {object_name} to bucket {bucket_name}")
@@ -145,26 +138,22 @@ class MinioService:
                     os.unlink(temp_filename)
 
         except S3Error as e:
-            logger.error(f"S3 error uploading file: {str(e)}")
+            logger.error(f"S3 error uploading file: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Error uploading file: {str(e)}")
+            logger.error(f"Error uploading file: {e!s}")
             raise
 
     async def get_file_info(self, bucket_name: str, object_name: str) -> FileResponse:
         """Get information about a specific file"""
         try:
             # Get object stats
-            stat = await asyncio.get_event_loop().run_in_executor(
-                self.executor, lambda: self.client.stat_object(bucket_name, object_name)
-            )
+            stat = await asyncio.get_event_loop().run_in_executor(self.executor, lambda: self.client.stat_object(bucket_name, object_name))
 
             # Create presigned URL for temporary access
             presigned_url = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
-                lambda: self.client.presigned_get_object(
-                    bucket_name, object_name, expires=timedelta(hours=1)
-                ),
+                lambda: self.client.presigned_get_object(bucket_name, object_name, expires=timedelta(hours=1)),
             )
 
             # Extract original filename from metadata
@@ -181,21 +170,21 @@ class MinioService:
                 created_at=stat.last_modified.isoformat(),
             )
         except S3Error as e:
-            logger.error(f"S3 error getting file info: {str(e)}")
+            logger.error(f"S3 error getting file info: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Error getting file info: {str(e)}")
+            logger.error(f"Error getting file info: {e!s}")
             raise
 
     async def list_files(
-            self,
-            bucket_name: str,
-            prefix: Optional[str] = None,
-            limit: int = 100,
-            recursive: bool = False,
-            marker: Optional[str] = None,
-            download_expiry: int = 3600,  # Default 1 hour for download links
-    ) -> Dict:
+        self,
+        bucket_name: str,
+        prefix: str | None = None,
+        limit: int = 100,
+        recursive: bool = False,
+        marker: str | None = None,
+        download_expiry: int = 3600,  # Default 1 hour for download links
+    ) -> dict:
         """
         List files in a bucket with optional prefix filtering
 
@@ -249,9 +238,9 @@ class MinioService:
                     continue
 
                 # Check if this is a nested path that should be interpreted as a folder
-                if not recursive and "/" in item.object_name[len(prefix or ""):]:
+                if not recursive and "/" in item.object_name[len(prefix or "") :]:
                     # Extract folder name
-                    rest_path = item.object_name[len(prefix or ""):]
+                    rest_path = item.object_name[len(prefix or "") :]
                     folder_name = rest_path.split("/")[0]
 
                     if prefix:
@@ -266,25 +255,17 @@ class MinioService:
                         # Get object stats
                         stat = await asyncio.get_event_loop().run_in_executor(
                             self.executor,
-                            lambda: self.client.stat_object(
-                                bucket_name, item.object_name
-                            ),
+                            lambda: self.client.stat_object(bucket_name, item.object_name),
                         )
 
                         # Extract original filename from metadata if available
-                        filename = stat.metadata.get(
-                            "filename", item.object_name.split("/")[-1]
-                        )
+                        filename = stat.metadata.get("filename", item.object_name.split("/")[-1])
 
                         # Generate streaming URL instead of download URL
-                        streaming_url = await self.generate_streaming_url(
-                            bucket_name, item.object_name, expires=download_expiry
-                        )
+                        streaming_url = await self.generate_streaming_url(bucket_name, item.object_name, expires=download_expiry)
 
                         # Generate regular download URL as well for direct downloads
-                        download_url = await self.generate_presigned_url(
-                            bucket_name, item.object_name, expires=download_expiry
-                        )
+                        download_url = await self.generate_presigned_url(bucket_name, item.object_name, expires=download_expiry)
 
                         # Add file info to results with streaming URL as the download URL
                         files.append(
@@ -301,14 +282,10 @@ class MinioService:
                         )
                     except Exception as e:
                         # Handle case where metadata retrieval fails
-                        logger.warning(
-                            f"Error getting metadata for {item.object_name}: {str(e)}"
-                        )
+                        logger.warning(f"Error getting metadata for {item.object_name}: {e!s}")
 
                         # Generate basic streaming URL instead of download URL
-                        streaming_url = await self.generate_streaming_url(
-                            bucket_name, item.object_name, expires=download_expiry
-                        )
+                        streaming_url = await self.generate_streaming_url(bucket_name, item.object_name, expires=download_expiry)
 
                         # Add file with limited info, using streaming URL
                         files.append(
@@ -325,10 +302,7 @@ class MinioService:
                     count += 1
 
             # Convert folders set to list of dicts with name and path
-            folder_list = [
-                {"name": f.rstrip("/").split("/")[-1], "path": f}
-                for f in sorted(folders)
-            ]
+            folder_list = [{"name": f.rstrip("/").split("/")[-1], "path": f} for f in sorted(folders)]
 
             return {
                 "files": files,
@@ -337,10 +311,10 @@ class MinioService:
                 "prefix": prefix,
             }
         except S3Error as e:
-            logger.error(f"S3 error listing files: {str(e)}")
+            logger.error(f"S3 error listing files: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Error listing files: {str(e)}")
+            logger.error(f"Error listing files: {e!s}")
             raise
 
     async def delete_file(self, bucket_name: str, object_name: str) -> bool:
@@ -353,24 +327,20 @@ class MinioService:
             logger.info(f"File deleted: {object_name} from bucket {bucket_name}")
             return True
         except S3Error as e:
-            logger.error(f"S3 error deleting file: {str(e)}")
+            logger.error(f"S3 error deleting file: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Error deleting file: {str(e)}")
+            logger.error(f"Error deleting file: {e!s}")
             raise
 
-    async def update_metadata(
-            self, bucket_name: str, object_name: str, metadata: Dict
-    ) -> bool:
+    async def update_metadata(self, bucket_name: str, object_name: str, metadata: dict) -> bool:
         """
         Update metadata for a specific file
         This requires copying the object with new metadata as S3 doesn't support direct metadata updates
         """
         try:
             # Get current object info
-            stat = await asyncio.get_event_loop().run_in_executor(
-                self.executor, lambda: self.client.stat_object(bucket_name, object_name)
-            )
+            stat = await asyncio.get_event_loop().run_in_executor(self.executor, lambda: self.client.stat_object(bucket_name, object_name))
 
             # Merge existing metadata with new metadata
             current_metadata = stat.metadata
@@ -390,15 +360,13 @@ class MinioService:
             logger.info(f"Updated metadata for {object_name} in bucket {bucket_name}")
             return True
         except S3Error as e:
-            logger.error(f"S3 error updating metadata: {str(e)}")
+            logger.error(f"S3 error updating metadata: {e!s}")
             raise
         except Exception as e:
-            logger.error(f"Error updating metadata: {str(e)}")
+            logger.error(f"Error updating metadata: {e!s}")
             raise
 
-    async def generate_presigned_url(
-            self, bucket_name: str, object_name: str, expires=43200
-    ) -> str:
+    async def generate_presigned_url(self, bucket_name: str, object_name: str, expires=43200) -> str:
         """
         Generate a presigned URL for an object
 
@@ -417,38 +385,23 @@ class MinioService:
             # Generate URL using MinIO client
             url = await asyncio.get_event_loop().run_in_executor(
                 self.executor,
-                lambda: self.client.get_presigned_url(
-                    "GET",
-                    bucket_name,
-                    object_name,
-                    expires=expires_delta
-                ),
+                lambda: self.client.get_presigned_url("GET", bucket_name, object_name, expires=expires_delta),
             )
-            print(f"Presigned URL: {self.client.get_presigned_url(
-                "GET",
-                bucket_name,
-                object_name,
-                expires=expires_delta
-            )}")
-            logger.info(
-                f"Generated presigned URL for {bucket_name}/{object_name} "
-                + f"with expiry {expires} seconds"
-            )
+            print(f"Presigned URL: {self.client.get_presigned_url('GET', bucket_name, object_name, expires=expires_delta)}")
+            logger.info(f"Generated presigned URL for {bucket_name}/{object_name} " + f"with expiry {expires} seconds")
 
             return url
         except S3Error as e:
-            logger.error(f"S3 error generating presigned URL: {str(e)}")
-            raise Exception(f"Failed to generate download link: {str(e)}")
+            logger.error(f"S3 error generating presigned URL: {e!s}")
+            raise Exception(f"Failed to generate download link: {e!s}")
         except Exception as e:
-            logger.error(f"Error generating presigned URL: {str(e)}")
-            raise Exception(f"Failed to generate download link: {str(e)}")
+            logger.error(f"Error generating presigned URL: {e!s}")
+            raise Exception(f"Failed to generate download link: {e!s}")
 
-    async def generate_streaming_url(
-            self, bucket_name: str, object_name: str, expires=43200
-    ) -> str:
+    async def generate_streaming_url(self, bucket_name: str, object_name: str, expires=43200) -> str:
         """
         Generate a streaming URL for an object
-        
+
         This URL will be used to send the object as a stream to the frontend
 
         Args:
@@ -467,23 +420,21 @@ class MinioService:
             # Construct API URL to our streaming endpoint with the new path format
             stream_url = f"http://{host}:{port}/api/files/{bucket_name}/stream/{object_name}"
 
-            logger.info(
-                f"Generated streaming URL for {bucket_name}/{object_name}"
-            )
+            logger.info(f"Generated streaming URL for {bucket_name}/{object_name}")
 
             return stream_url
         except Exception as e:
-            logger.error(f"Error generating streaming URL: {str(e)}")
-            raise Exception(f"Failed to generate streaming link: {str(e)}")
+            logger.error(f"Error generating streaming URL: {e!s}")
+            raise Exception(f"Failed to generate streaming link: {e!s}")
 
     async def get_file_stream(self, bucket_name: str, object_name: str):
         """
         Get a file stream directly from storage using fget_object
-        
+
         Args:
             bucket_name: Name of the bucket
             object_name: Name of the object
-            
+
         Returns:
             AsyncGenerator yielding file content in chunks
         """
@@ -495,13 +446,13 @@ class MinioService:
             # Get object data using fget_object
             await asyncio.get_event_loop().run_in_executor(
                 self.executor,
-                lambda: self.client.fget_object(bucket_name, object_name, temp_file_path)
+                lambda: self.client.fget_object(bucket_name, object_name, temp_file_path),
             )
 
             # Define async generator to yield file content in chunks
             async def file_generator():
                 try:
-                    async with aiofiles.open(temp_file_path, 'rb') as f:
+                    async with aiofiles.open(temp_file_path, "rb") as f:
                         chunk = await f.read(8192)  # Read 8KB chunks
                         while chunk:
                             yield chunk
@@ -515,8 +466,8 @@ class MinioService:
             return file_generator()
 
         except S3Error as e:
-            logger.error(f"S3 error getting file stream: {str(e)}")
-            raise Exception(f"Failed to get file stream: {str(e)}")
+            logger.error(f"S3 error getting file stream: {e!s}")
+            raise Exception(f"Failed to get file stream: {e!s}")
         except Exception as e:
-            logger.error(f"Error getting file stream: {str(e)}")
-            raise Exception(f"Failed to get file stream: {str(e)}")
+            logger.error(f"Error getting file stream: {e!s}")
+            raise Exception(f"Failed to get file stream: {e!s}")

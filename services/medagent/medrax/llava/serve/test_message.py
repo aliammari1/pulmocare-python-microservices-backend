@@ -2,6 +2,7 @@ import argparse
 import json
 
 import requests
+
 from medrax.llava.conversation import conv_templates
 
 
@@ -46,7 +47,7 @@ def main():
 
     print(prompt, end="")
     for chunk in response.iter_lines(
-            chunk_size=8192, decode_unicode=False, delimiter=b"\0"
+        chunk_size=8192, decode_unicode=False, delimiter=b"\0"
     ):
         if chunk:
             data = json.loads(chunk.decode("utf-8"))

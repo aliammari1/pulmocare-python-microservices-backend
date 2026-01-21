@@ -2,13 +2,13 @@ import json
 import operator
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, TypedDict, Annotated, Optional
+from typing import Annotated, Any, TypedDict
 
 from dotenv import load_dotenv
 from langchain_core.language_models import BaseLanguageModel
 from langchain_core.messages import AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph.graph import StateGraph, END
+from langgraph.graph import END, StateGraph
 
 _ = load_dotenv()
 
@@ -42,7 +42,7 @@ class AgentState(TypedDict):
             indicates that new messages should be appended to this list.
     """
 
-    messages: Annotated[List[AnyMessage], operator.add]
+    messages: Annotated[list[AnyMessage], operator.add]
 
 
 class Agent:
@@ -61,13 +61,13 @@ class Agent:
     """
 
     def __init__(
-            self,
-            model: BaseLanguageModel,
-            tools: List[BaseTool],
-            checkpointer: Any = None,
-            system_prompt: str = "",
-            log_tools: bool = True,
-            log_dir: Optional[str] = "logs",
+        self,
+        model: BaseLanguageModel,
+        tools: list[BaseTool],
+        checkpointer: Any = None,
+        system_prompt: str = "",
+        log_tools: bool = True,
+        log_dir: str | None = "logs",
     ):
         """
         Initialize the Agent.
@@ -101,7 +101,7 @@ class Agent:
         self.tools = {t.name: t for t in tools}
         self.model = model.bind_tools(tools)
 
-    def process_request(self, state: AgentState) -> Dict[str, List[AnyMessage]]:
+    def process_request(self, state: AgentState) -> dict[str, list[AnyMessage]]:
         """
         Process the request using the language model.
 
@@ -130,7 +130,7 @@ class Agent:
         response = state["messages"][-1]
         return len(response.tool_calls) > 0
 
-    def execute_tools(self, state: AgentState) -> Dict[str, List[ToolMessage]]:
+    def execute_tools(self, state: AgentState) -> dict[str, list[ToolMessage]]:
         """
         Execute tool calls from the model's response.
 
@@ -165,7 +165,7 @@ class Agent:
 
         return {"messages": results}
 
-    def _save_tool_calls(self, tool_calls: List[ToolMessage]) -> None:
+    def _save_tool_calls(self, tool_calls: list[ToolMessage]) -> None:
         """
         Save tool calls to a JSON file with timestamp-based naming.
 
@@ -178,7 +178,7 @@ class Agent:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = self.log_path / f"tool_calls_{timestamp}.json"
 
-        logs: List[ToolCallLog] = []
+        logs: list[ToolCallLog] = []
         for call in tool_calls:
             log_entry = {
                 "tool_call_id": call.tool_call_id,

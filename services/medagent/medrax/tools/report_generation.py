@@ -1,18 +1,18 @@
-from typing import Any, Dict, Optional, Tuple, Type
+from typing import Any
 
 import torch
-from PIL import Image
 from langchain_core.callbacks import (
     AsyncCallbackManagerForToolRun,
     CallbackManagerForToolRun,
 )
 from langchain_core.tools import BaseTool
+from PIL import Image
 from pydantic import BaseModel, Field
 from transformers import (
     BertTokenizer,
-    ViTImageProcessor,
-    VisionEncoderDecoderModel,
     GenerationConfig,
+    VisionEncoderDecoderModel,
+    ViTImageProcessor,
 )
 
 
@@ -45,19 +45,17 @@ class ChestXRayReportGeneratorTool(BaseTool):
         "to a chest X-ray image file. Output is a structured report with both detailed "
         "observations and key clinical conclusions."
     )
-    device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
-    args_schema: Type[BaseModel] = ChestXRayInput
+    device: str | None = "cuda" if torch.cuda.is_available() else "cpu"
+    args_schema: type[BaseModel] = ChestXRayInput
     findings_model: VisionEncoderDecoderModel = None
     impression_model: VisionEncoderDecoderModel = None
     findings_tokenizer: BertTokenizer = None
     impression_tokenizer: BertTokenizer = None
     findings_processor: ViTImageProcessor = None
     impression_processor: ViTImageProcessor = None
-    generation_args: Dict[str, Any] = None
+    generation_args: dict[str, Any] = None
 
-    def __init__(
-            self, cache_dir: str = "./model-weights", device: Optional[str] = "cuda"
-    ):
+    def __init__(self, cache_dir: str = "./model-weights", device: str | None = "cuda"):
         """Initialize the ChestXRayReportGeneratorTool with both findings and impression models."""
         super().__init__()
         self.device = (
@@ -99,10 +97,10 @@ class ChestXRayReportGeneratorTool(BaseTool):
         }
 
     def _process_image(
-            self,
-            image_path: str,
-            processor: ViTImageProcessor,
-            model: VisionEncoderDecoderModel,
+        self,
+        image_path: str,
+        processor: ViTImageProcessor,
+        model: VisionEncoderDecoderModel,
     ) -> torch.Tensor:
         """Process the input image for a specific model.
 
@@ -133,10 +131,10 @@ class ChestXRayReportGeneratorTool(BaseTool):
         return pixel_values
 
     def _generate_report_section(
-            self,
-            pixel_values: torch.Tensor,
-            model: VisionEncoderDecoderModel,
-            tokenizer: BertTokenizer,
+        self,
+        pixel_values: torch.Tensor,
+        model: VisionEncoderDecoderModel,
+        tokenizer: BertTokenizer,
     ) -> str:
         """Generate a report section using the specified model.
 
@@ -165,10 +163,10 @@ class ChestXRayReportGeneratorTool(BaseTool):
         return tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
     def _run(
-            self,
-            image_path: str,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
+        self,
+        image_path: str,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[str, dict]:
         """Generate a comprehensive chest X-ray report containing both findings and impression.
 
         Args:
@@ -212,16 +210,16 @@ class ChestXRayReportGeneratorTool(BaseTool):
             return report, metadata
 
         except Exception as e:
-            return f"Error generating report: {str(e)}", {
+            return f"Error generating report: {e!s}", {
                 "image_path": image_path,
                 "analysis_status": "failed",
                 "error": str(e),
             }
 
     async def _arun(
-            self,
-            image_path: str,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[str, Dict]:
+        self,
+        image_path: str,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[str, dict]:
         """Asynchronously generate a comprehensive chest X-ray report."""
         return self._run(image_path)

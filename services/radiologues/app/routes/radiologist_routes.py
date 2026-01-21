@@ -2,7 +2,6 @@ import base64
 import io
 import re
 from datetime import datetime
-from typing import Dict, List, Optional
 
 import httpx
 import requests
@@ -14,39 +13,27 @@ from fpdf import FPDF
 # Create HTTPBearer instance
 security = HTTPBearer()
 
+import pytesseract
+from bs4 import BeautifulSoup
+from PIL import Image
+
+from config import Config
 from models.api_models import (
     ErrorResponse,
-    ForgotPasswordRequest,
-    LoginRequest,
-    LoginResponse,
-    MessageResponse,
     RadiologyReportRequest,
     RadiologyReportResponse,
     RadiologyReportsListResponse,
-    ResetPasswordRequest,
     ScanVisitCardRequest,
     ScanVisitCardResponse,
-    SignupRequest,
-    VerifyOTPRequest,
     VerifyRadiologueRequest,
     VerifyRadiologueResponse,
 )
 from models.radiologue import (
-    PasswordChange,
     Radiologue,
-    RadiologueCreate,
     RadiologueInDB,
-    RadiologueUpdate,
 )
-from routes.integration_routes import router as integration_router
 from services.logger_service import logger_service
 from services.rabbitmq_client import RabbitMQClient
-from services.redis_client import RedisClient
-from services.tracing_service import TracingService
-from PIL import Image
-import pytesseract
-from bs4 import BeautifulSoup
-from config import Config
 
 http_client = httpx.AsyncClient(timeout=30.0)
 router = APIRouter(prefix="/api/radiologues", tags=["Radiologues"])
@@ -55,8 +42,8 @@ rabbitmq_client = RabbitMQClient(Config)
 
 # Authentication service client functions
 async def get_current_radiologist(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current radiologist information from auth service
 
@@ -77,9 +64,7 @@ async def get_current_radiologist(
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to verify token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to verify token: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token",
@@ -103,7 +88,7 @@ async def get_current_radiologist(
             return user_info
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -111,14 +96,14 @@ async def get_current_radiologist(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        logger_service.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
         )
 
 
-async def get_user_info(user_id: str, token: str = None) -> Dict:
+async def get_user_info(user_id: str, token: str = None) -> dict:
     """
     Get user information from auth service
 
@@ -139,9 +124,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get user info: {response.status_code} - {response.text}")
                 if response.status_code == 404:
                     return None
                 raise HTTPException(
@@ -151,7 +134,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
 
             return response.json()
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -159,14 +142,14 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error getting user info: {str(e)}")
+        logger_service.error(f"Error getting user info: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get user information: {str(e)}",
+            detail=f"Failed to get user information: {e!s}",
         )
 
 
-async def get_user_info(user_id: str, token: str = None) -> Dict:
+async def get_user_info(user_id: str, token: str = None) -> dict:
     """
     Get user information from auth service
 
@@ -187,9 +170,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get user info: {response.status_code} - {response.text}")
                 if response.status_code == 404:
                     return None
                 raise HTTPException(
@@ -199,7 +180,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
 
             return response.json()
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -207,14 +188,14 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error getting user info: {str(e)}")
+        logger_service.error(f"Error getting user info: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get user information: {str(e)}",
+            detail=f"Failed to get user information: {e!s}",
         )
 
 
-async def update_user_attributes(user_id: str, attributes: Dict, token: str) -> bool:
+async def update_user_attributes(user_id: str, attributes: dict, token: str) -> bool:
     """
     Update user attributes in auth service
 
@@ -234,9 +215,7 @@ async def update_user_attributes(user_id: str, attributes: Dict, token: str) -> 
             response = await client.patch(auth_url, json=attributes, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update attributes: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update attributes: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail="Failed to update user attributes",
@@ -244,7 +223,7 @@ async def update_user_attributes(user_id: str, attributes: Dict, token: str) -> 
 
             return True
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -252,10 +231,10 @@ async def update_user_attributes(user_id: str, attributes: Dict, token: str) -> 
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error updating attributes: {str(e)}")
+        logger_service.error(f"Error updating attributes: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update attributes: {str(e)}",
+            detail=f"Failed to update attributes: {e!s}",
         )
 
 
@@ -279,7 +258,7 @@ async def request_password_reset(email: str) -> bool:
             # Even if the email doesn't exist, we return success for security reasons
             return True
     except Exception as e:
-        logger_service.error(f"Error requesting password reset: {str(e)}")
+        logger_service.error(f"Error requesting password reset: {e!s}")
         # Still return success for security reasons
         return True
 
@@ -303,14 +282,12 @@ async def verify_otp(user_id: str, otp: str) -> bool:
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"OTP verification failed: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"OTP verification failed: {response.status_code} - {response.text}")
                 return False
 
             return True
     except Exception as e:
-        logger_service.error(f"Error verifying OTP: {str(e)}")
+        logger_service.error(f"Error verifying OTP: {e!s}")
         return False
 
 
@@ -333,9 +310,7 @@ async def reset_password(reset_token: str, new_password: str) -> bool:
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Password reset failed: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Password reset failed: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Password reset failed",
@@ -343,7 +318,7 @@ async def reset_password(reset_token: str, new_password: str) -> bool:
 
             return True
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -351,16 +326,14 @@ async def reset_password(reset_token: str, new_password: str) -> bool:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Password reset error: {str(e)}")
+        logger_service.error(f"Password reset error: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Password reset failed: {str(e)}",
+            detail=f"Password reset failed: {e!s}",
         )
 
 
-async def search_radiologists(
-        name: str, skip: int, limit: int, token: str
-) -> List[Dict]:
+async def search_radiologists(name: str, skip: int, limit: int, token: str) -> list[dict]:
     """
     Search for radiologists by name
 
@@ -382,9 +355,7 @@ async def search_radiologists(
             response = await client.get(auth_url, headers=headers, params=params)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to search radiologists: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to search radiologists: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail="Failed to search radiologists",
@@ -392,7 +363,7 @@ async def search_radiologists(
 
             return response.json()
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -400,14 +371,14 @@ async def search_radiologists(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error searching radiologists: {str(e)}")
+        logger_service.error(f"Error searching radiologists: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to search radiologists: {str(e)}",
+            detail=f"Failed to search radiologists: {e!s}",
         )
 
 
-async def get_all_radiologists(skip: int, limit: int, token: str) -> List[Dict]:
+async def get_all_radiologists(skip: int, limit: int, token: str) -> list[dict]:
     """
     Get all radiologists
 
@@ -428,9 +399,7 @@ async def get_all_radiologists(skip: int, limit: int, token: str) -> List[Dict]:
             response = await client.get(auth_url, headers=headers, params=params)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get radiologists: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get radiologists: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail="Failed to get radiologists",
@@ -438,7 +407,7 @@ async def get_all_radiologists(skip: int, limit: int, token: str) -> List[Dict]:
 
             return response.json()
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -446,22 +415,22 @@ async def get_all_radiologists(skip: int, limit: int, token: str) -> List[Dict]:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error getting radiologists: {str(e)}")
+        logger_service.error(f"Error getting radiologists: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get radiologists: {str(e)}",
+            detail=f"Failed to get radiologists: {e!s}",
         )
 
 
 # Reports service client functions
 async def get_radiology_reports_from_service(
-        doctor_id: Optional[str] = None,
-        patient_id: Optional[str] = None,
-        status: Optional[str] = None,
-        page: int = 1,
-        limit: int = 10,
-        token: Optional[str] = None,
-) -> Dict:
+    doctor_id: str | None = None,
+    patient_id: str | None = None,
+    status: str | None = None,
+    page: int = 1,
+    limit: int = 10,
+    token: str | None = None,
+) -> dict:
     """
     Get radiology reports from the reports service
 
@@ -498,25 +467,21 @@ async def get_radiology_reports_from_service(
             response = await client.get(reports_url, params=params, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get reports: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get reports: {response.status_code} - {response.text}")
                 # Return empty results on error
                 return {"items": [], "total": 0, "page": page, "pages": 0}
 
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return {"items": [], "total": 0, "page": page, "pages": 0}
     except Exception as e:
-        logger_service.error(f"Error getting reports: {str(e)}")
+        logger_service.error(f"Error getting reports: {e!s}")
         return {"items": [], "total": 0, "page": page, "pages": 0}
 
 
-async def get_radiology_report_from_service(
-        report_id: str, token: Optional[str] = None
-) -> Optional[Dict]:
+async def get_radiology_report_from_service(report_id: str, token: str | None = None) -> dict | None:
     """
     Get a specific radiology report from the reports service
 
@@ -528,9 +493,7 @@ async def get_radiology_report_from_service(
         Report data or None if not found
     """
     try:
-        reports_url = (
-            f"{Config.REPORTS_SERVICE_URL}/api/integration/reports/{report_id}"
-        )
+        reports_url = f"{Config.REPORTS_SERVICE_URL}/api/integration/reports/{report_id}"
 
         # Set headers if token is provided
         headers = {}
@@ -545,24 +508,20 @@ async def get_radiology_report_from_service(
                 return None
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get report: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get report: {response.status_code} - {response.text}")
                 return None
 
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return None
     except Exception as e:
-        logger_service.error(f"Error getting report: {str(e)}")
+        logger_service.error(f"Error getting report: {e!s}")
         return None
 
 
-async def create_radiology_report_in_service(
-        report_data: Dict, radiologue_id: str, radiologue_name: str, token: str
-) -> Optional[Dict]:
+async def create_radiology_report_in_service(report_data: dict, radiologue_id: str, radiologue_name: str, token: str) -> dict | None:
     """
     Create a new radiology report in the reports service
 
@@ -590,32 +549,30 @@ async def create_radiology_report_in_service(
             response = await client.post(reports_url, json=report_data, headers=headers)
 
             if response.status_code != 201:
-                logger_service.error(
-                    f"Failed to create report: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to create report: {response.status_code} - {response.text}")
                 return None
 
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return None
     except Exception as e:
-        logger_service.error(f"Error creating report: {str(e)}")
+        logger_service.error(f"Error creating report: {e!s}")
         return None
 
 
 @router.get(
     "/api/radiologues",
-    response_model=List[RadiologueInDB],
+    response_model=list[RadiologueInDB],
     responses={401: {"model": ErrorResponse}},
 )
 async def get_radiologues(
-        skip: int = 0,
-        limit: int = 10,
-        name: Optional[str] = None,
-        specialty: Optional[str] = None,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    skip: int = 0,
+    limit: int = 10,
+    name: str | None = None,
+    specialty: str | None = None,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """List radiologists, optionally filtered by name or specialty"""
     try:
@@ -652,9 +609,7 @@ async def get_radiologues(
         return result
     except Exception as e:
         logger_service.error(f"Error retrieving radiologists: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve radiologists: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve radiologists: {e!s}")
 
 
 @router.get(
@@ -663,8 +618,8 @@ async def get_radiologues(
     responses={404: {"model": ErrorResponse}},
 )
 async def get_radiologue_by_id(
-        radiologue_id: str,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    radiologue_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Get a radiologist by ID"""
     try:
@@ -687,9 +642,7 @@ async def get_radiologue_by_id(
         raise
     except Exception as e:
         logger_service.error(f"Error retrieving radiologist: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve radiologist: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve radiologist: {e!s}")
 
 
 @router.post(
@@ -697,9 +650,7 @@ async def get_radiologue_by_id(
     response_model=VerifyRadiologueResponse,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def verify_radiologue(
-        request: VerifyRadiologueRequest, user_info: Dict = Depends(get_current_radiologist)
-):
+async def verify_radiologue(request: VerifyRadiologueRequest, user_info: dict = Depends(get_current_radiologist)):
     """Verify a radiologist's identity using document image"""
     try:
         user_id = user_info.get("user_id")
@@ -756,9 +707,7 @@ async def verify_radiologue(
 
             await update_user_attributes(user_id, attributes, token)
 
-            return VerifyRadiologueResponse(
-                verified=True, message="Name verification successful"
-            )
+            return VerifyRadiologueResponse(verified=True, message="Name verification successful")
         else:
             return VerifyRadiologueResponse(
                 verified=False,
@@ -772,8 +721,8 @@ async def verify_radiologue(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Verification error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Verification failed: {str(e)}")
+        logger_service.error(f"Verification error: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Verification failed: {e!s}")
 
 
 @router.post(
@@ -814,11 +763,11 @@ async def scan_visit_card(request: ScanVisitCardRequest):
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def ajouter_rapport(
-        patient_name: str = Body(...),
-        exam_type: str = Body(...),
-        report_type: str = Body(...),
-        content: str = Body(...),
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    patient_name: str = Body(...),
+    exam_type: str = Body(...),
+    report_type: str = Body(...),
+    content: str = Body(...),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Create a new radiology report with basic information"""
     try:
@@ -844,9 +793,7 @@ async def ajouter_rapport(
         }
 
         # Create report using reports service
-        new_report = await create_radiology_report_in_service(
-            report_data, radiologue_id, radiologue_name, token
-        )
+        new_report = await create_radiology_report_in_service(report_data, radiologue_id, radiologue_name, token)
 
         if not new_report:
             raise HTTPException(status_code=500, detail="Failed to create report")
@@ -870,17 +817,15 @@ async def ajouter_rapport(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error creating report: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create report: {str(e)}"
-        )
+        logger_service.error(f"Error creating report: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to create report: {e!s}")
 
 
-@router.get("/api/rapports", response_model=List[Dict])
+@router.get("/api/rapports", response_model=list[dict])
 async def afficher_rapports(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-        page: int = Query(1, ge=1),
-        limit: int = Query(50, ge=1, le=100),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
 ):
     """Récupère tous les rapports triés par date descendante en utilisant le service de rapports."""
     try:
@@ -913,9 +858,7 @@ async def afficher_rapports(
 
     except Exception as e:
         logger_service.error(f"Erreur lors de la récupération des rapports: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Une erreur est survenue: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Une erreur est survenue: {e!s}")
 
 
 @router.get("/api/generate-pdf")
@@ -933,9 +876,7 @@ async def generate_pdf():
     pdf.output(pdf_file)
 
     # Return the file
-    return FileResponse(
-        path=pdf_file, filename="rapport.pdf", media_type="application/pdf"
-    )
+    return FileResponse(path=pdf_file, filename="rapport.pdf", media_type="application/pdf")
 
 
 @router.get(
@@ -944,12 +885,12 @@ async def generate_pdf():
     responses={500: {"model": ErrorResponse}},
 )
 async def get_radiology_reports(
-        doctor_id: Optional[str] = None,
-        patient_id: Optional[str] = None,
-        status: Optional[str] = None,
-        page: int = Query(1, ge=1),
-        limit: int = Query(10, ge=1, le=100),
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    doctor_id: str | None = None,
+    patient_id: str | None = None,
+    status: str | None = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Get radiology reports with filtering options"""
     try:
@@ -969,10 +910,8 @@ async def get_radiology_reports(
         return reports
 
     except Exception as e:
-        logger_service.error(f"Error retrieving radiology reports: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve radiology reports: {str(e)}"
-        )
+        logger_service.error(f"Error retrieving radiology reports: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve radiology reports: {e!s}")
 
 
 @router.get(
@@ -981,8 +920,8 @@ async def get_radiology_reports(
     responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def get_radiology_report(
-        report_id: str,
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    report_id: str,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
     """Get a specific radiology report by ID"""
     try:
@@ -1000,10 +939,8 @@ async def get_radiology_report(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error retrieving radiology report: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to retrieve radiology report: {str(e)}"
-        )
+        logger_service.error(f"Error retrieving radiology report: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve radiology report: {e!s}")
 
 
 @router.post(
@@ -1013,8 +950,8 @@ async def get_radiology_report(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def create_radiology_report(
-        request: RadiologyReportRequest,
-        user_info: Dict = Depends(get_current_radiologist),
+    request: RadiologyReportRequest,
+    user_info: dict = Depends(get_current_radiologist),
 ):
     """Create a new radiology report"""
     try:
@@ -1043,9 +980,7 @@ async def create_radiology_report(
 
         # Create report using reports service
         radiologue_name = radiologue_data.get("name", "Unknown Radiologist")
-        created_report = await create_radiology_report_in_service(
-            report_data, radiologue_id, radiologue_name, token
-        )
+        created_report = await create_radiology_report_in_service(report_data, radiologue_id, radiologue_name, token)
 
         if not created_report:
             raise HTTPException(status_code=500, detail="Failed to create report")
@@ -1070,10 +1005,8 @@ async def create_radiology_report(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error creating radiology report: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to create radiology report: {str(e)}"
-        )
+        logger_service.error(f"Error creating radiology report: {e!s}")
+        raise HTTPException(status_code=500, detail=f"Failed to create radiology report: {e!s}")
 
 
 # Extraction helper functions
@@ -1130,9 +1063,7 @@ def extract_specialty(text):
                 return line.strip()
 
         # Look for patterns that might indicate a specialty
-        specialty_match = re.search(
-            r"(?:Specialist|Consultant)\s+in\s+([A-Za-z\s]+)", line
-        )
+        specialty_match = re.search(r"(?:Specialist|Consultant)\s+in\s+([A-Za-z\s]+)", line)
         if specialty_match:
             return specialty_match.group(1).strip()
     return ""

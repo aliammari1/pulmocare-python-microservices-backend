@@ -87,9 +87,7 @@ class LoggerService:
             if Config.LOG_FORMAT.lower() == "json":
                 formatter = JsonFormatter()
             else:
-                formatter = logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
             try:
                 # Create log directory if it doesn't exist
@@ -106,9 +104,7 @@ class LoggerService:
                 cls._instance.logger.addHandler(file_handler)
 
             except Exception as e:
-                print(
-                    f"Failed to create file handler: {str(e)}. Using console logging only."
-                )
+                print(f"Failed to create file handler: {e!s}. Using console logging only.")
 
             # Console Handler
             console_handler = logging.StreamHandler()
@@ -137,7 +133,7 @@ class LoggerService:
         except ImportError:
             self.logger.warning("OpenTelemetry logging instrumentation not available")
         except Exception as e:
-            self.logger.warning(f"Failed to set up OpenTelemetry logging: {str(e)}")
+            self.logger.warning(f"Failed to set up OpenTelemetry logging: {e!s}")
 
     def debug(self, message, **kwargs):
         """Log a debug message"""

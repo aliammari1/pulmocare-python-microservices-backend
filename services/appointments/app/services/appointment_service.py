@@ -1,26 +1,25 @@
 from datetime import datetime, timedelta
-from typing import Dict, Optional, List, Any
+from typing import Any
 
 import httpx
-from bson.objectid import ObjectId
+from pymongo import ReturnDocument
+
+from config import Config
 from models.appointment import (
     Appointment,
     AppointmentCreate,
-    AppointmentUpdate,
+    AppointmentNotification,
     AppointmentStatus,
+    AppointmentUpdate,
+    ProviderSchedule,
     ProviderType,
     TimeSlot,
-    ProviderSchedule,
-    AppointmentNotification,
 )
-from pymongo import ReturnDocument
 from services.logger_service import logger_service
 from services.medecin_service import MedecinService
 from services.mongodb_client import MongoDBClient
 from services.patient_service import PatientService
 from services.rabbitmq_client import RabbitMQClient
-
-from config import Config
 
 
 class AppointmentService:
@@ -44,9 +43,7 @@ class AppointmentService:
         self.db = self.mongodb_client.db
         self.appointments_collection = self.mongodb_client.appointments_collection
 
-    async def create_appointment(
-            self, appointment_data: AppointmentCreate, current_user: dict
-    ) -> Appointment:
+    async def create_appointment(self, appointment_data: AppointmentCreate, current_user: dict) -> Appointment:
         """
         Create a new appointment
         """
@@ -65,29 +62,19 @@ class AppointmentService:
                 if auth_token:
                     auth_header = f"Bearer {auth_token}"
                     # Log for debugging
-                    logger_service.info(
-                        f"Using auth token (first 10 chars): {auth_token[:10]}..."
-                    )
+                    logger_service.info(f"Using auth token (first 10 chars): {auth_token[:10]}...")
                 else:
-                    logger_service.warning(
-                        f"No auth token found in current_user: {current_user.keys()}"
-                    )
+                    logger_service.warning(f"No auth token found in current_user: {current_user.keys()}")
 
             # Validate that the provider exists
-            provider_exists = await self.medecin_service.get_doctor_by_id(
-                appointment_data.provider_id, auth_header
-            )
+            provider_exists = await self.medecin_service.get_doctor_by_id(appointment_data.provider_id, auth_header)
             logger_service.info(f"Provider exists: {provider_exists}")
             if not provider_exists:
-                logger_service.error(
-                    f"Provider {appointment_data.provider_id} not found"
-                )
+                logger_service.error(f"Provider {appointment_data.provider_id} not found")
                 raise Exception(f"Provider {appointment_data.provider_id} not found")
 
             # Validate that the patient exists
-            patient_exists = await self.patient_service.verify_patient_exists(
-                appointment_data.patient_id, auth_header
-            )
+            patient_exists = await self.patient_service.verify_patient_exists(appointment_data.patient_id, auth_header)
             if not patient_exists:
                 logger_service.error(f"Patient {appointment_data.patient_id} not found")
                 raise Exception(f"Patient {appointment_data.patient_id} not found")
@@ -144,27 +131,23 @@ class AppointmentService:
                     auth_header=auth_header,
                 )
 
-                logger_service.info(
-                    f"Created appointment {appointment.appointment_id} for patient {appointment.patient_id}"
-                )
+                logger_service.info(f"Created appointment {appointment.appointment_id} for patient {appointment.patient_id}")
                 return appointment
             else:
                 logger_service.error("Failed to create appointment")
                 raise Exception("Failed to create appointment")
 
         except Exception as e:
-            logger_service.error(f"Error in create_appointment: {str(e)}")
+            logger_service.error(f"Error in create_appointment: {e!s}")
             raise
 
-    async def get_appointment(self, appointment_id: str) -> Optional[Appointment]:
+    async def get_appointment(self, appointment_id: str) -> Appointment | None:
         """
         Get a specific appointment by ID
         """
         try:
             # Use our MongoDB client to find the appointment
-            appointment_data = self.mongodb_client.find_appointment_by_id(
-                appointment_id
-            )
+            appointment_data = self.mongodb_client.find_appointment_by_id(appointment_id)
 
             if not appointment_data:
                 return None
@@ -172,19 +155,19 @@ class AppointmentService:
             return Appointment(**appointment_data)
 
         except Exception as e:
-            logger_service.error(f"Error in get_appointment: {str(e)}")
+            logger_service.error(f"Error in get_appointment: {e!s}")
             return None
 
     async def list_appointments(
-            self,
-            patient_id: Optional[str] = None,
-            provider_id: Optional[str] = None,
-            status: Optional[AppointmentStatus] = None,
-            start_date: Optional[datetime] = None,
-            end_date: Optional[datetime] = None,
-            page: int = 1,
-            limit: int = 10,
-    ) -> Dict[str, Any]:
+        self,
+        patient_id: str | None = None,
+        provider_id: str | None = None,
+        status: AppointmentStatus | None = None,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+        page: int = 1,
+        limit: int = 10,
+    ) -> dict[str, Any]:
         """
         List appointments with optional filters and pagination
         """
@@ -220,7 +203,7 @@ class AppointmentService:
 
             # Calculate skip and limit
             skip = (page - 1) * limit
-            paginated_appointments = appointments[skip: skip + limit]
+            paginated_appointments = appointments[skip : skip + limit]
 
             # Convert to Appointment objects
             appointment_objects = [Appointment(**doc) for doc in paginated_appointments]
@@ -237,29 +220,23 @@ class AppointmentService:
             return result
 
         except Exception as e:
-            logger_service.error(f"Error in list_appointments: {str(e)}")
+            logger_service.error(f"Error in list_appointments: {e!s}")
             return {"items": [], "total": 0, "page": page, "limit": limit, "pages": 0}
 
-    async def update_appointment(
-            self, appointment_id: str, appointment_update: AppointmentUpdate
-    ) -> Optional[Appointment]:
+    async def update_appointment(self, appointment_id: str, appointment_update: AppointmentUpdate) -> Appointment | None:
         """
         Update an existing appointment
         """
         try:
             # Get only non-None fields from the update
-            update_data = {
-                k: v for k, v in appointment_update.dict().items() if v is not None
-            }
+            update_data = {k: v for k, v in appointment_update.dict().items() if v is not None}
 
             if not update_data:
                 # No fields to update
                 return await self.get_appointment(appointment_id)
 
             # Update the appointment using our MongoDB client
-            updated_data = self.mongodb_client.update_appointment(
-                appointment_id, update_data
-            )
+            updated_data = self.mongodb_client.update_appointment(appointment_id, update_data)
 
             if not updated_data:
                 return None
@@ -268,9 +245,7 @@ class AppointmentService:
 
             # Send notification about the updated appointment if status changed
             if "status" in update_data:
-                await self._notify_appointment_status_changed(
-                    updated_appointment, update_data["status"]
-                )
+                await self._notify_appointment_status_changed(updated_appointment, update_data["status"])
 
                 # Notify doctor and patient about the status change
                 if update_data["status"] == AppointmentStatus.CONFIRMED:
@@ -314,12 +289,10 @@ class AppointmentService:
             return updated_appointment
 
         except Exception as e:
-            logger_service.error(f"Error in update_appointment: {str(e)}")
+            logger_service.error(f"Error in update_appointment: {e!s}")
             return None
 
-    async def process_appointment_request(
-            self, patient_id: str, doctor_id: str, appointment_data: Dict[str, Any]
-    ) -> str:
+    async def process_appointment_request(self, patient_id: str, doctor_id: str, appointment_data: dict[str, Any]) -> str:
         """
         Process an appointment request from a patient
         """
@@ -332,9 +305,7 @@ class AppointmentService:
             try:
                 appointment_date = datetime.fromisoformat(requested_time)
             except (ValueError, TypeError):
-                logger_service.error(
-                    f"Invalid appointment time format: {requested_time}"
-                )
+                logger_service.error(f"Invalid appointment time format: {requested_time}")
                 return None
 
             # Create a new appointment
@@ -383,21 +354,19 @@ class AppointmentService:
             # Save notification
             await self.db.notifications.insert_one(notification.dict())
 
-            logger_service.info(
-                f"Processed appointment request: {new_appointment.appointment_id}"
-            )
+            logger_service.info(f"Processed appointment request: {new_appointment.appointment_id}")
             return new_appointment.appointment_id
 
         except Exception as e:
-            logger_service.error(f"Error processing appointment request: {str(e)}")
+            logger_service.error(f"Error processing appointment request: {e!s}")
             return None
 
     async def respond_to_appointment(
-            self,
-            appointment_id: str,
-            doctor_id: str,
-            status: str,
-            message: Optional[str] = None,
+        self,
+        appointment_id: str,
+        doctor_id: str,
+        status: str,
+        message: str | None = None,
     ) -> bool:
         """
         Handle doctor's response to appointment request (accept/reject)
@@ -407,17 +376,11 @@ class AppointmentService:
             appointment = await self.get_appointment(appointment_id)
 
             if not appointment or appointment.provider_id != doctor_id:
-                logger_service.warning(
-                    f"Doctor {doctor_id} attempted to respond to appointment {appointment_id} that doesn't exist or belong to them"
-                )
+                logger_service.warning(f"Doctor {doctor_id} attempted to respond to appointment {appointment_id} that doesn't exist or belong to them")
                 return False
 
             # Update appointment status based on response
-            new_status = (
-                AppointmentStatus.CONFIRMED
-                if status.lower() == "accepted"
-                else AppointmentStatus.CANCELLED
-            )
+            new_status = AppointmentStatus.CONFIRMED if status.lower() == "accepted" else AppointmentStatus.CANCELLED
 
             # Update the appointment
             update_result = await self.db.appointments.update_one(
@@ -446,25 +409,20 @@ class AppointmentService:
                 recipient_id=patient_id,
                 recipient_type="patient",
                 notification_type=f"appointment_{status}",
-                message=f"Your appointment request has been {status}"
-                        + (f": {message}" if message else ""),
+                message=f"Your appointment request has been {status}" + (f": {message}" if message else ""),
             )
 
             # Save notification
             await self.db.notifications.insert_one(notification.dict())
 
-            logger_service.info(
-                f"Doctor {doctor_id} {status} appointment {appointment_id}"
-            )
+            logger_service.info(f"Doctor {doctor_id} {status} appointment {appointment_id}")
             return True
 
         except Exception as e:
-            logger_service.error(f"Error responding to appointment: {str(e)}")
+            logger_service.error(f"Error responding to appointment: {e!s}")
             return False
 
-    async def cancel_appointment(
-            self, appointment_id: str, cancellation_reason: Optional[str] = None
-    ) -> bool:
+    async def cancel_appointment(self, appointment_id: str, cancellation_reason: str | None = None) -> bool:
         """
         Cancel an appointment
         """
@@ -493,24 +451,22 @@ class AppointmentService:
 
             # Send cancellation notification
             cancelled_appointment = Appointment(**result)
-            await self._notify_appointment_cancelled(
-                cancelled_appointment, cancellation_reason
-            )
+            await self._notify_appointment_cancelled(cancelled_appointment, cancellation_reason)
 
             return True
 
         except Exception as e:
-            logger_service.error(f"Error in cancel_appointment: {str(e)}")
+            logger_service.error(f"Error in cancel_appointment: {e!s}")
             return False
 
     async def get_available_slots(
-            self,
-            provider_id: Optional[str] = None,
-            provider_type: Optional[ProviderType] = None,
-            start_date: datetime = None,
-            end_date: datetime = None,
-            duration_minutes: int = 30,
-    ) -> List[TimeSlot]:
+        self,
+        provider_id: str | None = None,
+        provider_type: ProviderType | None = None,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        duration_minutes: int = 30,
+    ) -> list[TimeSlot]:
         """
         Get available appointment slots for a provider or provider type
         """
@@ -531,9 +487,7 @@ class AppointmentService:
             # Get existing appointments in the date range
             appointment_query = {
                 "appointment_date": {"$gte": start_date, "$lte": end_date},
-                "status": {
-                    "$nin": [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]
-                },
+                "status": {"$nin": [AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW]},
             }
 
             if provider_id:
@@ -559,19 +513,15 @@ class AppointmentService:
             return available_slots
 
         except Exception as e:
-            logger_service.error(f"Error in get_available_slots: {str(e)}")
+            logger_service.error(f"Error in get_available_slots: {e!s}")
             return []
 
-    async def get_provider_schedule(
-            self, provider_id: str
-    ) -> Optional[ProviderSchedule]:
+    async def get_provider_schedule(self, provider_id: str) -> ProviderSchedule | None:
         """
         Get a provider's schedule configuration
         """
         try:
-            schedule_data = await self.db.provider_schedules.find_one(
-                {"provider_id": provider_id}
-            )
+            schedule_data = await self.db.provider_schedules.find_one({"provider_id": provider_id})
 
             if not schedule_data:
                 return None
@@ -579,12 +529,10 @@ class AppointmentService:
             return ProviderSchedule(**schedule_data)
 
         except Exception as e:
-            logger_service.error(f"Error in get_provider_schedule: {str(e)}")
+            logger_service.error(f"Error in get_provider_schedule: {e!s}")
             return None
 
-    async def update_provider_schedule(
-            self, provider_schedule: ProviderSchedule
-    ) -> Optional[ProviderSchedule]:
+    async def update_provider_schedule(self, provider_schedule: ProviderSchedule) -> ProviderSchedule | None:
         """
         Update a provider's schedule configuration
         """
@@ -609,7 +557,7 @@ class AppointmentService:
             return ProviderSchedule(**result)
 
         except Exception as e:
-            logger_service.error(f"Error in update_provider_schedule: {str(e)}")
+            logger_service.error(f"Error in update_provider_schedule: {e!s}")
             return None
 
     async def create_appointment_reminder(self, appointment_id: str) -> bool:
@@ -679,17 +627,17 @@ class AppointmentService:
             return True
 
         except Exception as e:
-            logger_service.error(f"Error creating appointment reminder: {str(e)}")
+            logger_service.error(f"Error creating appointment reminder: {e!s}")
             return False
 
     async def _generate_available_slots(
-            self,
-            provider_schedules: List[ProviderSchedule],
-            existing_appointments: List[Appointment],
-            start_date: datetime,
-            end_date: datetime,
-            duration_minutes: int,
-    ) -> List[TimeSlot]:
+        self,
+        provider_schedules: list[ProviderSchedule],
+        existing_appointments: list[Appointment],
+        start_date: datetime,
+        end_date: datetime,
+        duration_minutes: int,
+    ) -> list[TimeSlot]:
         """
         Generate available time slots based on schedules and existing appointments
         """
@@ -718,16 +666,9 @@ class AppointmentService:
                     # Check for breaks
                     break_start = None
                     break_end = None
-                    if (
-                            work_hours.break_start is not None
-                            and work_hours.break_end is not None
-                    ):
-                        break_start = current_date.replace(
-                            hour=work_hours.break_start, minute=0
-                        )
-                        break_end = current_date.replace(
-                            hour=work_hours.break_end, minute=0
-                        )
+                    if work_hours.break_start is not None and work_hours.break_end is not None:
+                        break_start = current_date.replace(hour=work_hours.break_start, minute=0)
+                        break_end = current_date.replace(hour=work_hours.break_end, minute=0)
 
                     # Generate slots
                     slot_time = day_start
@@ -735,23 +676,11 @@ class AppointmentService:
                         slot_end = slot_time + timedelta(minutes=duration_minutes)
 
                         # Skip slots during break time
-                        if (
-                                break_start is None
-                                or slot_time >= break_end
-                                or slot_end <= break_start
-                        ):
+                        if break_start is None or slot_time >= break_end or slot_end <= break_start:
                             # Check if slot overlaps with existing appointments
                             slot_available = True
                             for appt in existing_appointments:
-                                if (
-                                        appt.provider_id == provider_id
-                                        and appt.appointment_date
-                                        <= slot_time
-                                        < (
-                                        appt.appointment_date
-                                        + timedelta(minutes=appt.duration_minutes)
-                                )
-                                ):
+                                if appt.provider_id == provider_id and appt.appointment_date <= slot_time < (appt.appointment_date + timedelta(minutes=appt.duration_minutes)):
                                     slot_available = False
                                     break
 
@@ -779,9 +708,7 @@ class AppointmentService:
         Send notifications about a new appointment
         """
         try:
-            logger_service.info(
-                f"Sending notification for new appointment {appointment.appointment_id}"
-            )
+            logger_service.info(f"Sending notification for new appointment {appointment.appointment_id}")
 
             # Notify about the new appointment
             self.rabbitmq_client.notify_appointment_created(
@@ -797,20 +724,14 @@ class AppointmentService:
             )
 
         except Exception as e:
-            logger_service.error(
-                f"Error sending appointment creation notification: {str(e)}"
-            )
+            logger_service.error(f"Error sending appointment creation notification: {e!s}")
 
-    async def _notify_appointment_status_changed(
-            self, appointment: Appointment, new_status: AppointmentStatus
-    ) -> None:
+    async def _notify_appointment_status_changed(self, appointment: Appointment, new_status: AppointmentStatus) -> None:
         """
         Send notifications about an appointment status change
         """
         try:
-            logger_service.info(
-                f"Sending notification for appointment {appointment.appointment_id} status change to {new_status}"
-            )
+            logger_service.info(f"Sending notification for appointment {appointment.appointment_id} status change to {new_status}")
 
             # Notify about the status change
             self.rabbitmq_client.notify_appointment_status_change(
@@ -821,20 +742,14 @@ class AppointmentService:
             )
 
         except Exception as e:
-            logger_service.error(
-                f"Error sending appointment status change notification: {str(e)}"
-            )
+            logger_service.error(f"Error sending appointment status change notification: {e!s}")
 
-    async def _notify_appointment_cancelled(
-            self, appointment: Appointment, reason: Optional[str] = None
-    ) -> None:
+    async def _notify_appointment_cancelled(self, appointment: Appointment, reason: str | None = None) -> None:
         """
         Send notifications about a cancelled appointment
         """
         try:
-            logger_service.info(
-                f"Sending notification for cancelled appointment {appointment.appointment_id}"
-            )
+            logger_service.info(f"Sending notification for cancelled appointment {appointment.appointment_id}")
 
             # Prepare appointment data
             appointment_data = {
@@ -850,29 +765,21 @@ class AppointmentService:
             self.rabbitmq_client.notify_appointment_cancelled(appointment_data, reason)
 
         except Exception as e:
-            logger_service.error(
-                f"Error sending appointment cancellation notification: {str(e)}"
-            )
+            logger_service.error(f"Error sending appointment cancellation notification: {e!s}")
 
-    async def find_appointments_by_patient(self, patient_id: str) -> List[Appointment]:
+    async def find_appointments_by_patient(self, patient_id: str) -> list[Appointment]:
         """
         Find all appointments for a specific patient
         """
         try:
             # Check if patient exists
-            patient_exists = await self.patient_service.verify_patient_exists(
-                patient_id
-            )
+            patient_exists = await self.patient_service.verify_patient_exists(patient_id)
             if not patient_exists:
-                logger_service.warning(
-                    f"Patient {patient_id} not found when looking for appointments"
-                )
+                logger_service.warning(f"Patient {patient_id} not found when looking for appointments")
                 return []
 
             # Use MongoDB client to find appointments by patient
-            appointments_data = self.mongodb_client.find_appointments_by_patient(
-                patient_id
-            )
+            appointments_data = self.mongodb_client.find_appointments_by_patient(patient_id)
 
             # Convert to Appointment objects
             appointments = [Appointment(**doc) for doc in appointments_data]
@@ -880,14 +787,10 @@ class AppointmentService:
             return appointments
 
         except Exception as e:
-            logger_service.error(
-                f"Error finding appointments for patient {patient_id}: {str(e)}"
-            )
+            logger_service.error(f"Error finding appointments for patient {patient_id}: {e!s}")
             return []
 
-    async def find_appointments_by_provider(
-            self, provider_id: str
-    ) -> List[Appointment]:
+    async def find_appointments_by_provider(self, provider_id: str) -> list[Appointment]:
         """
         Find all appointments for a specific provider (doctor)
         """
@@ -895,15 +798,11 @@ class AppointmentService:
             # Check if provider exists
             provider_info = await self.medecin_service.get_doctor_by_id(provider_id)
             if not provider_info:
-                logger_service.warning(
-                    f"Provider {provider_id} not found when looking for appointments"
-                )
+                logger_service.warning(f"Provider {provider_id} not found when looking for appointments")
                 return []
 
             # Use MongoDB client to find appointments by provider
-            appointments_data = self.mongodb_client.find_appointments_by_provider(
-                provider_id
-            )
+            appointments_data = self.mongodb_client.find_appointments_by_provider(provider_id)
 
             # Convert to Appointment objects
             appointments = [Appointment(**doc) for doc in appointments_data]
@@ -911,9 +810,7 @@ class AppointmentService:
             return appointments
 
         except Exception as e:
-            logger_service.error(
-                f"Error finding appointments for provider {provider_id}: {str(e)}"
-            )
+            logger_service.error(f"Error finding appointments for provider {provider_id}: {e!s}")
             return []
 
     async def close(self):
@@ -924,4 +821,4 @@ class AppointmentService:
             await self.client.aclose()
             self.mongodb_client.close()
         except Exception as e:
-            logger_service.error(f"Error closing connections: {str(e)}")
+            logger_service.error(f"Error closing connections: {e!s}")

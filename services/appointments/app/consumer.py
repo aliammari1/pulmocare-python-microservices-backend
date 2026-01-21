@@ -1,9 +1,8 @@
 import asyncio
 import json
-from typing import Dict, Any
+from typing import Any
 
 import aio_pika
-import pika
 
 from config import Config
 from models.appointment import AppointmentStatus
@@ -36,25 +35,17 @@ class AppointmentConsumer:
             connection_string = f"amqp://{self.config.RABBITMQ_USER}:{self.config.RABBITMQ_PASS}@{self.config.RABBITMQ_HOST}:{self.config.RABBITMQ_PORT}/{self.config.RABBITMQ_VHOST}"
 
             # Connect using aio_pika
-            self.connection = await aio_pika.connect_robust(
-                connection_string, heartbeat=600
-            )
+            self.connection = await aio_pika.connect_robust(connection_string, heartbeat=600)
 
             # Create channel
             self.channel = await self.connection.channel()
 
             # Ensure exchanges exist
-            await self.channel.declare_exchange(
-                name="medical.appointments", type="topic", durable=True
-            )
+            await self.channel.declare_exchange(name="medical.appointments", type="topic", durable=True)
 
-            await self.channel.declare_exchange(
-                name="medical.notifications", type="topic", durable=True
-            )
+            await self.channel.declare_exchange(name="medical.notifications", type="topic", durable=True)
 
-            await self.channel.declare_exchange(
-                name="medical.events", type="topic", durable=True
-            )
+            await self.channel.declare_exchange(name="medical.events", type="topic", durable=True)
 
             # Create and bind queues
             await self._setup_queues()
@@ -62,7 +53,7 @@ class AppointmentConsumer:
             logger_service.info("Connected to RabbitMQ and setup queues")
 
         except Exception as e:
-            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            logger_service.error(f"Failed to connect to RabbitMQ: {e!s}")
             raise
 
     async def _setup_queues(self):
@@ -72,9 +63,7 @@ class AppointmentConsumer:
 
         await self.channel.declare_queue(name="appointment.responses", durable=True)
 
-        await self.channel.declare_queue(
-            name="appointment.status.updates", durable=True
-        )
+        await self.channel.declare_queue(name="appointment.status.updates", durable=True)
 
         await self.channel.declare_queue(name="appointment.reminders", durable=True)
 
@@ -136,9 +125,7 @@ class AppointmentConsumer:
 
             if handler:
                 await handler(data)
-                logger_service.info(
-                    f"Successfully processed message with routing key: {routing_key}"
-                )
+                logger_service.info(f"Successfully processed message with routing key: {routing_key}")
             else:
                 logger_service.warning(f"No handler for routing key: {routing_key}")
 
@@ -151,7 +138,7 @@ class AppointmentConsumer:
             await message.reject(requeue=False)
 
         except Exception as e:
-            logger_service.error(f"Error processing message: {str(e)}")
+            logger_service.error(f"Error processing message: {e!s}")
             # Negative acknowledgment, requeue for retry
             await message.nack(requeue=True)
 
@@ -173,7 +160,7 @@ class AppointmentConsumer:
         logger_service.info("Stopped consuming messages and closed connections")
 
     # Message handlers
-    async def _handle_appointment_request(self, message: Dict[str, Any]):
+    async def _handle_appointment_request(self, message: dict[str, Any]):
         """Handle appointment creation request messages"""
         try:
             logger_service.info(f"Processing appointment request: {message}")
@@ -195,17 +182,15 @@ class AppointmentConsumer:
             )
 
             if appointment_id:
-                logger_service.info(
-                    f"Created appointment {appointment_id} from request"
-                )
+                logger_service.info(f"Created appointment {appointment_id} from request")
             else:
                 logger_service.error("Failed to create appointment from request")
 
         except Exception as e:
-            logger_service.error(f"Error processing appointment request: {str(e)}")
+            logger_service.error(f"Error processing appointment request: {e!s}")
             raise
 
-    async def _handle_appointment_response(self, message: Dict[str, Any]):
+    async def _handle_appointment_response(self, message: dict[str, Any]):
         """Handle doctor responses to appointment requests (accept/reject)"""
         try:
             logger_service.info(f"Processing appointment response: {message}")
@@ -229,19 +214,15 @@ class AppointmentConsumer:
             )
 
             if result:
-                logger_service.info(
-                    f"Processed {status} response for appointment {appointment_id}"
-                )
+                logger_service.info(f"Processed {status} response for appointment {appointment_id}")
             else:
-                logger_service.error(
-                    f"Failed to process {status} response for appointment {appointment_id}"
-                )
+                logger_service.error(f"Failed to process {status} response for appointment {appointment_id}")
 
         except Exception as e:
-            logger_service.error(f"Error processing appointment response: {str(e)}")
+            logger_service.error(f"Error processing appointment response: {e!s}")
             raise
 
-    async def _handle_appointment_status_update(self, message: Dict[str, Any]):
+    async def _handle_appointment_status_update(self, message: dict[str, Any]):
         """Handle appointment status updates"""
         try:
             logger_service.info(f"Processing appointment status update: {message}")
@@ -267,19 +248,15 @@ class AppointmentConsumer:
             )
 
             if result:
-                logger_service.info(
-                    f"Updated status for appointment {appointment_id} to {new_status}"
-                )
+                logger_service.info(f"Updated status for appointment {appointment_id} to {new_status}")
             else:
-                logger_service.error(
-                    f"Failed to update status for appointment {appointment_id}"
-                )
+                logger_service.error(f"Failed to update status for appointment {appointment_id}")
 
         except Exception as e:
-            logger_service.error(f"Error processing status update: {str(e)}")
+            logger_service.error(f"Error processing status update: {e!s}")
             raise
 
-    async def _handle_appointment_cancelled(self, message: Dict[str, Any]):
+    async def _handle_appointment_cancelled(self, message: dict[str, Any]):
         """Handle appointment cancellation messages"""
         try:
             logger_service.info(f"Processing appointment cancellation: {message}")
@@ -293,9 +270,7 @@ class AppointmentConsumer:
                 return
 
             # Cancel the appointment
-            result = await self.appointment_service.cancel_appointment(
-                appointment_id=appointment_id, cancellation_reason=reason
-            )
+            result = await self.appointment_service.cancel_appointment(appointment_id=appointment_id, cancellation_reason=reason)
 
             if result:
                 logger_service.info(f"Cancelled appointment {appointment_id}")
@@ -303,10 +278,10 @@ class AppointmentConsumer:
                 logger_service.error(f"Failed to cancel appointment {appointment_id}")
 
         except Exception as e:
-            logger_service.error(f"Error processing appointment cancellation: {str(e)}")
+            logger_service.error(f"Error processing appointment cancellation: {e!s}")
             raise
 
-    async def _handle_appointment_reminder(self, message: Dict[str, Any]):
+    async def _handle_appointment_reminder(self, message: dict[str, Any]):
         """Handle appointment reminder messages"""
         try:
             logger_service.info(f"Processing appointment reminder: {message}")
@@ -319,22 +294,18 @@ class AppointmentConsumer:
                 return
 
             # Create and send a reminder
-            result = await self.appointment_service.create_appointment_reminder(
-                appointment_id
-            )
+            result = await self.appointment_service.create_appointment_reminder(appointment_id)
 
             if result:
                 logger_service.info(f"Sent reminder for appointment {appointment_id}")
             else:
-                logger_service.error(
-                    f"Failed to send reminder for appointment {appointment_id}"
-                )
+                logger_service.error(f"Failed to send reminder for appointment {appointment_id}")
 
         except Exception as e:
-            logger_service.error(f"Error processing appointment reminder: {str(e)}")
+            logger_service.error(f"Error processing appointment reminder: {e!s}")
             raise
 
-    async def _handle_provider_schedule_updated(self, message: Dict[str, Any]):
+    async def _handle_provider_schedule_updated(self, message: dict[str, Any]):
         """Handle provider schedule update messages"""
         try:
             logger_service.info(f"Processing provider schedule update: {message}")
@@ -350,7 +321,7 @@ class AppointmentConsumer:
             logger_service.info(f"Updated schedule for provider {provider_id}")
 
         except Exception as e:
-            logger_service.error(f"Error processing provider schedule update: {str(e)}")
+            logger_service.error(f"Error processing provider schedule update: {e!s}")
             raise
 
 

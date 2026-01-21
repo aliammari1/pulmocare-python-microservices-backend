@@ -1,18 +1,17 @@
 from datetime import datetime
-from typing import Dict, Optional
 
 import httpx
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from config import Config
 from models.api_models import ErrorResponse, MessageResponse
 from models.ordonnance import OrdonnanceCreate
 from services.logger_service import logger_service
 from services.mongodb_client import MongoDBClient
 from services.pdf_service import generate_ordonnance_pdf
 from services.rabbitmq_client import RabbitMQClient
-
-from config import Config
 
 router = APIRouter(prefix="/api/integration", tags=["Integration"])
 security = HTTPBearer()
@@ -29,8 +28,8 @@ http_client = httpx.AsyncClient(timeout=10.0)
 
 
 async def get_current_doctor(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current doctor information directly from auth service
 
@@ -53,9 +52,7 @@ async def get_current_doctor(
             response = await client.post(auth_url, headers=headers, json=body)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to verify token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to verify token: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token",
@@ -79,7 +76,7 @@ async def get_current_doctor(
             return user_info
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -87,7 +84,7 @@ async def get_current_doctor(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        logger_service.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
@@ -96,13 +93,11 @@ async def get_current_doctor(
 
 @router.post(
     "/create-prescription",
-    response_model=Dict[str, str],
+    response_model=dict[str, str],
     status_code=status.HTTP_201_CREATED,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def create_prescription(
-        prescription: OrdonnanceCreate, user_info: Dict = Depends(get_current_doctor)
-):
+async def create_prescription(prescription: OrdonnanceCreate, user_info: dict = Depends(get_current_doctor)):
     """Create a new prescription and notify relevant services"""
     try:
         doctor_id = user_info.get("user_id")
@@ -133,9 +128,7 @@ async def create_prescription(
         )
 
         # Update with PDF path
-        ordonnances_collection.update_one(
-            {"_id": result.inserted_id}, {"$set": {"pdf_path": pdf_path}}
-        )
+        ordonnances_collection.update_one({"_id": result.inserted_id}, {"$set": {"pdf_path": pdf_path}})
 
         # Notify about prescription creation
         rabbitmq_client.notify_prescription_created(
@@ -158,7 +151,7 @@ async def create_prescription(
 
     except Exception as e:
         logger_service.error(f"Error creating prescription: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.post(
@@ -167,10 +160,10 @@ async def create_prescription(
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
 async def update_prescription_status(
-        prescription_id: str,
-        status: str,
-        pharmacy_id: Optional[str] = None,
-        user_info: Dict = Depends(get_current_doctor),
+    prescription_id: str,
+    status: str,
+    pharmacy_id: str | None = None,
+    user_info: dict = Depends(get_current_doctor),
 ):
     """Update prescription status and notify relevant services"""
     try:
@@ -193,9 +186,7 @@ async def update_prescription_status(
 
         # Notify about status update
         if status == "dispensed":
-            rabbitmq_client.notify_prescription_dispensed(
-                prescription_id=prescription_id, pharmacy_id=pharmacy_id
-            )
+            rabbitmq_client.notify_prescription_dispensed(prescription_id=prescription_id, pharmacy_id=pharmacy_id)
 
             # Notify the doctor
             rabbitmq_client.notify_doctor_prescription(
@@ -217,23 +208,19 @@ async def update_prescription_status(
         raise
     except Exception as e:
         logger_service.error(f"Error updating prescription status: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
     "/doctor-prescriptions",
     responses={500: {"model": ErrorResponse}},
 )
-async def get_doctor_prescriptions(user_info: Dict = Depends(get_current_doctor)):
+async def get_doctor_prescriptions(user_info: dict = Depends(get_current_doctor)):
     """Get prescriptions created by a doctor"""
     try:
         doctor_id = user_info.get("user_id")
 
-        prescriptions = list(
-            ordonnances_collection.find({"medecin_id": doctor_id}).sort(
-                "date_creation", -1
-            )
-        )
+        prescriptions = list(ordonnances_collection.find({"medecin_id": doctor_id}).sort("date_creation", -1))
 
         # Format the response
         formatted_prescriptions = []
@@ -255,4 +242,4 @@ async def get_doctor_prescriptions(user_info: Dict = Depends(get_current_doctor)
 
     except Exception as e:
         logger_service.error(f"Error retrieving doctor prescriptions: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")

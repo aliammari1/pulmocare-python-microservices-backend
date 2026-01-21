@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any
 
 from pydantic import BaseModel, EmailStr
 
@@ -14,12 +14,12 @@ class LoginResponse(BaseModel):
     name: str
     email: EmailStr
     specialty: str
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    profile_picture: Optional[str] = None
-    is_verified: Optional[bool] = False
-    verification_details: Optional[Dict[str, Any]] = None
-    signature: Optional[str] = None
+    phone: str | None = None
+    address: str | None = None
+    profile_picture: str | None = None
+    is_verified: bool | None = False
+    verification_details: dict[str, Any] | None = None
+    signature: str | None = None
 
 
 class TokenRefreshRequest(BaseModel):
@@ -37,7 +37,7 @@ class SignupRequest(BaseModel):
     email: EmailStr
     specialty: str
     phone: str
-    address: Optional[str] = None
+    address: str | None = None
     password: str
 
 

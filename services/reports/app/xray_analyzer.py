@@ -45,7 +45,7 @@ class XRayAnalyzer:
             return analysis_results
 
         except Exception as e:
-            logger_service.error(f"Error analyzing image: {str(e)}")
+            logger_service.error(f"Error analyzing image: {e!s}")
             raise
 
     def _generate_findings(self, image_stats):
@@ -91,21 +91,9 @@ class XRayAnalyzer:
         ]
 
         # Determine image quality metrics
-        contrast_quality = (
-            "poor"
-            if image_stats["contrast"] < 50
-            else "good" if image_stats["contrast"] > 100 else "average"
-        )
-        sharpness_quality = (
-            "poor"
-            if image_stats["sharpness"] < 100
-            else "good" if image_stats["sharpness"] > 500 else "average"
-        )
-        exposure_quality = (
-            "underexposed"
-            if image_stats["mean"] < 80
-            else "overexposed" if image_stats["mean"] > 180 else "good"
-        )
+        contrast_quality = "poor" if image_stats["contrast"] < 50 else "good" if image_stats["contrast"] > 100 else "average"
+        sharpness_quality = "poor" if image_stats["sharpness"] < 100 else "good" if image_stats["sharpness"] > 500 else "average"
+        exposure_quality = "underexposed" if image_stats["mean"] < 80 else "overexposed" if image_stats["mean"] > 180 else "good"
 
         # Calculate overall quality score
         quality_scores = {
@@ -116,17 +104,11 @@ class XRayAnalyzer:
             "overexposed": 0,
         }
 
-        quality_score = (
-                quality_scores[contrast_quality] + quality_scores[sharpness_quality]
-        )
+        quality_score = quality_scores[contrast_quality] + quality_scores[sharpness_quality]
         if exposure_quality == "good":
             quality_score += 2
 
-        overall_quality = (
-            "poor"
-            if quality_score <= 2
-            else "good" if quality_score >= 5 else "average"
-        )
+        overall_quality = "poor" if quality_score <= 2 else "good" if quality_score >= 5 else "average"
 
         # Select random findings (1-3)
         num_findings = random.randint(1, 3)
@@ -146,9 +128,7 @@ class XRayAnalyzer:
         if risk_level == "high":
             follow_up = "Immediate clinical evaluation and treatment recommended."
         elif risk_level == "moderate":
-            follow_up = (
-                "Follow-up imaging in 1-2 weeks and clinical correlation advised."
-            )
+            follow_up = "Follow-up imaging in 1-2 weeks and clinical correlation advised."
         else:
             follow_up = "Routine follow-up recommended if symptoms persist."
 

@@ -1,17 +1,15 @@
-from typing import Dict
-
 import httpx
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from services.logger_service import LoggerService
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from config import Config
+from services.logger_service import LoggerService
 
 logger = LoggerService()
 security = HTTPBearer()
 
 
-async def get_authenticated_user_from_auth_service(token: str) -> Dict:
+async def get_authenticated_user_from_auth_service(token: str) -> dict:
     """
     Get current user information directly from auth service without role requirement
 
@@ -36,9 +34,7 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
             response = await client.post(auth_url, headers=headers, json=body)
 
             if response.status_code != 200:
-                logger.error(
-                    f"Auth service error: {response.status_code} - {response.text}"
-                )
+                logger.error(f"Auth service error: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=response.status_code,
                     detail="Authentication failed",
@@ -49,7 +45,7 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
             return user_info
 
     except httpx.RequestError as e:
-        logger.error(f"Error connecting to auth service: {str(e)}")
+        logger.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=503,
             detail="Authentication service unavailable",
@@ -57,7 +53,7 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Unexpected error during authentication: {str(e)}")
+        logger.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=500,
             detail="Authentication error",
@@ -65,8 +61,8 @@ async def get_authenticated_user_from_auth_service(token: str) -> Dict:
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current user information from auth service
 

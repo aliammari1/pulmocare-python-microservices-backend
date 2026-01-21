@@ -1,18 +1,18 @@
-from typing import Dict
+from typing import Annotated
 
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from services.logger_service import logger_service
 
 from config import Config
+from services.logger_service import logger_service
 
 # Security scheme for Swagger UI
 security = HTTPBearer()
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
 ):
     """
     Get the current authenticated user from the token.
@@ -39,9 +39,7 @@ async def get_current_user(
 
             # Raise exception for non-200 responses
             if response.status_code != 200:
-                logger_service.error(
-                    f"Auth service error: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Auth service error: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication credentials",
@@ -62,29 +60,27 @@ async def get_current_user(
         token_data["token"] = token
         # Also add the raw Authorization header format for services that expect it
         token_data["authorization"] = f"Bearer {token}"
-        logger_service.info(
-            f"User authenticated with roles: {token_data.get('roles', [])}"
-        )
+        logger_service.info(f"User authenticated with roles: {token_data.get('roles', [])}")
         return token_data
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
-        )
+        ) from e
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Authentication error: {str(e)}")
+        logger_service.error(f"Authentication error: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication error: {str(e)}",
+            detail=f"Authentication error: {e!s}",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from e
 
 
-async def get_current_doctor(user_info: Dict = Depends(get_current_user)):
+async def get_current_doctor(user_info: Annotated[dict, Depends(get_current_user)]):
     """
     FastAPI dependency for checking if the user has the doctor role.
 
@@ -106,7 +102,7 @@ async def get_current_doctor(user_info: Dict = Depends(get_current_user)):
     return user_info
 
 
-async def get_current_patient(user_info: Dict = Depends(get_current_user)):
+async def get_current_patient(user_info: Annotated[dict, Depends(get_current_user)]):
     """
     FastAPI dependency for checking if the user has the patient role.
 
@@ -129,7 +125,7 @@ async def get_current_patient(user_info: Dict = Depends(get_current_user)):
     return user_info
 
 
-async def get_current_admin(user_info: Dict = Depends(get_current_user)):
+async def get_current_admin(user_info: Annotated[dict, Depends(get_current_user)]):
     """
     FastAPI dependency for checking if the user has the admin role.
 

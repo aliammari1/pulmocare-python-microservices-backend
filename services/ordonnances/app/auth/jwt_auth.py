@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-from typing import Dict, Optional
 
 import jwt
 from fastapi import HTTPException, Security, status
@@ -10,7 +9,7 @@ from config import Config
 security = HTTPBearer()
 
 
-def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     """Create JWT token with given data and expiration"""
     to_encode = data.copy()
 
@@ -28,8 +27,8 @@ def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -
 
 
 async def get_current_user(
-        credentials: HTTPAuthorizationCredentials = Security(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Security(security),
+) -> dict:
     """Validate JWT token and extract user information"""
     try:
         token = credentials.credentials
@@ -55,6 +54,6 @@ async def get_current_user(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Authentication error: {str(e)}",
+            detail=f"Authentication error: {e!s}",
             headers={"WWW-Authenticate": "Bearer"},
         )

@@ -1,23 +1,24 @@
 import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
 from medrax.llava.constants import (
-    DEFAULT_IMAGE_PATCH_TOKEN,
-    DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_PATCH_TOKEN,
 )
 from medrax.llava.model import LlavaMistralForCausalLM
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 
 
 def load_pretrained_model(
-        model_path,
-        model_base,
-        model_name,
-        load_in_8bit=False,
-        load_in_4bit=True,
-        device="cuda",
-        cache_dir: str = "./model-weights",
-        low_cpu_mem_usage=True,
-        torch_dtype=torch.bfloat16,
+    model_path,
+    model_base,
+    model_name,
+    load_in_8bit=False,
+    load_in_4bit=True,
+    device="cuda",
+    cache_dir: str = "./model-weights",
+    low_cpu_mem_usage=True,
+    torch_dtype=torch.bfloat16,
 ):
     kwargs = {}
 
@@ -52,53 +53,52 @@ def load_pretrained_model(
                 **kwargs,
             )
 
-    else:
-        # Load language model
-        if model_base is not None:
-            # PEFT model
-            from peft import PeftModel
+    # Load language model
+    elif model_base is not None:
+        # PEFT model
+        from peft import PeftModel
 
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_base, use_fast=False, cache_dir=cache_dir
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            model_base,
+            low_cpu_mem_usage=True,
+            cache_dir=cache_dir,
+            torch_dtype=torch_dtype,
+            **kwargs,
+        )
+        print(f"Loading LoRA weights from {model_path}")
+        model = PeftModel.from_pretrained(model, model_path)
+        print("Merging weights")
+        model = model.merge_and_unload()
+        print("Convert to FP16...")
+        model.to(torch_dtype)
+    else:
+        use_fast = False
+        if "mpt" in model_name.lower():
             tokenizer = AutoTokenizer.from_pretrained(
-                model_base, use_fast=False, cache_dir=cache_dir
+                model_path, use_fast=True, cache_dir=cache_dir
             )
             model = AutoModelForCausalLM.from_pretrained(
-                model_base,
+                model_path,
+                low_cpu_mem_usage=True,
+                trust_remote_code=True,
+                cache_dir=cache_dir,
+                torch_dtype=torch_dtype,
+                **kwargs,
+            )
+        else:
+            tokenizer = AutoTokenizer.from_pretrained(
+                model_path, use_fast=False, cache_dir=cache_dir
+            )
+            model = AutoModelForCausalLM.from_pretrained(
+                model_path,
                 low_cpu_mem_usage=True,
                 cache_dir=cache_dir,
                 torch_dtype=torch_dtype,
                 **kwargs,
             )
-            print(f"Loading LoRA weights from {model_path}")
-            model = PeftModel.from_pretrained(model, model_path)
-            print("Merging weights")
-            model = model.merge_and_unload()
-            print("Convert to FP16...")
-            model.to(torch_dtype)
-        else:
-            use_fast = False
-            if "mpt" in model_name.lower():
-                tokenizer = AutoTokenizer.from_pretrained(
-                    model_path, use_fast=True, cache_dir=cache_dir
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    low_cpu_mem_usage=True,
-                    trust_remote_code=True,
-                    cache_dir=cache_dir,
-                    torch_dtype=torch_dtype,
-                    **kwargs,
-                )
-            else:
-                tokenizer = AutoTokenizer.from_pretrained(
-                    model_path, use_fast=False, cache_dir=cache_dir
-                )
-                model = AutoModelForCausalLM.from_pretrained(
-                    model_path,
-                    low_cpu_mem_usage=True,
-                    cache_dir=cache_dir,
-                    torch_dtype=torch_dtype,
-                    **kwargs,
-                )
 
     image_processor = None
 

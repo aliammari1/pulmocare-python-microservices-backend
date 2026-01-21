@@ -1,6 +1,3 @@
-from typing import Dict, Optional
-
-import bcrypt
 from pydantic import BaseModel, EmailStr
 
 
@@ -20,15 +17,15 @@ class DoctorBase(BaseModel):
     specialty: str
     phone: str
     address: str
-    profile_picture: Optional[str] = None
-    is_verified: Optional[bool] = False
-    verification_details: Optional[Dict] = None
-    signature: Optional[str] = None
-    bio: Optional[str] = None
-    license_number: Optional[str] = None
-    hospital: Optional[str] = None
-    education: Optional[str] = None
-    experience: Optional[str] = None
+    profile_picture: str | None = None
+    is_verified: bool | None = False
+    verification_details: dict | None = None
+    signature: str | None = None
+    bio: str | None = None
+    license_number: str | None = None
+    hospital: str | None = None
+    education: str | None = None
+    experience: str | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -39,16 +36,16 @@ class DoctorCreate(DoctorBase):
 
 
 class DoctorUpdate(BaseModel):
-    name: Optional[str] = None
-    specialty: Optional[str] = None
-    phone: Optional[str] = None
-    address: Optional[str] = None
-    profile_picture: Optional[str] = None
-    bio: Optional[str] = None
-    license_number: Optional[str] = None
-    hospital: Optional[str] = None
-    education: Optional[str] = None
-    experience: Optional[str] = None
+    name: str | None = None
+    specialty: str | None = None
+    phone: str | None = None
+    address: str | None = None
+    profile_picture: str | None = None
+    bio: str | None = None
+    license_number: str | None = None
+    hospital: str | None = None
+    education: str | None = None
+    experience: str | None = None
 
     class Config:
         arbitrary_types_allowed = True
@@ -56,7 +53,7 @@ class DoctorUpdate(BaseModel):
 
 class DoctorInDB(DoctorBase):
     id: str
-    password_hash: Optional[bytes] = None
+    password_hash: bytes | None = None
 
     class Config:
         from_attributes = True
@@ -134,37 +131,17 @@ class Doctor:
             _id=user_data.get("id"),
             name=f"{user_data.get('firstName', '')} {user_data.get('lastName', '')}".strip(),
             email=user_data.get("email", ""),
-            specialty=(
-                attributes.get("specialty", [""])[0]
-                if isinstance(attributes.get("specialty", []), list)
-                else attributes.get("specialty", "")
-            ),
-            phone=(
-                attributes.get("phone", [""])[0]
-                if isinstance(attributes.get("phone", []), list)
-                else attributes.get("phone", "")
-            ),
-            address=(
-                attributes.get("address", [""])[0]
-                if isinstance(attributes.get("address", []), list)
-                else attributes.get("address", "")
-            ),
+            specialty=(attributes.get("specialty", [""])[0] if isinstance(attributes.get("specialty", []), list) else attributes.get("specialty", "")),
+            phone=(attributes.get("phone", [""])[0] if isinstance(attributes.get("phone", []), list) else attributes.get("phone", "")),
+            address=(attributes.get("address", [""])[0] if isinstance(attributes.get("address", []), list) else attributes.get("address", "")),
         )
 
         # Add profile_picture if available
         if "profile_picture" in attributes:
-            doctor.profile_picture = (
-                attributes["profile_picture"][0]
-                if isinstance(attributes["profile_picture"], list)
-                else attributes["profile_picture"]
-            )
+            doctor.profile_picture = attributes["profile_picture"][0] if isinstance(attributes["profile_picture"], list) else attributes["profile_picture"]
 
         # Add verification status if available
-        doctor.is_verified = (
-            attributes.get("is_verified", ["false"])[0] == "true"
-            if isinstance(attributes.get("is_verified", []), list)
-            else attributes.get("is_verified", "false") == "true"
-        )
+        doctor.is_verified = attributes.get("is_verified", ["false"])[0] == "true" if isinstance(attributes.get("is_verified", []), list) else attributes.get("is_verified", "false") == "true"
 
         # Add verification details if available
         if "verification_details" in attributes:
@@ -176,51 +153,27 @@ class Doctor:
 
         # Add signature if available
         if "signature" in attributes:
-            doctor.signature = (
-                attributes["signature"][0]
-                if isinstance(attributes["signature"], list)
-                else attributes["signature"]
-            )
+            doctor.signature = attributes["signature"][0] if isinstance(attributes["signature"], list) else attributes["signature"]
 
         # Add bio if available
         if "bio" in attributes:
-            doctor.bio = (
-                attributes["bio"][0]
-                if isinstance(attributes["bio"], list)
-                else attributes["bio"]
-            )
+            doctor.bio = attributes["bio"][0] if isinstance(attributes["bio"], list) else attributes["bio"]
 
         # Add license_number if available
         if "license_number" in attributes:
-            doctor.license_number = (
-                attributes["license_number"][0]
-                if isinstance(attributes["license_number"], list)
-                else attributes["license_number"]
-            )
+            doctor.license_number = attributes["license_number"][0] if isinstance(attributes["license_number"], list) else attributes["license_number"]
 
         # Add hospital if available
         if "hospital" in attributes:
-            doctor.hospital = (
-                attributes["hospital"][0]
-                if isinstance(attributes["hospital"], list)
-                else attributes["hospital"]
-            )
+            doctor.hospital = attributes["hospital"][0] if isinstance(attributes["hospital"], list) else attributes["hospital"]
 
         # Add education if available
         if "education" in attributes:
-            doctor.education = (
-                attributes["education"][0]
-                if isinstance(attributes["education"], list)
-                else attributes["education"]
-            )
+            doctor.education = attributes["education"][0] if isinstance(attributes["education"], list) else attributes["education"]
 
         # Add experience if available
         if "experience" in attributes:
-            doctor.experience = (
-                attributes["experience"][0]
-                if isinstance(attributes["experience"], list)
-                else attributes["experience"]
-            )
+            doctor.experience = attributes["experience"][0] if isinstance(attributes["experience"], list) else attributes["experience"]
 
         return doctor
 

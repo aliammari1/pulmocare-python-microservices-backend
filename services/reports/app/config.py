@@ -39,9 +39,7 @@ class Config:
     MONGODB_MIN_POOL_SIZE = int(os.getenv("MONGODB_MIN_POOL_SIZE"))
     MONGODB_MAX_IDLE_TIME_MS = int(os.getenv("MONGODB_MAX_IDLE_TIME_MS"))
     MONGODB_CONNECT_TIMEOUT_MS = int(os.getenv("MONGODB_CONNECT_TIMEOUT_MS"))
-    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(
-        os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS")
-    )
+    MONGODB_SERVER_SELECTION_TIMEOUT_MS = int(os.getenv("MONGODB_SERVER_SELECTION_TIMEOUT_MS"))
 
     # Redis settings
     REDIS_HOST = os.getenv("REDIS_HOST")
@@ -78,17 +76,11 @@ class Config:
     # Tracing settings
     OTEL_EXPORTER_OTLP_ENDPOINT = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     OTEL_SERVICE_NAME = SERVICE_NAME
-    OTEL_DISABLE_ON_ERROR = (
-            ENV == "development"
-    )  # Disable tracing if collector is unavailable in dev
+    OTEL_DISABLE_ON_ERROR = ENV == "development"  # Disable tracing if collector is unavailable in dev
 
     # Circuit Breaker settings
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(
-        os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD")
-    )
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(
-        os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT")
-    )
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD = int(os.getenv("CIRCUIT_BREAKER_FAILURE_THRESHOLD"))
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT = int(os.getenv("CIRCUIT_BREAKER_RECOVERY_TIMEOUT"))
 
     # Health Check settings
     HEALTH_CHECK_INTERVAL = os.getenv("HEALTH_CHECK_INTERVAL")
@@ -134,9 +126,7 @@ class Config:
         """Get MongoDB connection URI with proper handling of special characters in password"""
         username = urllib.parse.quote_plus(cls.MONGODB_USERNAME)
         password = urllib.parse.quote_plus(cls.MONGODB_PASSWORD)
-        return (
-            f"mongodb://{username}:{password}@" f"{cls.MONGODB_HOST}:{cls.MONGODB_PORT}"
-        )
+        return f"mongodb://{username}:{password}@{cls.MONGODB_HOST}:{cls.MONGODB_PORT}"
 
     @classmethod
     def get_mongodb_validation_schema(cls):
@@ -164,9 +154,7 @@ class Config:
                                     ],
                                     "properties": {
                                         "condition": {"bsonType": "string"},
-                                        "severity": {
-                                            "enum": ["mild", "moderate", "severe"]
-                                        },
+                                        "severity": {"enum": ["mild", "moderate", "severe"]},
                                         "description": {"bsonType": "string"},
                                         "confidence_score": {"bsonType": "double"},
                                         "probability": {"bsonType": "double"},
@@ -225,9 +213,7 @@ class Config:
             "RABBITMQ_HOST",
         ]
 
-        missing = [
-            setting for setting in required_settings if not getattr(cls, setting, None)
-        ]
+        missing = [setting for setting in required_settings if not getattr(cls, setting, None)]
 
         if missing:
             raise ValueError(f"Missing required configuration: {', '.join(missing)}")

@@ -1,22 +1,21 @@
 import json
-from typing import Dict, List
 
 
 def load_eurorad_dataset(
-        dataset_path: str,
-        section: str = "any",
-        as_dict: bool = False,
-        filter_by_caption: List[str] = [
-            "xray",
-            "x-ray",
-            "x ray",
-            "ray",
-            "xr",
-            "radiograph",
-            "radiogram",
-            "plain film",
-        ],
-) -> List[Dict] | Dict[str, Dict]:
+    dataset_path: str,
+    section: str = "any",
+    as_dict: bool = False,
+    filter_by_caption: list[str] = [
+        "xray",
+        "x-ray",
+        "x ray",
+        "ray",
+        "xr",
+        "radiograph",
+        "radiogram",
+        "plain film",
+    ],
+) -> list[dict] | dict[str, dict]:
     """
     Load a dataset from a JSON file.
 
@@ -34,16 +33,16 @@ def load_eurorad_dataset(
         json.JSONDecodeError: If file is not valid JSON
     """
 
-    with open(dataset_path, "r", encoding="utf-8") as file:
+    with open(dataset_path, encoding="utf-8") as file:
         data = json.load(file)
 
     if filter_by_caption:
         filtered_data = {}
         for case_id, case in data.items():
             if any(
-                    any(x in subfig["caption"].lower() for x in filter_by_caption)
-                    for figure in case["figures"]
-                    for subfig in figure["subfigures"]
+                any(x in subfig["caption"].lower() for x in filter_by_caption)
+                for figure in case["figures"]
+                for subfig in figure["subfigures"]
             ) or any(x in case["image_finding"].lower() for x in filter_by_caption):
                 filtered_data[case_id] = case
         data = filtered_data
@@ -69,7 +68,7 @@ def load_eurorad_dataset(
     return data
 
 
-def save_dataset(dataset: Dict | List[Dict], dataset_path: str):
+def save_dataset(dataset: dict | list[dict], dataset_path: str):
     """
     Save a dataset to a JSON file.
 

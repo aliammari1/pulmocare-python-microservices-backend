@@ -4,6 +4,7 @@ import os
 import sys
 
 import requests
+
 from medrax.llava.constants import LOGDIR
 
 server_error_msg = (
@@ -60,7 +61,7 @@ def build_logger(logger_name, logger_filename):
     return logger
 
 
-class StreamToLogger(object):
+class StreamToLogger:
     """
     Fake file-like stream object that redirects writes to a logger instance.
     """
@@ -100,8 +101,8 @@ def disable_torch_init():
     """
     import torch
 
-    setattr(torch.nn.Linear, "reset_parameters", lambda self: None)
-    setattr(torch.nn.LayerNorm, "reset_parameters", lambda self: None)
+    torch.nn.Linear.reset_parameters = lambda self: None
+    torch.nn.LayerNorm.reset_parameters = lambda self: None
 
 
 def violates_moderation(text):

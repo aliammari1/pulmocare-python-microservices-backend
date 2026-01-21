@@ -3,7 +3,7 @@ import json
 import random
 import re
 from collections import defaultdict
-from typing import List, Dict, Any, Tuple
+from typing import Any
 
 # Define category order
 CATEGORY_ORDER = [
@@ -56,7 +56,7 @@ def extract_letter_answer(answer: str) -> str:
     return answer.strip().upper()
 
 
-def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
+def parse_json_lines(file_path: str) -> tuple[str, list[dict[str, Any]]]:
     """Parse JSON Lines file and extract valid predictions.
 
     Args:
@@ -72,20 +72,20 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
 
     # First try to parse as LLaVA format
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             data = json.load(f)
             if data.get("model") == "llava-med-v1.5-mistral-7b":
                 model_name = data["model"]
                 for result in data.get("results", []):
                     if all(
-                            k in result
-                            for k in ["case_id", "question_id", "correct_answer"]
+                        k in result
+                        for k in ["case_id", "question_id", "correct_answer"]
                     ):
                         # Extract answer with priority: model_answer > validated_answer > raw_output
                         model_answer = (
-                                result.get("model_answer")
-                                or result.get("validated_answer")
-                                or result.get("raw_output", "")
+                            result.get("model_answer")
+                            or result.get("validated_answer")
+                            or result.get("raw_output", "")
                         )
 
                         # Add default categories for LLaVA results
@@ -116,7 +116,7 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
         pass
 
     # If not LLaVA format, process as original format
-    with open(file_path, "r", encoding="utf-8") as f:
+    with open(file_path, encoding="utf-8") as f:
         for line in f:
             if line.startswith("HTTP Request:"):
                 continue
@@ -125,13 +125,13 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
                 if "model" in data:
                     model_name = data["model"]
                 if all(
-                        k in data
-                        for k in [
-                            "model_answer",
-                            "correct_answer",
-                            "case_id",
-                            "question_id",
-                        ]
+                    k in data
+                    for k in [
+                        "model_answer",
+                        "correct_answer",
+                        "case_id",
+                        "question_id",
+                    ]
                 ):
                     valid_predictions.append(data)
             except json.JSONDecodeError:
@@ -141,8 +141,8 @@ def parse_json_lines(file_path: str) -> Tuple[str, List[Dict[str, Any]]]:
 
 
 def filter_common_questions(
-        predictions_list: List[List[Dict[str, Any]]],
-) -> List[List[Dict[str, Any]]]:
+    predictions_list: list[list[dict[str, Any]]],
+) -> list[list[dict[str, Any]]]:
     """Ensure only questions that exist across all models are evaluated.
 
     Args:
@@ -164,8 +164,8 @@ def filter_common_questions(
 
 
 def calculate_accuracy(
-        predictions: List[Dict[str, Any]],
-) -> Tuple[float, int, int, Dict[str, Dict[str, float]]]:
+    predictions: list[dict[str, Any]],
+) -> tuple[float, int, int, dict[str, dict[str, float]]]:
     """Compute overall and category-level accuracy.
 
     Args:
@@ -243,7 +243,7 @@ def calculate_accuracy(
     )
 
 
-def compare_models(file_paths: List[str]) -> None:
+def compare_models(file_paths: list[str]) -> None:
     """Compare accuracy between multiple model prediction files.
 
     Args:
@@ -254,7 +254,7 @@ def compare_models(file_paths: List[str]) -> None:
     model_names, predictions_list = zip(*parsed_results)
 
     # Get initial stats
-    print(f"\n📊 **Initial Accuracy**:")
+    print("\n📊 **Initial Accuracy**:")
     results = []
     category_results = []
 
@@ -271,7 +271,7 @@ def compare_models(file_paths: List[str]) -> None:
     )
 
     # Compute accuracy on common questions
-    print(f"\n📊 **Accuracy on Common Questions**:")
+    print("\n📊 **Accuracy on Common Questions**:")
     filtered_results = []
     filtered_category_results = []
 

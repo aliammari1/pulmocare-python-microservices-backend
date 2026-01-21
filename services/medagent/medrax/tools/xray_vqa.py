@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Type, Any
+from typing import Any
 
 import torch
 import transformers
@@ -15,7 +15,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 class XRayVQAToolInput(BaseModel):
     """Input schema for the CheXagent Tool."""
 
-    image_paths: List[str] = Field(
+    image_paths: list[str] = Field(
         ..., description="List of paths to chest X-ray images to analyze"
     )
     prompt: str = Field(
@@ -37,21 +37,21 @@ class XRayVQATool(BaseTool):
         "and clinical interpretation. Input should be paths to X-ray images "
         "and a natural language prompt describing the analysis needed."
     )
-    args_schema: Type[BaseModel] = XRayVQAToolInput
+    args_schema: type[BaseModel] = XRayVQAToolInput
     return_direct: bool = True
-    cache_dir: Optional[str] = None
-    device: Optional[str] = None
+    cache_dir: str | None = None
+    device: str | None = None
     dtype: torch.dtype = torch.bfloat16
-    tokenizer: Optional[AutoTokenizer] = None
-    model: Optional[AutoModelForCausalLM] = None
+    tokenizer: AutoTokenizer | None = None
+    model: AutoModelForCausalLM | None = None
 
     def __init__(
-            self,
-            model_name: str = "StanfordAIMI/CheXagent-2-3b",
-            device: Optional[str] = "cuda",
-            dtype: torch.dtype = torch.bfloat16,
-            cache_dir: Optional[str] = None,
-            **kwargs: Any,
+        self,
+        model_name: str = "StanfordAIMI/CheXagent-2-3b",
+        device: str | None = "cuda",
+        dtype: torch.dtype = torch.bfloat16,
+        cache_dir: str | None = None,
+        **kwargs: Any,
     ) -> None:
         """Initialize the XRayVQATool.
 
@@ -65,7 +65,6 @@ class XRayVQATool(BaseTool):
         super().__init__(**kwargs)
 
         # Dangerous code, but works for now
-        import transformers
 
         original_transformers_version = transformers.__version__
         transformers.__version__ = "4.40.0"
@@ -92,7 +91,7 @@ class XRayVQATool(BaseTool):
         transformers.__version__ = original_transformers_version
 
     def _generate_response(
-            self, image_paths: List[str], prompt: str, max_new_tokens: int
+        self, image_paths: list[str], prompt: str, max_new_tokens: int
     ) -> str:
         """Generate response using CheXagent model.
 
@@ -125,17 +124,17 @@ class XRayVQATool(BaseTool):
                 use_cache=True,
                 max_new_tokens=max_new_tokens,
             )[0]
-            response = self.tokenizer.decode(output[input_ids.size(1): -1])
+            response = self.tokenizer.decode(output[input_ids.size(1) : -1])
 
             return response
 
     def _run(
-            self,
-            image_paths: List[str],
-            prompt: str,
-            max_new_tokens: int = 512,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, Any], Dict]:
+        self,
+        image_paths: list[str],
+        prompt: str,
+        max_new_tokens: int = 512,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, Any], dict]:
         """Execute the chest X-ray analysis.
 
         Args:
@@ -180,11 +179,11 @@ class XRayVQATool(BaseTool):
             return output, metadata
 
     async def _arun(
-            self,
-            image_paths: List[str],
-            prompt: str,
-            max_new_tokens: int = 512,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, Any], Dict]:
+        self,
+        image_paths: list[str],
+        prompt: str,
+        max_new_tokens: int = 512,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, Any], dict]:
         """Async version of _run."""
         return self._run(image_paths, prompt, max_new_tokens)

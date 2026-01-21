@@ -1,7 +1,7 @@
 import json
 import socket
 import time
-from typing import Any, Dict
+from typing import Any
 
 import pika
 
@@ -33,9 +33,7 @@ class MessageBroker:
     def _setup_connection(self):
         """Set up connection to RabbitMQ"""
         try:
-            credentials = pika.PlainCredentials(
-                self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS
-            )
+            credentials = pika.PlainCredentials(self.config.RABBITMQ_USER, self.config.RABBITMQ_PASS)
             parameters = pika.ConnectionParameters(
                 host=self.config.RABBITMQ_HOST,
                 port=self.config.RABBITMQ_PORT,
@@ -49,17 +47,11 @@ class MessageBroker:
             self.channel = self.connection.channel()
 
             # Declare exchanges for inter-service communication
-            self.channel.exchange_declare(
-                exchange="medical.events", exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.events", exchange_type="topic", durable=True)
 
-            self.channel.exchange_declare(
-                exchange="medical.commands", exchange_type="direct", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.commands", exchange_type="direct", durable=True)
 
-            self.channel.exchange_declare(
-                exchange="medical.reports", exchange_type="topic", durable=True
-            )
+            self.channel.exchange_declare(exchange="medical.reports", exchange_type="topic", durable=True)
 
             # Declare queues for reports service
             self.channel.queue_declare(queue="reports.processing", durable=True)
@@ -88,12 +80,12 @@ class MessageBroker:
             logger_service.info("Successfully connected to RabbitMQ")
 
         except Exception as e:
-            logger_service.error(f"Failed to connect to RabbitMQ: {str(e)}")
+            logger_service.error(f"Failed to connect to RabbitMQ: {e!s}")
             if not self.config.RABBITMQ_IGNORE_CONNECTION_ERRORS:
                 raise
 
     @track_rabbitmq_metrics
-    def publish_message(self, exchange: str, routing_key: str, message: Dict[str, Any]):
+    def publish_message(self, exchange: str, routing_key: str, message: dict[str, Any]):
         """Publish a message to RabbitMQ with circuit breaker protection"""
         try:
 
@@ -106,9 +98,7 @@ class MessageBroker:
                     try:
                         update_queue_metrics(self.channel, f"{exchange}.{routing_key}")
                     except Exception as metrics_error:
-                        logger_service.warning(
-                            f"Error updating metrics: {str(metrics_error)}"
-                        )
+                        logger_service.warning(f"Error updating metrics: {metrics_error!s}")
 
                 # Convert message to JSON and publish
                 message_body = json.dumps(message)
@@ -132,7 +122,7 @@ class MessageBroker:
             return self.circuit_breaker.call(_publish)
 
         except Exception as e:
-            logger_service.error(f"Failed to publish message: {str(e)}")
+            logger_service.error(f"Failed to publish message: {e!s}")
             track_dependency_status("rabbitmq", False)
             raise
 
@@ -149,7 +139,7 @@ class MessageBroker:
             self.channel.start_consuming()
 
         except Exception as e:
-            logger_service.error(f"Error setting up consumer: {str(e)}")
+            logger_service.error(f"Error setting up consumer: {e!s}")
             raise
 
     def close(self):

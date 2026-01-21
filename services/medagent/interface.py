@@ -2,8 +2,8 @@ import base64
 import re
 import shutil
 import time
+from collections.abc import AsyncGenerator
 from pathlib import Path
-from typing import AsyncGenerator, List, Optional, Tuple
 
 import gradio as gr
 from gradio import ChatMessage
@@ -66,8 +66,8 @@ class ChatInterface:
         return self.display_file_path
 
     def add_message(
-            self, message: str, display_image: str, history: List[dict]
-    ) -> Tuple[List[dict], gr.Textbox]:
+        self, message: str, display_image: str, history: list[dict]
+    ) -> tuple[list[dict], gr.Textbox]:
         """
         Add a new message to the chat history.
 
@@ -87,11 +87,11 @@ class ChatInterface:
         return history, gr.Textbox(value=message, interactive=False)
 
     async def process_message(
-            self,
-            message: str,
-            display_image: Optional[str],
-            chat_history: List[ChatMessage],
-    ) -> AsyncGenerator[Tuple[List[ChatMessage], Optional[str], str], None]:
+        self,
+        message: str,
+        display_image: str | None,
+        chat_history: list[ChatMessage],
+    ) -> AsyncGenerator[tuple[list[ChatMessage], str | None, str], None]:
         """
         Process a message and generate responses.
 
@@ -141,8 +141,8 @@ class ChatInterface:
 
         try:
             for event in self.agent.workflow.stream(
-                    {"messages": messages},
-                    {"configurable": {"thread_id": self.current_thread_id}},
+                {"messages": messages},
+                {"configurable": {"thread_id": self.current_thread_id}},
             ):
                 if isinstance(event, dict):
                     if "process" in event:
@@ -191,7 +191,7 @@ class ChatInterface:
             chat_history.append(
                 ChatMessage(
                     role="assistant",
-                    content=f"❌ Error: {str(e)}",
+                    content=f"❌ Error: {e!s}",
                     metadata={"title": "Error"},
                 )
             )

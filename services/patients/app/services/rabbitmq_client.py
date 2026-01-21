@@ -3,11 +3,12 @@ import os
 import threading
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any
 
 import pika
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exchange_type import ExchangeType
+
 from services.logger_service import logger_service
 
 
@@ -104,9 +105,7 @@ class RabbitMQClient:
             return self.connect()
         return self.channel
 
-    def publish_message(
-            self, exchange: str, routing_key: str, message: Dict[str, Any]
-    ) -> bool:
+    def publish_message(self, exchange: str, routing_key: str, message: dict[str, Any]) -> bool:
         """
         Publish a message to RabbitMQ.
 
@@ -135,9 +134,7 @@ class RabbitMQClient:
                 ),
             )
 
-            logger_service.info(
-                f"Published message to exchange={exchange}, routing_key={routing_key}"
-            )
+            logger_service.info(f"Published message to exchange={exchange}, routing_key={routing_key}")
             return True
 
         except Exception as e:
@@ -158,19 +155,13 @@ class RabbitMQClient:
                     ),
                 )
 
-                logger_service.info(
-                    f"Successfully republished message after reconnect to {exchange}, routing_key={routing_key}"
-                )
+                logger_service.info(f"Successfully republished message after reconnect to {exchange}, routing_key={routing_key}")
                 return True
             except Exception as retry_error:
-                logger_service.error(
-                    f"Failed to republish message after reconnect: {retry_error}"
-                )
+                logger_service.error(f"Failed to republish message after reconnect: {retry_error}")
                 return False
 
-    def publish_patient_update(
-            self, patient_id: str, update_type: str, data: Dict[str, Any]
-    ) -> bool:
+    def publish_patient_update(self, patient_id: str, update_type: str, data: dict[str, Any]) -> bool:
         """
         Publish a patient update message.
 
@@ -196,9 +187,7 @@ class RabbitMQClient:
             message=message,
         )
 
-    def publish_appointment_request(
-            self, patient_id: str, doctor_id: str, appointment_data: Dict
-    ) -> bool:
+    def publish_appointment_request(self, patient_id: str, doctor_id: str, appointment_data: dict) -> bool:
         """
         Publish an appointment request message.
 
@@ -333,13 +322,9 @@ class RabbitMQClient:
         """
         if self.channel and self.channel.is_open:
             self.channel.basic_reject(delivery_tag=delivery_tag, requeue=requeue)
-            logger_service.debug(
-                f"Rejected message with tag {delivery_tag}, requeue={requeue}"
-            )
+            logger_service.debug(f"Rejected message with tag {delivery_tag}, requeue={requeue}")
 
-    def request_patient_prescriptions(
-            self, patient_id: str, timeout: int = 10
-    ) -> List[Dict]:
+    def request_patient_prescriptions(self, patient_id: str, timeout: int = 10) -> list[dict]:
         """
         Request patient prescriptions from ordonnances service using RabbitMQ.
 
@@ -350,13 +335,9 @@ class RabbitMQClient:
         Returns:
             List of prescription dictionaries
         """
-        return self._request_patient_data(
-            patient_id=patient_id, data_type="prescriptions", timeout=timeout
-        )
+        return self._request_patient_data(patient_id=patient_id, data_type="prescriptions", timeout=timeout)
 
-    def request_patient_medical_records(
-            self, patient_id: str, timeout: int = 10
-    ) -> List[Dict]:
+    def request_patient_medical_records(self, patient_id: str, timeout: int = 10) -> list[dict]:
         """
         Request patient medical records from medecins service using RabbitMQ.
 
@@ -367,13 +348,9 @@ class RabbitMQClient:
         Returns:
             List of medical record dictionaries
         """
-        return self._request_patient_data(
-            patient_id=patient_id, data_type="medical_records", timeout=timeout
-        )
+        return self._request_patient_data(patient_id=patient_id, data_type="medical_records", timeout=timeout)
 
-    def request_patient_radiology_reports(
-            self, patient_id: str, timeout: int = 10
-    ) -> List[Dict]:
+    def request_patient_radiology_reports(self, patient_id: str, timeout: int = 10) -> list[dict]:
         """
         Request patient radiology reports from radiologues service using RabbitMQ.
 
@@ -384,13 +361,9 @@ class RabbitMQClient:
         Returns:
             List of radiology report dictionaries
         """
-        return self._request_patient_data(
-            patient_id=patient_id, data_type="radiology_reports", timeout=timeout
-        )
+        return self._request_patient_data(patient_id=patient_id, data_type="radiology_reports", timeout=timeout)
 
-    def _request_patient_data(
-            self, patient_id: str, data_type: str, timeout: int = 10
-    ) -> List[Dict]:
+    def _request_patient_data(self, patient_id: str, data_type: str, timeout: int = 10) -> list[dict]:
         """
         Generic method to request patient data from other services.
 
@@ -421,9 +394,7 @@ class RabbitMQClient:
 
             # Create a response queue with a unique name
             channel = self._get_channel()
-            response_queue = channel.queue_declare(
-                queue="", exclusive=True, auto_delete=True
-            )
+            response_queue = channel.queue_declare(queue="", exclusive=True, auto_delete=True)
             response_queue_name = response_queue.method.queue
 
             # Store for the response
@@ -470,14 +441,10 @@ class RabbitMQClient:
                 properties=properties,
             )
 
-            logger_service.info(
-                f"Sent request for {data_type} with correlation ID {correlation_id}"
-            )
+            logger_service.info(f"Sent request for {data_type} with correlation ID {correlation_id}")
 
             # Start a thread to consume responses (non-blocking)
-            consume_thread = threading.Thread(
-                target=lambda: channel.start_consuming(), daemon=True
-            )
+            consume_thread = threading.Thread(target=lambda: channel.start_consuming(), daemon=True)
             consume_thread.start()
 
             # Wait for the response with timeout

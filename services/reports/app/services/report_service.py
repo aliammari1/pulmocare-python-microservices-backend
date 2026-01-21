@@ -1,6 +1,5 @@
 import uuid
 from datetime import datetime
-from typing import List, Optional
 
 from services.logger_service import logger_service
 
@@ -27,7 +26,7 @@ class ReportService:
                 }
             return self.mongodb_client.find_reports(query)
         except Exception as e:
-            logger_service.error(f"Error getting reports: {str(e)}")
+            logger_service.error(f"Error getting reports: {e!s}")
             raise
 
     def get_report_by_id(self, report_id):
@@ -46,7 +45,7 @@ class ReportService:
 
             return report
         except Exception as e:
-            logger_service.error(f"Error getting report {report_id}: {str(e)}")
+            logger_service.error(f"Error getting report {report_id}: {e!s}")
             raise
 
     def get_raw_report(self, report_id):
@@ -54,7 +53,7 @@ class ReportService:
         try:
             return self.mongodb_client.find_report_by_id(report_id)
         except Exception as e:
-            logger_service.error(f"Error getting raw report {report_id}: {str(e)}")
+            logger_service.error(f"Error getting raw report {report_id}: {e!s}")
             raise
 
     def create_report(self, report_data):
@@ -68,7 +67,7 @@ class ReportService:
 
             return report
         except Exception as e:
-            logger_service.error(f"Error creating report: {str(e)}")
+            logger_service.error(f"Error creating report: {e!s}")
             raise
 
     def update_report(self, report_id, report_data):
@@ -86,7 +85,7 @@ class ReportService:
 
             return updated_report
         except Exception as e:
-            logger_service.error(f"Error updating report {report_id}: {str(e)}")
+            logger_service.error(f"Error updating report {report_id}: {e!s}")
             raise
 
     def delete_report(self, report_id):
@@ -104,7 +103,7 @@ class ReportService:
 
             return success
         except Exception as e:
-            logger_service.error(f"Error deleting report {report_id}: {str(e)}")
+            logger_service.error(f"Error deleting report {report_id}: {e!s}")
             raise
 
     def queue_report_for_analysis(self, report_id: str) -> bool:
@@ -155,10 +154,10 @@ class ReportService:
             return False
 
     def queue_summary_generation(
-            self,
-            report_ids: List[str],
-            summary_type: str,
-            requester_id: Optional[str] = None,
+        self,
+        report_ids: list[str],
+        summary_type: str,
+        requester_id: str | None = None,
     ) -> str:
         """Queue a summary generation job"""
         try:

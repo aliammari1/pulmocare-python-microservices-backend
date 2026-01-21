@@ -3,14 +3,14 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 class Patient:
     def __init__(
-            self,
-            id=None,
-            name=None,
-            email=None,
-            phone=None,
-            password=None,
-            date_of_birth=None,
-            medical_history=None,
+        self,
+        id=None,
+        name=None,
+        email=None,
+        phone=None,
+        password=None,
+        date_of_birth=None,
+        medical_history=None,
     ):
         self.id = id
         self.name = name

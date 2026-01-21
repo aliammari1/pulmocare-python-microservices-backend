@@ -1,17 +1,12 @@
-from typing import Dict, Optional
-import httpx
-
 from datetime import datetime
-from typing import Dict, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from models.api_models import ErrorResponse
-from models.api_models import RadiologyReportResponse
-from services.logger_service import logger_service
 
 from config import Config
+from models.api_models import ErrorResponse, RadiologyReportResponse
+from services.logger_service import logger_service
 
 # Create HTTPBearer instance
 security = HTTPBearer()
@@ -32,8 +27,8 @@ rabbitmq_client = RabbitMQClient(Config)
 
 # Authentication service client functions
 async def get_current_radiologist(
-        credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> Dict:
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> dict:
     """
     Get current radiologist information from auth service
 
@@ -54,9 +49,7 @@ async def get_current_radiologist(
             response = await client.post(auth_url, json=payload)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to verify token: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to verify token: {response.status_code} - {response.text}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token",
@@ -80,7 +73,7 @@ async def get_current_radiologist(
             return user_info
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -88,14 +81,14 @@ async def get_current_radiologist(
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Unexpected error during authentication: {str(e)}")
+        logger_service.error(f"Unexpected error during authentication: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Authentication error",
         )
 
 
-async def get_user_info(user_id: str, token: str = None) -> Dict:
+async def get_user_info(user_id: str, token: str = None) -> dict:
     """
     Get user information from auth service
 
@@ -116,9 +109,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
             response = await client.get(auth_url, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get user info: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get user info: {response.status_code} - {response.text}")
                 if response.status_code == 404:
                     return None
                 raise HTTPException(
@@ -128,7 +119,7 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
 
             return response.json()
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to auth service: {str(e)}")
+        logger_service.error(f"Error connecting to auth service: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication service unavailable",
@@ -136,17 +127,15 @@ async def get_user_info(user_id: str, token: str = None) -> Dict:
     except HTTPException:
         raise
     except Exception as e:
-        logger_service.error(f"Error getting user info: {str(e)}")
+        logger_service.error(f"Error getting user info: {e!s}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get user information: {str(e)}",
+            detail=f"Failed to get user information: {e!s}",
         )
 
 
 # Reports service client functions
-async def get_examination_requests_from_service(
-        status: Optional[str] = None, token: str = None
-) -> Dict:
+async def get_examination_requests_from_service(status: str | None = None, token: str = None) -> dict:
     """
     Get examination requests from the reports service
 
@@ -158,9 +147,7 @@ async def get_examination_requests_from_service(
         Dict with requests list
     """
     try:
-        reports_url = (
-            f"{Config.REPORTS_SERVICE_URL}/api/integration/examination-requests"
-        )
+        reports_url = f"{Config.REPORTS_SERVICE_URL}/api/integration/examination-requests"
 
         # Build query params
         params = {}
@@ -177,25 +164,21 @@ async def get_examination_requests_from_service(
             response = await client.get(reports_url, params=params, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to get examination requests: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to get examination requests: {response.status_code} - {response.text}")
                 # Return empty results on error
                 return {"requests": []}
 
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return {"requests": []}
     except Exception as e:
-        logger_service.error(f"Error getting examination requests: {str(e)}")
+        logger_service.error(f"Error getting examination requests: {e!s}")
         return {"requests": []}
 
 
-async def update_examination_request_in_service(
-        request_id: str, update_data: Dict, token: str
-) -> bool:
+async def update_examination_request_in_service(request_id: str, update_data: dict, token: str) -> bool:
     """
     Update examination request status in the reports service
 
@@ -215,29 +198,23 @@ async def update_examination_request_in_service(
 
         # Update request in reports service
         async with http_client as client:
-            response = await client.patch(
-                reports_url, json=update_data, headers=headers
-            )
+            response = await client.patch(reports_url, json=update_data, headers=headers)
 
             if response.status_code != 200:
-                logger_service.error(
-                    f"Failed to update examination request: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to update examination request: {response.status_code} - {response.text}")
                 return False
 
             return True
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return False
     except Exception as e:
-        logger_service.error(f"Error updating examination request: {str(e)}")
+        logger_service.error(f"Error updating examination request: {e!s}")
         return False
 
 
-async def submit_radiology_report_to_service(
-        report_data: Dict, token: str
-) -> Optional[Dict]:
+async def submit_radiology_report_to_service(report_data: dict, token: str) -> dict | None:
     """
     Submit a radiology report to the reports service
 
@@ -259,18 +236,16 @@ async def submit_radiology_report_to_service(
             response = await client.post(reports_url, json=report_data, headers=headers)
 
             if response.status_code != 201:
-                logger_service.error(
-                    f"Failed to submit report: {response.status_code} - {response.text}"
-                )
+                logger_service.error(f"Failed to submit report: {response.status_code} - {response.text}")
                 return None
 
             return response.json()
 
     except httpx.RequestError as e:
-        logger_service.error(f"Error connecting to reports service: {str(e)}")
+        logger_service.error(f"Error connecting to reports service: {e!s}")
         return None
     except Exception as e:
-        logger_service.error(f"Error submitting report: {str(e)}")
+        logger_service.error(f"Error submitting report: {e!s}")
         return None
 
 
@@ -279,9 +254,7 @@ async def submit_radiology_report_to_service(
     response_model=MessageResponse,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def accept_examination_request(
-        request_id: str, user_info: Dict = Depends(get_current_radiologist)
-):
+async def accept_examination_request(request_id: str, user_info: dict = Depends(get_current_radiologist)):
     """Accept a radiology examination request"""
     try:
         radiologue_id = user_info.get("user_id")
@@ -300,14 +273,10 @@ async def accept_examination_request(
             response = await client.get(reports_url, headers=headers)
 
             if response.status_code == 404:
-                raise HTTPException(
-                    status_code=404, detail="Examination request not found"
-                )
+                raise HTTPException(status_code=404, detail="Examination request not found")
 
             if response.status_code != 200:
-                raise HTTPException(
-                    status_code=500, detail="Failed to retrieve examination request"
-                )
+                raise HTTPException(status_code=500, detail="Failed to retrieve examination request")
 
             request = response.json()
 
@@ -318,9 +287,7 @@ async def accept_examination_request(
             "accepted_at": datetime.utcnow().isoformat(),
         }
 
-        success = await update_examination_request_in_service(
-            request_id, update_data, token
-        )
+        success = await update_examination_request_in_service(request_id, update_data, token)
 
         if success:
             # Notify doctor via RabbitMQ
@@ -339,15 +306,13 @@ async def accept_examination_request(
 
             return MessageResponse(message="Examination request accepted successfully")
         else:
-            raise HTTPException(
-                status_code=500, detail="Failed to update examination request"
-            )
+            raise HTTPException(status_code=500, detail="Failed to update examination request")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error accepting examination request: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.post(
@@ -355,9 +320,7 @@ async def accept_examination_request(
     response_model=RadiologyReportResponse,
     responses={400: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
 )
-async def submit_radiology_report(
-        report: RadiologyReportRequest, user_info: Dict = Depends(get_current_radiologist)
-):
+async def submit_radiology_report(report: RadiologyReportRequest, user_info: dict = Depends(get_current_radiologist)):
     """Submit a radiology report after examination"""
     try:
         radiologue_id = user_info.get("user_id")
@@ -378,14 +341,10 @@ async def submit_radiology_report(
             response = await client.get(reports_url, headers=headers)
 
             if response.status_code == 404:
-                raise HTTPException(
-                    status_code=404, detail="Examination request not found"
-                )
+                raise HTTPException(status_code=404, detail="Examination request not found")
 
             if response.status_code != 200:
-                raise HTTPException(
-                    status_code=500, detail="Failed to retrieve examination request"
-                )
+                raise HTTPException(status_code=500, detail="Failed to retrieve examination request")
 
             request = response.json()
 
@@ -422,9 +381,7 @@ async def submit_radiology_report(
             "report_id": report_id,
         }
 
-        await update_examination_request_in_service(
-            report.request_id, update_data, token
-        )
+        await update_examination_request_in_service(report.request_id, update_data, token)
 
         # Notify about completed examination
         rabbitmq_client.publish_examination_result(
@@ -453,24 +410,20 @@ async def submit_radiology_report(
             exam_type=request.get("exam_type"),
         )
 
-        return RadiologyReportResponse(
-            report_id=report_id, message="Report submitted successfully"
-        )
+        return RadiologyReportResponse(report_id=report_id, message="Report submitted successfully")
 
     except HTTPException:
         raise
     except Exception as e:
         logger_service.error(f"Error submitting radiology report: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")
 
 
 @router.get(
     "/examination-requests",
     responses={500: {"model": ErrorResponse}},
 )
-async def get_examination_requests(
-        status: Optional[str] = None, user_info: Dict = Depends(get_current_radiologist)
-):
+async def get_examination_requests(status: str | None = None, user_info: dict = Depends(get_current_radiologist)):
     """Get radiology examination requests"""
     try:
         token = user_info.get("token")
@@ -482,4 +435,4 @@ async def get_examination_requests(
 
     except Exception as e:
         logger_service.error(f"Error retrieving examination requests: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {e!s}")

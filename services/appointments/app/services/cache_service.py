@@ -1,6 +1,6 @@
 import fnmatch
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 
 from services.logger_service import logger_service
 
@@ -11,10 +11,10 @@ class CacheService:
     """
 
     def __init__(self):
-        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._cache: dict[str, dict[str, Any]] = {}
         logger_service.info("Cache service initialized")
 
-    def get(self, key: str) -> Optional[str]:
+    def get(self, key: str) -> str | None:
         """
         Get a value from the cache. Returns None if not found or expired.
         """
@@ -32,7 +32,7 @@ class CacheService:
         logger_service.debug(f"Cache hit for key: {key}")
         return cache_item["value"]
 
-    def set(self, key: str, value: str, ttl: Optional[int] = None) -> None:
+    def set(self, key: str, value: str, ttl: int | None = None) -> None:
         """
         Set a value in the cache with an optional TTL in seconds.
         """
@@ -66,9 +66,7 @@ class CacheService:
             count += 1
 
         if count > 0:
-            logger_service.debug(
-                f"Deleted {count} cache keys matching pattern: {pattern}"
-            )
+            logger_service.debug(f"Deleted {count} cache keys matching pattern: {pattern}")
 
         return count
 
@@ -85,18 +83,12 @@ class CacheService:
         Returns the number of items removed.
         """
         current_time = time.time()
-        expired_keys = [
-            key
-            for key, item in self._cache.items()
-            if item["expiry"] and item["expiry"] < current_time
-        ]
+        expired_keys = [key for key, item in self._cache.items() if item["expiry"] and item["expiry"] < current_time]
 
         for key in expired_keys:
             self.delete(key)
 
         if expired_keys:
-            logger_service.debug(
-                f"Cleaned up {len(expired_keys)} expired cache entries"
-            )
+            logger_service.debug(f"Cleaned up {len(expired_keys)} expired cache entries")
 
         return len(expired_keys)

@@ -6,11 +6,11 @@ import os
 import re
 import time
 from datetime import datetime
-from typing import Dict, List, Optional, Union, Any, Tuple
+from typing import Any
 
 import requests
-from PIL import Image
 from llava.conversation import conv_templates
+from PIL import Image
 from tqdm import tqdm
 
 
@@ -44,7 +44,7 @@ def process_image(image_path: str, target_size: int = 640) -> Image.Image:
     return new_image
 
 
-def validate_answer(response_text: str) -> Optional[str]:
+def validate_answer(response_text: str) -> str | None:
     """Extract and validate a single-letter response from the model's output.
     Handles multiple response formats and edge cases.
 
@@ -100,7 +100,7 @@ def validate_answer(response_text: str) -> Optional[str]:
     return None
 
 
-def load_benchmark_questions(case_id: str) -> List[str]:
+def load_benchmark_questions(case_id: str) -> list[str]:
     """Find all question files for a given case ID.
 
     Args:
@@ -113,7 +113,7 @@ def load_benchmark_questions(case_id: str) -> List[str]:
     return glob.glob(f"{benchmark_dir}/{case_id}/{case_id}_*.json")
 
 
-def count_total_questions() -> Tuple[int, int]:
+def count_total_questions() -> tuple[int, int]:
     """Count total number of cases and questions in benchmark.
 
     Returns:
@@ -128,14 +128,14 @@ def count_total_questions() -> Tuple[int, int]:
 
 
 def create_inference_request(
-        question_data: Dict[str, Any],
-        case_details: Dict[str, Any],
-        case_id: str,
-        question_id: str,
-        worker_addr: str,
-        model_name: str,
-        raw_output: bool = False,
-) -> Union[Tuple[Optional[str], Optional[float]], Dict[str, Any]]:
+    question_data: dict[str, Any],
+    case_details: dict[str, Any],
+    case_id: str,
+    question_id: str,
+    worker_addr: str,
+    model_name: str,
+    raw_output: bool = False,
+) -> tuple[str | None, float | None] | dict[str, Any]:
     """Create and send inference request to worker.
 
     Args:
@@ -156,7 +156,7 @@ def create_inference_request(
 
     prompt = f"""Given the following medical case:
 Please answer this multiple choice question:
-{question_data['question']}
+{question_data["question"]}
 Base your answer only on the provided images and case information. Respond with your SINGLE LETTER answer: """
 
     try:
@@ -198,7 +198,7 @@ Base your answer only on the provided images and case information. Respond with 
                     subfig
                     for subfig in case_figure.get("subfigures", [])
                     if subfig.get("number", "").lower().endswith(figure_letter.lower())
-                       or subfig.get("label", "").lower() == figure_letter.lower()
+                    or subfig.get("label", "").lower() == figure_letter.lower()
                 ]
             else:
                 subfigures = case_figure.get("subfigures", [])
@@ -264,7 +264,7 @@ Base your answer only on the provided images and case information. Respond with 
 
                 complete_output = ""
                 for chunk in response.iter_lines(
-                        chunk_size=8192, decode_unicode=False, delimiter=b"\0"
+                    chunk_size=8192, decode_unicode=False, delimiter=b"\0"
                 ):
                     if chunk:
                         data = json.loads(chunk.decode("utf-8"))
@@ -287,11 +287,11 @@ Base your answer only on the provided images and case information. Respond with 
             except (requests.exceptions.RequestException, json.JSONDecodeError) as e:
                 if attempt < max_retries - 1:
                     print(
-                        f"\nNetwork error: {str(e)}. Retrying in {retry_delay} seconds..."
+                        f"\nNetwork error: {e!s}. Retrying in {retry_delay} seconds..."
                     )
                     time.sleep(retry_delay)
                 else:
-                    print(f"\nFailed after {max_retries} attempts: {str(e)}")
+                    print(f"\nFailed after {max_retries} attempts: {e!s}")
                     return None, None
 
         duration = time.time() - start_time
@@ -311,11 +311,11 @@ Base your answer only on the provided images and case information. Respond with 
         return validate_answer(response_text), duration
 
     except Exception as e:
-        print(f"Error in inference request: {str(e)}")
+        print(f"Error in inference request: {e!s}")
         return None, None
 
 
-def clean_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def clean_payload(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     """Remove image-related and large data from the payload to keep the log lean.
 
     Args:
@@ -404,7 +404,7 @@ def main():
         return
 
     # Load cases with local paths
-    with open("MedMAX/data/updated_cases.json", "r") as file:
+    with open("MedMAX/data/updated_cases.json") as file:
         data = json.load(file)
 
     total_cases, total_questions = count_total_questions()
@@ -433,9 +433,9 @@ def main():
 
         cases_processed += 1
         for question_file in tqdm(
-                question_files, desc=f"Processing questions for case {case_id}", leave=False
+            question_files, desc=f"Processing questions for case {case_id}", leave=False
         ):
-            with open(question_file, "r") as file:
+            with open(question_file) as file:
                 question_data = json.load(file)
                 question_id = os.path.basename(question_file).split(".")[0]
 
@@ -544,7 +544,7 @@ def main():
     with open(final_results_filename, "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\nBenchmark Summary:")
+    print("\nBenchmark Summary:")
     print(f"Total Cases Processed: {cases_processed}")
     print(f"Total Questions Processed: {questions_processed}")
     print(f"Total Processed Entries: {total_processed_entries}")

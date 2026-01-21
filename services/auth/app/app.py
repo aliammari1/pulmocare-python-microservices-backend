@@ -36,6 +36,4 @@ app.include_router(integration_router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug"
-    )
+    uvicorn.run("app:app", host=Config.HOST, port=Config.PORT, reload=True, log_level="debug")

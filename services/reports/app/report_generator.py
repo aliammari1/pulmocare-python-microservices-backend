@@ -11,7 +11,6 @@ class ReportGenerator:
     """Service for generating PDF reports"""
 
     def __init__(self):
-
         self.temp_dir = tempfile.gettempdir()
 
     def generate_pdf(self, report):
@@ -31,7 +30,7 @@ class ReportGenerator:
             logger_service.info(f"Generated PDF report for {report_id}")
             return output_path
         except Exception as e:
-            logger_service.error(f"Error generating PDF: {str(e)}")
+            logger_service.error(f"Error generating PDF: {e!s}")
             raise
 
     def _generate_html(self, report):
@@ -103,8 +102,8 @@ class ReportGenerator:
             </div>
             
             <div class="footer">
-                <p>This is an official medical report. Report ID: {report['_id']}</p>
-                <p>Generated on {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}</p>
+                <p>This is an official medical report. Report ID: {report["_id"]}</p>
+                <p>Generated on {datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}</p>
             </div>
         </body>
         </html>

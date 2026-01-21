@@ -1,5 +1,3 @@
-from typing import Dict, Optional, Tuple, Type
-
 import skimage.io
 import torch
 import torchvision
@@ -45,13 +43,13 @@ class ChestXRayClassifierTool(BaseTool):
         "Lung Opacity, Mass, Nodule, Pleural Thickening, Pneumonia, and Pneumothorax. "
         "Higher values indicate a higher likelihood of the condition being present."
     )
-    args_schema: Type[BaseModel] = ChestXRayInput
+    args_schema: type[BaseModel] = ChestXRayInput
     model: xrv.models.DenseNet = None
-    device: Optional[str] = "cuda" if torch.cuda.is_available() else "cpu"
+    device: str | None = "cuda" if torch.cuda.is_available() else "cpu"
     transform: torchvision.transforms.Compose = None
 
     def __init__(
-            self, model_name: str = "densenet121-res224-all", device: Optional[str] = "cuda"
+        self, model_name: str = "densenet121-res224-all", device: str | None = "cuda"
     ):
         super().__init__()
         self.model = xrv.models.DenseNet(weights=model_name)
@@ -94,10 +92,10 @@ class ChestXRayClassifierTool(BaseTool):
         return img
 
     def _run(
-            self,
-            image_path: str,
-            run_manager: Optional[CallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, float], Dict]:
+        self,
+        image_path: str,
+        run_manager: CallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, float], dict]:
         """Classify the chest X-ray image for multiple pathologies.
 
         Args:
@@ -132,10 +130,10 @@ class ChestXRayClassifierTool(BaseTool):
             }
 
     async def _arun(
-            self,
-            image_path: str,
-            run_manager: Optional[AsyncCallbackManagerForToolRun] = None,
-    ) -> Tuple[Dict[str, float], Dict]:
+        self,
+        image_path: str,
+        run_manager: AsyncCallbackManagerForToolRun | None = None,
+    ) -> tuple[dict[str, float], dict]:
         """Asynchronously classify the chest X-ray image for multiple pathologies.
 
         This method currently calls the synchronous version, as the model inference

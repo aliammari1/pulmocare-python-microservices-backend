@@ -4,22 +4,23 @@ from io import BytesIO
 import requests
 import torch
 from PIL import Image
+from transformers import TextStreamer
+
 from medrax.llava.constants import (
-    IMAGE_TOKEN_INDEX,
-    DEFAULT_IMAGE_TOKEN,
-    DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_IM_START_TOKEN,
+    DEFAULT_IMAGE_TOKEN,
+    IMAGE_TOKEN_INDEX,
 )
-from medrax.llava.conversation import conv_templates, SeparatorStyle
+from medrax.llava.conversation import SeparatorStyle, conv_templates
 from medrax.llava.mm_utils import (
+    KeywordsStoppingCriteria,
+    get_model_name_from_path,
     process_images,
     tokenizer_image_token,
-    get_model_name_from_path,
-    KeywordsStoppingCriteria,
 )
 from medrax.llava.model.builder import load_pretrained_model
 from medrax.llava.utils import disable_torch_init
-from transformers import TextStreamer
 
 
 def load_image(image_file):
@@ -57,9 +58,7 @@ def main(args):
 
     if args.conv_mode is not None and conv_mode != args.conv_mode:
         print(
-            "[WARNING] the auto inferred conversation mode is {}, while `--conv-mode` is {}, using {}".format(
-                conv_mode, args.conv_mode, args.conv_mode
-            )
+            f"[WARNING] the auto inferred conversation mode is {conv_mode}, while `--conv-mode` is {args.conv_mode}, using {args.conv_mode}"
         )
     else:
         args.conv_mode = conv_mode
@@ -95,11 +94,11 @@ def main(args):
             # first message
             if model.config.mm_use_im_start_end:
                 inp = (
-                        DEFAULT_IM_START_TOKEN
-                        + DEFAULT_IMAGE_TOKEN
-                        + DEFAULT_IM_END_TOKEN
-                        + "\n"
-                        + inp
+                    DEFAULT_IM_START_TOKEN
+                    + DEFAULT_IMAGE_TOKEN
+                    + DEFAULT_IM_END_TOKEN
+                    + "\n"
+                    + inp
                 )
             else:
                 inp = DEFAULT_IMAGE_TOKEN + "\n" + inp
@@ -135,7 +134,7 @@ def main(args):
                 stopping_criteria=[stopping_criteria],
             )
 
-        outputs = tokenizer.decode(output_ids[0, input_ids.shape[1]:]).strip()
+        outputs = tokenizer.decode(output_ids[0, input_ids.shape[1] :]).strip()
         conv.messages[-1][-1] = outputs
 
         if args.debug:
