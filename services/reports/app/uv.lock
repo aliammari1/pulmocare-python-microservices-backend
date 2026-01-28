@@ -474,7 +474,7 @@ requires-dist = [
     { name = "pygments", marker = "python_full_version >= '3.10' and python_full_version < '4'", specifier = "==2.19.1" },
     { name = "pyjwt", specifier = "==2.6.0" },
     { name = "pymongo", specifier = "==4.6.3" },
-    { name = "pypdf", marker = "python_full_version >= '3.10' and python_full_version < '4'", specifier = "==6.0.0" },
+    { name = "pypdf", marker = "python_full_version >= '3.10' and python_full_version < '4'", specifier = "==6.6.2" },
     { name = "pypdf2", specifier = ">=2.0.0" },
     { name = "pypika", marker = "python_full_version >= '3.10' and python_full_version < '4'", specifier = "==0.48.9" },
     { name = "pyproject-hooks", marker = "python_full_version >= '3.10' and python_full_version < '4'", specifier = "==1.2.0" },
@@ -2575,11 +2575,11 @@ wheels = [
 
 [[package]]
 name = "pypdf"
-version = "6.0.0"
+version = "6.6.2"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/20/ac/a300a03c3b34967c050677ccb16e7a4b65607ee5df9d51e8b6d713de4098/pypdf-6.0.0.tar.gz", hash = "sha256:282a99d2cc94a84a3a3159f0d9358c0af53f85b4d28d76ea38b96e9e5ac2a08d", size = 5033827, upload-time = "2025-08-11T14:22:02.352Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b8/bb/a44bab1ac3c54dbcf653d7b8bcdee93dddb2d3bf025a3912cacb8149a2f2/pypdf-6.6.2.tar.gz", hash = "sha256:0a3ea3b3303982333404e22d8f75d7b3144f9cf4b2970b96856391a516f9f016", size = 5281850, upload-time = "2026-01-26T11:57:55.964Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/83/2cacc506eb322bb31b747bc06ccb82cc9aa03e19ee9c1245e538e49d52be/pypdf-6.0.0-py3-none-any.whl", hash = "sha256:56ea60100ce9f11fc3eec4f359da15e9aec3821b036c1f06d2b660d35683abb8", size = 310465, upload-time = "2025-08-11T14:22:00.481Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/be/549aaf1dfa4ab4aed29b09703d2fb02c4366fc1f05e880948c296c5764b9/pypdf-6.6.2-py3-none-any.whl", hash = "sha256:44c0c9811cfb3b83b28f1c3d054531d5b8b81abaedee0d8cb403650d023832ba", size = 329132, upload-time = "2026-01-26T11:57:54.099Z" },
 ]
 
 [[package]]
