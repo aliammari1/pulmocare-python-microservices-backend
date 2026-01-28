@@ -145,7 +145,7 @@ dependencies = [
     "pygments==2.19.1 ; python_full_version >= '3.10' and python_full_version < '4'",
     "pyjwt==2.6.0",
     "pymongo==4.6.3",
-    "pypdf==6.0.0 ; python_full_version >= '3.10' and python_full_version < '4'",
+    "pypdf==6.6.2; python_full_version >= '3.10' and python_full_version < '4'",
     "pypdf2>=2.0.0",
     "pypika==0.48.9 ; python_full_version >= '3.10' and python_full_version < '4'",
     "pyproject-hooks==1.2.0 ; python_full_version >= '3.10' and python_full_version < '4'",
